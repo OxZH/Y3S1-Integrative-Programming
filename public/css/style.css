@@ -1,0 +1,573 @@
+/* ==========================================================================
+   Sports Platform - shared stylesheet
+   Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
+
+   Every page in the system loads this one file. Nothing is styled inline, so a
+   colour or a spacing change here applies everywhere at once.
+
+   Colours, spacing and the corner radius are custom properties on :root, so a
+   teammate can restyle the whole site by editing that block alone.
+
+   Sections
+     1  design tokens        7  buttons
+     2  base                 8  pills
+     3  page shell           9  tables
+     4  typography          10  messages
+     5  cards and grid      11  components
+     6  forms               12  utilities
+   ========================================================================== */
+
+
+/* 1 -- design tokens ------------------------------------------------------ */
+
+:root {
+    --ink:        #1c2431;
+    --muted:      #667085;
+    --line:       #e4e7ec;
+    --bg:         #f6f7f9;
+    --card:       #ffffff;
+    --brand:      #1f7a4d;
+    --brand-dark: #175c3a;
+    --warn:       #b54708;
+    --danger:     #b42318;
+
+    --success-bg:   #ecfdf3;
+    --success-ink:  #05603a;
+    --success-line: #abefc6;
+    --danger-bg:    #fef3f2;
+    --danger-line:  #fecdca;
+    --warn-bg:      #fffaeb;
+    --warn-line:    #fedf89;
+    --warn-ink:     #93370d;
+
+    --radius:       10px;
+    --radius-small: 8px;
+    --shell:        1100px;
+
+    --font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-mono: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+
+/* 2 -- base --------------------------------------------------------------- */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+}
+
+a {
+    color: var(--brand);
+}
+
+img {
+    max-width: 100%;
+}
+
+
+/* 3 -- page shell --------------------------------------------------------- */
+
+.site-header {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.site-bar {
+    max-width: var(--shell);
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+}
+
+.brand {
+    font-weight: 700;
+    font-size: 17px;
+    text-decoration: none;
+    color: var(--ink);
+}
+
+.brand-accent {
+    color: var(--brand);
+}
+
+.site-nav {
+    display: flex;
+    gap: 18px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.site-nav a {
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.site-nav a:hover {
+    color: var(--brand);
+}
+
+.session {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.page {
+    max-width: var(--shell);
+    margin: 26px auto 60px;
+    padding: 0 20px;
+}
+
+
+/* 4 -- typography --------------------------------------------------------- */
+
+h1 {
+    font-size: 24px;
+    margin: 0 0 4px;
+}
+
+h2 {
+    font-size: 18px;
+    margin: 28px 0 12px;
+}
+
+/* A heading that opens a card should not push away from its own top edge. */
+.card > h2:first-child,
+.card > h3:first-child {
+    margin-top: 0;
+}
+
+.lede {
+    color: var(--muted);
+    margin: 0 0 22px;
+}
+
+.lede-flush {
+    margin-bottom: 0;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.small {
+    font-size: 13px;
+}
+
+.mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    word-break: break-all;
+}
+
+
+/* 5 -- cards and grid ----------------------------------------------------- */
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 14px;
+}
+
+/* For a card whose only child is a full-width table. */
+.card-table {
+    padding: 0;
+}
+
+.card-inset {
+    background: var(--bg);
+}
+
+.grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.row {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr 1fr;
+}
+
+.row-3 {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.row-spaced {
+    margin-top: 20px;
+}
+
+/* Title on the left, status badges on the right. */
+.page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.badge-group {
+    display: flex;
+    gap: 8px;
+}
+
+/* Name and price on a card, badge pushed to the right. */
+.item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+
+/* 6 -- forms -------------------------------------------------------------- */
+
+label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 14px 0 5px;
+}
+
+input,
+select {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    font: inherit;
+    font-size: 14px;
+    background: #fff;
+}
+
+input:focus,
+select:focus {
+    outline: 2px solid #cfe7db;
+    border-color: var(--brand);
+}
+
+input.bad,
+select.bad {
+    border-color: #fda29b;
+}
+
+.field-error {
+    color: var(--danger);
+    font-size: 12.5px;
+    margin-top: 4px;
+}
+
+.form-actions {
+    margin-top: 20px;
+}
+
+.form-note {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* A label sitting beside its control on one line, not above it. */
+.inline-label {
+    margin: 0;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.narrow-field {
+    max-width: 190px;
+}
+
+.medium-field {
+    max-width: 260px;
+}
+
+
+/* 7 -- buttons ------------------------------------------------------------ */
+
+.btn {
+    display: inline-block;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: var(--brand);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn:hover {
+    background: var(--brand-dark);
+}
+
+.btn.ghost {
+    background: #fff;
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+
+.btn.ghost:hover {
+    background: var(--bg);
+}
+
+.btn.danger {
+    background: var(--danger);
+}
+
+.btn.small {
+    padding: 6px 11px;
+    font-size: 13px;
+}
+
+/* Full width, left aligned - used by the demo account chooser. */
+.btn.block {
+    width: 100%;
+    text-align: left;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.toolbar-flush {
+    margin-bottom: 0;
+}
+
+
+/* 8 -- pills -------------------------------------------------------------- */
+
+.pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #eef2f6;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+
+.pill.live {
+    background: var(--success-bg);
+    color: var(--success-ink);
+}
+
+.pill.wait {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+
+.pill.dead {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+
+/* 9 -- tables ------------------------------------------------------------- */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+}
+
+/* Keeps a row of small action buttons from wrapping mid-group. */
+td.actions {
+    white-space: nowrap;
+}
+
+
+/* 10 -- messages ---------------------------------------------------------- */
+
+.flash {
+    padding: 11px 14px;
+    border-radius: var(--radius-small);
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.flash.success {
+    background: var(--success-bg);
+    color: var(--success-ink);
+    border: 1px solid var(--success-line);
+}
+
+.flash.error {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger-line);
+}
+
+.banner {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    color: var(--warn-ink);
+    padding: 11px 14px;
+    border-radius: var(--radius-small);
+    margin-bottom: 16px;
+    font-size: 13.5px;
+}
+
+
+/* 11 -- components -------------------------------------------------------- */
+
+/* Labelled figures: "Hourly fee / RM35.00". */
+.stat {
+    display: flex;
+    gap: 26px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+}
+
+.stat div span {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.stat div strong {
+    font-size: 16px;
+}
+
+.stat-tight {
+    margin: 10px 0 0;
+}
+
+.empty {
+    text-align: center;
+    padding: 42px 20px;
+    color: var(--muted);
+}
+
+/* Whole-page 403 / 404 / 500 panel. */
+.message-card {
+    text-align: center;
+    padding: 52px 24px;
+}
+
+.message-card h1 {
+    margin-top: 12px;
+}
+
+.message-detail {
+    margin: 18px auto;
+    max-width: 640px;
+    text-align: left;
+}
+
+/*
+ * Venue preview on the event form. A <select> can only hold text, so the image
+ * and rating for the chosen venue are shown here instead. Hidden until a venue
+ * is picked - public/js/app.js clears the hidden attribute.
+ */
+.venue-preview {
+    margin-top: 12px;
+}
+
+.venue-preview[hidden] {
+    display: none;
+}
+
+.venue-preview-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.venue-preview-image {
+    width: 132px;
+    height: 92px;
+    object-fit: cover;
+    border-radius: var(--radius-small);
+}
+
+.venue-preview-image[hidden] {
+    display: none;
+}
+
+.venue-preview-body {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Demo account chooser. */
+.choice {
+    margin-bottom: 9px;
+}
+
+
+/* 12 -- utilities --------------------------------------------------------- */
+
+.flush {
+    margin: 0;
+}
+
+.sub {
+    margin: 2px 0 12px;
+}
+
+.sub-tight {
+    margin: 2px 0 0;
+}
+
+.gap-below {
+    margin-bottom: 12px;
+}
+
+.spaced-top {
+    margin-top: 12px;
+}
