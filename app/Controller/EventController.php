@@ -35,6 +35,11 @@ final class EventController extends Controller
 
     // -- browsing -----------------------------------------------------------
 
+    /**
+     * TEMPORARY landing page. Browsing and filtering events is the Discovery &
+     * Event Matchmaking module's job; this exists only so there is somewhere to
+     * open from before that module lands.
+     */
     public function index(): void
     {
         $sport = is_string($_GET['sport'] ?? null) ? $_GET['sport'] : null;

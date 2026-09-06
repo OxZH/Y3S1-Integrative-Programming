@@ -1,5 +1,10 @@
 <?php
 // Published upcoming games. Author: Goh Jian Yu
+//
+// TEMPORARY. Browsing and filtering events belongs to the Discovery & Event
+// Matchmaking module. This plain listing exists so this module has a landing
+// page to demonstrate from before that module lands. Delete it then, and point
+// the default route at their browse page.
 
 /** @var \App\Model\Event[] $events */
 /** @var string|null $sport */
@@ -9,6 +14,12 @@
     Friends-only games appear here only if you are a friend of the organiser, or you opened one
     through an invite link.
 </p>
+
+<div class="banner">
+    Placeholder listing. Searching, filtering and the map belong to the Discovery &amp; Event
+    Matchmaking module; this page only exists so the Event &amp; Facility module has somewhere
+    to open from.
+</div>
 
 <form method="get" action="index.php" class="card toolbar">
     <input type="hidden" name="c" value="event">
