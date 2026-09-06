@@ -186,11 +186,6 @@ the three teammate services, and `public/booking.php` stands in for the Venue
 Booking & Payment booking screen. All of them go once the real modules are
 integrated - for the booking screen, point EventController::store() at theirs.
 
-The "Upcoming games" listing (`views/event-list.php`, `event&a=index`) is a
-placeholder landing page - browsing, filtering and the map belong to the
-Discovery & Event Matchmaking module. Point the default route at their browse
-page once it exists.
-
 `database/schema.sql` and `seed.sql` cover every table in the system, since the
 schema is shared and this module needs the other tables present to run.
 
