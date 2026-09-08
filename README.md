@@ -3,17 +3,6 @@
 BMIT3173 Integrative Programming, Assignment 202605. Plain PHP 8.2, MVC, with a
 Data Mapper ORM.
 
-Two modules are built so far:
-
-**Event & Facility Management** (Goh Jian Yu) — venue onboarding and management,
-event creation, invite links and visibility, and the facility search engine
-exposed as a web service.
-
-**User Authentication & Profile Management** (Ivan Lim Tze Yang) — registration,
-sign-in, password recovery, profile editing, account deactivation, role-based
-access control across players, facility owners and administrators, and the
-account audit trail.
-
 ## Setup
 
 Start XAMPP (Apache + MySQL), then run `database\setup.bat`.
