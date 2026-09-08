@@ -94,3 +94,38 @@ enum Competitiveness: string
         return ucfirst(strtolower($this->value));
     }
 }
+
+enum FriendState: string
+{
+    case PENDING   = 'PENDING';
+    case ACCEPTED  = 'ACCEPTED';
+    case REJECTED  = 'REJECTED';
+    case REMOVED   = 'REMOVED';
+
+    public function isPending(): bool
+    {
+        return $this === self::PENDING;
+    }
+
+    public function label(): string
+    {
+        return ucfirst(strtolower($this->value));
+    }
+}
+
+enum ModerationStatus: string
+{
+    case VISIBLE   = 'VISIBLE';
+    case HIDDEN    = 'HIDDEN';
+    case REMOVED   = 'REMOVED';
+
+    public function isVisible(): bool
+    {
+        return $this === self::VISIBLE;
+    }
+
+    public function label(): string
+    {
+        return ucfirst(strtolower($this->value));
+    }
+}

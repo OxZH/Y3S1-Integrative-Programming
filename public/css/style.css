@@ -21,28 +21,28 @@
 /* 1 -- design tokens ------------------------------------------------------ */
 
 :root {
-    --ink:        #1c2431;
-    --muted:      #667085;
-    --line:       #e4e7ec;
-    --bg:         #f6f7f9;
-    --card:       #ffffff;
-    --brand:      #1f7a4d;
+    --ink: #1c2431;
+    --muted: #667085;
+    --line: #e4e7ec;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --brand: #1f7a4d;
     --brand-dark: #175c3a;
-    --warn:       #b54708;
-    --danger:     #b42318;
+    --warn: #b54708;
+    --danger: #b42318;
 
-    --success-bg:   #ecfdf3;
-    --success-ink:  #05603a;
+    --success-bg: #ecfdf3;
+    --success-ink: #05603a;
     --success-line: #abefc6;
-    --danger-bg:    #fef3f2;
-    --danger-line:  #fecdca;
-    --warn-bg:      #fffaeb;
-    --warn-line:    #fedf89;
-    --warn-ink:     #93370d;
+    --danger-bg: #fef3f2;
+    --danger-line: #fecdca;
+    --warn-bg: #fffaeb;
+    --warn-line: #fedf89;
+    --warn-ink: #93370d;
 
-    --radius:       10px;
+    --radius: 10px;
     --radius-small: 8px;
-    --shell:        1100px;
+    --shell: 1100px;
 
     --font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     --font-mono: ui-monospace, Consolas, "Courier New", monospace;
@@ -135,6 +135,30 @@ img {
     padding: 0 20px;
 }
 
+.local-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+}
+
+.local-nav-link {
+    flex: 0 0 auto;
+    padding: 8px 10px 10px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.local-nav-link:hover,
+.local-nav-link.active {
+    color: var(--brand);
+    border-bottom-color: var(--brand);
+}
+
 
 /* 4 -- typography --------------------------------------------------------- */
 
@@ -149,8 +173,8 @@ h2 {
 }
 
 /* A heading that opens a card should not push away from its own top edge. */
-.card > h2:first-child,
-.card > h3:first-child {
+.card>h2:first-child,
+.card>h3:first-child {
     margin-top: 0;
 }
 
@@ -295,6 +319,12 @@ select.bad {
 
 .inline-form {
     display: inline;
+}
+
+.button-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
 }
 
 .narrow-field {

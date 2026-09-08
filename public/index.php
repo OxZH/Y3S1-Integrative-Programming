@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/app/bootstrap.php';
 use App\AuthorizationException;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
+use App\Controller\FriendsController;
 use App\Controller\LoginController;
 use App\Core\View;
 use App\NotFoundException;
@@ -18,6 +19,7 @@ use App\ServiceUnavailableException;
  * $_GET instead would make any public method on any autoloadable class
  * reachable from the address bar.
  */
+
 $routes = [
     'facility' => [
         'class'   => FacilityController::class,
@@ -25,9 +27,25 @@ $routes = [
     ],
     'event' => [
         'class'   => EventController::class,
-        'actions' => ['index', 'mine', 'show', 'create', 'store', 'finalise',
-                      'publish', 'cancel', 'delete',
-                      'invite', 'invites', 'createInvite', 'revokeInvite'],
+        'actions' => [
+            'index',
+            'mine',
+            'show',
+            'create',
+            'store',
+            'finalise',
+            'publish',
+            'cancel',
+            'delete',
+            'invite',
+            'invites',
+            'createInvite',
+            'revokeInvite'
+        ],
+    ],
+    'friends' => [
+        'class'   => FriendsController::class,
+        'actions' => ['mine', 'incoming', 'pending', 'respond'],
     ],
     'login' => [
         'class'   => LoginController::class,
