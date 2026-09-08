@@ -42,9 +42,18 @@ return [
     // Services this module consumes. Each points at the stub until the real
     // module is ready; then only the url changes.
     'services' => [
+        // Module 2 is built, so this one is no longer a stub: it points at the
+        // real endpoint. Nothing in module 1 changed - only this url did.
         'profile' => [
             'module' => 'User Authentication & Profile Management',
-            'url'    => $stubBase . '/api/stub.php',
+            'url'    => $stubBase . '/api/user.php',
+        ],
+
+        // Consumed BY module 2: the participation history on a profile asks the
+        // Event & Facility module to describe each event the user joined.
+        'event' => [
+            'module' => 'Event & Facility Management',
+            'url'    => $stubBase . '/api/event.php',
         ],
         'booking' => [
             'module' => 'Venue Booking & Payment',

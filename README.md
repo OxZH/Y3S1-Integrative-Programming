@@ -1,14 +1,30 @@
-# Event & Facility Management module
+# Sports Platform
 
-BMIT3173 Integrative Programming, Assignment 202605.
+BMIT3173 Integrative Programming, Assignment 202605. Plain PHP 8.2, MVC, with a
+Data Mapper ORM.
 
-Venue onboarding and management, event creation, invite links and visibility,
-and the facility search engine exposed as a web service. Plain PHP 8.2, MVC,
-with a Data Mapper ORM.
+Two modules are built so far:
+
+**Event & Facility Management** (Goh Jian Yu) — venue onboarding and management,
+event creation, invite links and visibility, and the facility search engine
+exposed as a web service.
+
+**User Authentication & Profile Management** (Ivan Lim Tze Yang) — registration,
+sign-in, password recovery, profile editing, account deactivation, role-based
+access control across players, facility owners and administrators, and the
+account audit trail.
 
 ## Setup
 
 Start XAMPP (Apache + MySQL), then run `database\setup.bat`.
+
+If you already created the database from an earlier copy of `schema.sql`, run
+`database\module2_upgrade.sql` instead of recreating it — it adds only what the
+authentication module introduced:
+
+```
+C:\xampp\mysql\bin\mysql -u root < database\module2_upgrade.sql
+```
 
 Only `public/` should be reachable over HTTP. Link it into `htdocs` once, from
 an **Administrator** Command Prompt:
@@ -23,7 +39,15 @@ Editing files in the project updates the site straight away - a junction is a
 link, not a copy. Remove it with `rmdir "C:\xampp\htdocs\sportsplatform"`
 (that deletes the link only, not the project).
 
-Sign in with `smashpoint` (facility owner) or `aisyahr` (player).
+Every seeded account uses the password `Password123!`:
+
+| Email | Role |
+|---|---|
+| `aisyah.rahman@example.com` | Player |
+| `contact@smashpoint.my` | Facility owner |
+| `admin@sportsplatform.my` | Administrator |
+
+Or register a new account at **Register**.
 
 ### Other ways to run it
 
@@ -57,21 +81,31 @@ app/
   Enums.php             status, visibility, skill, fitness value lists
   Exceptions.php
   Core/                 Database, DataMapper, Entity, Controller, View
-  Model/                Facility, Event, EventInvite, Account + mappers
-  Domain/               EventManagementFacade + its policies and factory
+  Model/                Facility, Event, EventInvite + mappers        (module 1)
+                        Account -> User / FacilityOwner / Admin,
+                        AuthEvent, PasswordResetToken + mappers       (module 2)
+  Domain/               EventManagementFacade + its policies          (module 1)
+                        AccountService, AccountServiceProxy,
+                        ResetLinkDelivery                             (module 2)
   Service/              IFA envelope, log, HTTP client, RemoteServices
+                        ParticipationHistory                          (module 2)
   Security/             Auth, Csrf, Validator (shared)
-                        EventFacilitySecurity (this module)
-  Controller/
+                        EventFacilitySecurity                         (module 1)
+                        PasswordPolicy, AuthEventLogger               (module 2)
+  Controller/           Facility, Event                               (module 1)
+                        Auth, Profile, Admin                          (module 2)
   views/
 public/
   index.php             front controller
   css/style.css         the one stylesheet every page loads
-  js/app.js             venue preview and confirm prompts
-  api/facility.php      exposed service, IFA in the file header
-  api/event.php         exposed service, IFA in the file header
-  api/stub.php          stand-in for teammate services
+  js/app.js             venue preview, confirm prompts, role fields
+  api/facility.php      exposed service, IFA in the file header       (module 1)
+  api/event.php         exposed service, IFA in the file header       (module 1)
+  api/user.php          exposed service, IFA in the file header       (module 2)
+  api/stub.php          stand-in for the teammate services not yet built
   booking.php           stand-in for the booking and payment screen
+storage/
+  mail.log              where reset links are written, outside the web root
 ```
 
 ## Web services
@@ -88,7 +122,22 @@ curl -X POST http://localhost:8000/api/facility.php \
        "function":"getFacilityDetails","facilityId":"fac-001"}'
 ```
 
-Consumed, via `App\Service\RemoteServices`:
+Exposed by module 2, on `POST /api/user.php`: `getUserContactInfo`,
+`getUserProfile`, `accountExists`. Full IFA tables are in that file's header.
+
+```
+curl -X POST http://localhost:8000/api/user.php \
+  -H 'Content-Type: application/json' \
+  -d '{"requestId":"demo-002","timeStamp":"2026-09-08 14:30:00",
+       "function":"getUserContactInfo","baseUserId":"own-001"}'
+```
+
+`getUserProfile` never returns an email or a phone number, returns an owner's
+bank account number masked, and rounds a player's coordinates to two decimal
+places — about a kilometre, enough to sort by distance and not enough to locate
+a person.
+
+Consumed, via `App\Service\RemoteServices` (module 1):
 
 | Function | From | Used for |
 |---|---|---|
@@ -96,6 +145,12 @@ Consumed, via `App\Service\RemoteServices`:
 | `getBookingStatus` | Venue Booking & Payment | gating event publication |
 | `getFacilityRatings` | Social Networking | ratings in facility search |
 | `areFriends` | Social Networking | friends-only visibility |
+
+Consumed, via `App\Service\ParticipationHistory` (module 2):
+
+| Function | From | Used for |
+|---|---|---|
+| `getEventDetails` | Event & Facility | naming the events on a profile's history |
 
 Requests carry `requestId` and `timeStamp`; responses carry `status` (S/F/E),
 `timeStamp`, `message` and `data`. Both directions are written to
@@ -147,6 +202,48 @@ Invite links do not count as history - one is minted with every event, so
 counting them would mean nothing was ever deletable. They cascade away with the
 row.
 
+## Authentication & profiles (module 2)
+
+**Signing in.** A wrong email and a wrong password produce the same message, and
+an email that matches no account still spends the time a hash comparison would,
+so the form answers nothing about who is registered. Five consecutive failures
+lock the account for fifteen minutes; the counter only resets on a successful
+sign-in, so spreading attempts out does not evade it. A correct password against
+a locked account is told it is locked — you already had to know the password to
+learn that.
+
+**Passwords** are stored as bcrypt hashes (cost 12) and nowhere else. The column
+is read by exactly one method, `AccountMapper::credentialsForEmail()`, which
+returns a plain array — no entity ever holds a hash, so no view, no
+`json_encode` and no `var_dump` can print one. Every rule about length, variety
+and reuse lives in `Security/PasswordPolicy.php`, so registration, reset and
+change cannot drift apart.
+
+**Recovery.** The table stores the SHA-256 of the reset token, never the token,
+so reading it gives nothing redeemable. A link works once, expires in thirty
+minutes, and completing a reset invalidates every other outstanding link for
+that account. Requests are capped at three per account per hour. There is no
+mail server here, so `ResetLinkDelivery` appends the link to `storage/mail.log`
+(outside the web root) and, on a debug build only, shows it on screen. Swapping
+that class for a real mailer is the only change production needs.
+
+**The audit trail.** Every sign-in, failed sign-in, lockout, password change,
+profile edit, deactivation and refused access attempt is written to
+`AuthEventLog` through one routine, `Security/AuthEventLogger.php`. It records
+no password, no reset token and no session id — the log is evidence, not a
+second copy of the credentials. `AuthEventMapper` has no `update()` and no
+`delete()`. An administrator reads the whole log at **Accounts → Security log**;
+everyone else sees only their own, on their profile.
+
+**Access control.** `AccountServiceProxy` is a protection proxy in front of
+`AccountService`: you may act on your own account, an administrator may act on
+any account, and every other request is refused with one message whether the
+account exists or not — and the refusal is logged. Controllers are handed the
+proxy and never the real service, so the checks are not something a new screen
+or endpoint can forget. Changing a password is stricter still — self only, and
+the current password is required — so an administrator cannot take an account
+over through that door.
+
 ## Styling
 
 No CSS framework - `public/css/style.css` is the whole of it, hand written, and
@@ -177,21 +274,33 @@ picked up without clearing the browser cache.
   its own file. `Auth` answers who is signed in; this answers whether they may
   touch a given venue or event.
 
-## Not part of this module
+## Not built yet
 
-`app/Model/Account.php` is a placeholder for the User Authentication module's
-account classes; `app/Controller/LoginController.php` with `views/login.php` is
-a password-less account picker for testing; `public/api/stub.php` stands in for
-the three teammate services, and `public/booking.php` stands in for the Venue
-Booking & Payment booking screen. All of them go once the real modules are
-integrated - for the booking screen, point EventController::store() at theirs.
+`public/api/stub.php` stands in for the teammate services that do not exist yet
+(`getBookingStatus`, `getFacilityRatings`, `areFriends`), and
+`public/booking.php` stands in for the Venue Booking & Payment booking screen.
+Both go once those modules are integrated — for the booking screen, point
+`EventController::store()` at theirs.
+
+The password-less account picker that used to stand in for authentication is
+gone, replaced by the real sign-in. `?c=login` still redirects to it so older
+links do not break.
+
+**Known gap between modules 1 and 2.** A profile's participation history calls
+`getEventDetails`, but `VisibilityPolicy` only makes `PUBLISHED` events visible,
+so a past event — exactly what a history is made of — comes back refused and the
+row reads "unavailable". The history degrades cleanly rather than erroring, but
+it needs module 1 to agree that a user who registered for an event may still see
+it after it completes. Not changed unilaterally, since the rule is module 1's.
 
 `database/schema.sql` and `seed.sql` cover every table in the system, since the
 schema is shared and this module needs the other tables present to run.
 
 ## Before submitting
 
-- Author headers are done. 36 files this module owns are credited to Goh Jian Yu.
+- Add `storage/` to `.gitignore` if you do not want the demo mailbox committed.
+- Author headers are done. 36 files module 1 owns are credited to Goh Jian Yu,
+  and the files listed under module 2 above to Ivan Lim Tze Yang.
   The 22 shared files - anything another module would use unchanged - carry all
   five names: `app/Core`, `bootstrap.php`, `config.php`, `Enums.php`,
   `Exceptions.php`, `helpers.php`, `Security/Validator.php`, `Service/Ifa.php`,
