@@ -1,0 +1,3 @@
+# Stands in for the user's inbox while there is no mail server. Holds live
+# password reset links, so it must never be committed.
+/storage/

@@ -5,6 +5,75 @@ declare(strict_types=1);
 
 namespace App;
 
+// ---------------------------------------------------------------------------
+//  Module 2 - User Authentication & Profile Management (Ivan)
+// ---------------------------------------------------------------------------
+
+// The class table inheritance discriminator on BaseUser. The mapper reads this
+// to decide which subclass to build.
+enum UserType: string
+{
+    case USER           = 'USER';
+    case FACILITY_OWNER = 'FACILITY_OWNER';
+    case ADMIN          = 'ADMIN';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::USER           => 'Player',
+            self::FACILITY_OWNER => 'Facility owner',
+            self::ADMIN          => 'Administrator',
+        };
+    }
+
+    // Only these two can be chosen at registration. ADMIN is never self-service:
+    // an account cannot talk itself into a staff role by posting userType=ADMIN.
+    public static function registrable(): array
+    {
+        return [self::USER, self::FACILITY_OWNER];
+    }
+}
+
+enum AccountStatus: string
+{
+    case ACTIVE      = 'ACTIVE';
+    case DEACTIVATED = 'DEACTIVATED';
+    case SUSPENDED   = 'SUSPENDED';
+
+    public function isActive(): bool
+    {
+        return $this === self::ACTIVE;
+    }
+
+    public function label(): string
+    {
+        return ucfirst(strtolower($this->value));
+    }
+}
+
+// What the audit trail records. Matches the ENUM on AuthEventLog.
+enum AuthEventType: string
+{
+    case LOGIN_SUCCESS             = 'LOGIN_SUCCESS';
+    case LOGIN_FAILED              = 'LOGIN_FAILED';
+    case LOGOUT                    = 'LOGOUT';
+    case ACCOUNT_LOCKED            = 'ACCOUNT_LOCKED';
+    case REGISTERED                = 'REGISTERED';
+    case PASSWORD_CHANGED          = 'PASSWORD_CHANGED';
+    case PASSWORD_RESET_REQUESTED  = 'PASSWORD_RESET_REQUESTED';
+    case PASSWORD_RESET_COMPLETED  = 'PASSWORD_RESET_COMPLETED';
+    case PROFILE_UPDATED           = 'PROFILE_UPDATED';
+    case ACCOUNT_DEACTIVATED       = 'ACCOUNT_DEACTIVATED';
+    case ACCOUNT_REACTIVATED       = 'ACCOUNT_REACTIVATED';
+    case ROLE_CHANGED              = 'ROLE_CHANGED';
+    case ACCESS_DENIED             = 'ACCESS_DENIED';
+
+    public function label(): string
+    {
+        return ucfirst(strtolower(str_replace('_', ' ', $this->value)));
+    }
+}
+
 enum EventStatus: string
 {
     case DRAFT           = 'DRAFT';

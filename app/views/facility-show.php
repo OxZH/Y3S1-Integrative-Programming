@@ -96,5 +96,5 @@ $owner = $facility->getOwner();
         Create an event here
     </a>
 <?php else: ?>
-    <a class="btn ghost" href="<?= e(url('login')) ?>">Sign in to organise a game here</a>
+    <a class="btn ghost" href="<?= e(url('auth')) ?>">Sign in to organise a game here</a>
 <?php endif; ?>
