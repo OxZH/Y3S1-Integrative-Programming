@@ -39,15 +39,6 @@ $assetVersion = static function (string $relative) use ($assets): string {
                     <?php if ($currentUser->isFacilityOwner()): ?>
                         <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>
                     <?php endif; ?>
-                <?php endif; ?>
-            </nav>
-            <nav class="site-nav">
-                <a href="<?= e(url('event')) ?>">Upcoming games</a>
-                <?php if ($currentUser !== null): ?>
-                    <a href="<?= e(url('event', 'mine')) ?>">My events</a>
-                    <?php if ($currentUser->isFacilityOwner()): ?>
-                        <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>
-                    <?php endif; ?>
                     <a href="<?= e(url('profile')) ?>">My profile</a>
                     <?php if ($currentUser->isAdmin()): ?>
                         <a href="<?= e(url('admin', 'accounts')) ?>">Accounts</a>
