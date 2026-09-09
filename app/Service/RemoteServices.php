@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Model\Account;
+use App\Model\FriendConnectionMapper;
 use App\ServiceUnavailableException;
 
 /**
@@ -21,10 +22,14 @@ use App\ServiceUnavailableException;
 final class RemoteServices
 {
     private ServiceClient $client;
+    private ?FriendConnectionMapper $friendConnections;
 
-    public function __construct(?ServiceClient $client = null)
-    {
-        $this->client = $client ?? new ServiceClient();
+    public function __construct(
+        ?ServiceClient $client = null,
+        ?FriendConnectionMapper $friendConnections = null
+    ) {
+        $this->client            = $client ?? new ServiceClient();
+        $this->friendConnections = $friendConnections;
     }
 
     /**
@@ -111,23 +116,10 @@ final class RemoteServices
         return $ratings;
     }
 
-    /**
-     * Unlike ratings there is no swallowing wrapper here: this answer is a
-     * security decision, so the caller must handle the failure and fail closed.
-     *
-     * @throws ServiceUnavailableException
-     */
     public function areFriends(string $userA, string $userB): bool
     {
-        $data = $this->client->call('friend', 'areFriends', [
-            'requesterId' => $userA,
-            'addresseeId' => $userB,
-        ]);
+        $this->friendConnections ??= new FriendConnectionMapper();
 
-        if ($this->client->refused($data)) {
-            return false;
-        }
-
-        return ($data['areFriends'] ?? false) === true;
+        return $this->friendConnections->areFriends($userA, $userB);
     }
 }

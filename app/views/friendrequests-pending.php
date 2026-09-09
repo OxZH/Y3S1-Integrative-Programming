@@ -15,14 +15,14 @@ $currentUser = Auth::requireLogin();
 
 <div class="page-head">
     <div>
-        <h1>My friends</h1>
-        <p class="lede lede-flush">People you are connected with.</p>
+        <h1>Pending friend requests</h1>
+        <p class="lede lede-flush">Friend requests you have previously sent.</p>
     </div>
 </div>
 
 <?php if ($requests === []): ?>
     <div class="card empty">
-        <p>You have not sent any friend requests at the moment.</p>
+        <p>You have not sent any active friend requests yet.</p>
     </div>
 <?php else: ?>
     <div class="grid">

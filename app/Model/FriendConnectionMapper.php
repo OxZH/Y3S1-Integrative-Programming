@@ -68,6 +68,26 @@ final class FriendConnectionMapper extends DataMapper
         return $connections;
     }
 
+    public function areFriends(string $userId1, string $userId2): bool
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT 1 FROM `FriendConnection`
+             WHERE `state` = :state
+             AND ((`requesterId` = :requesterId1 AND `addresseeId` = :addresseeId1)
+             OR (`requesterId` = :requesterId2 AND `addresseeId` = :addresseeId2))
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':state'        => FriendState::ACCEPTED->value,
+            ':requesterId1' => $userId1,
+            ':addresseeId1' => $userId2,
+            ':requesterId2' => $userId2,
+            ':addresseeId2' => $userId1,
+        ]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
     /** @return FriendConnection[] */
     public function findIncoming(Account $currentAccount): array
     {
