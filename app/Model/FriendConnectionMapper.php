@@ -107,9 +107,6 @@ final class FriendConnectionMapper extends DataMapper
 
     protected function toEntity(array $row): Entity
     {
-        // ok idk what hydrateAll does, how i'm meant to use it, the SQL query should be complete cuz that's about as much info as we need to display a friend connection, and creating account objects for this doesn't make sense, so i'm just gonna do this manually. if it breaks, then i guess i'll have to figure out how to use hydrateAll properly.
-        global $currentAccount;
-
         if (!isset($row['friendConnectionId'], $row['requesterId'], $row['addresseeId'], $row['state'], $row['createdAt'])) {
             throw new RuntimeException('Missing required fields for FriendConnection entity.');
         }
