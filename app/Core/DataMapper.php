@@ -1,26 +1,24 @@
 <?php
 // Data Mapper base class - the ORM layer. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Core;
 
 use InvalidArgumentException;
 use PDO;
 
-/**
- * Moves rows between the database and the entity objects. Entities hold no SQL
- * and mappers hold no business rules. Subclasses supply the table, its key, the
- * allowed columns, and the two conversions.
- *
- * Values are always bound. Table and column names cannot be bound - SQL has no
- * placeholder for them - so every identifier is checked against columns() first.
- */
+// Moves rows between the database and the entity objects. Entities hold no SQL
+// and mappers hold no business rules. Subclasses supply the table, its key, the
+// allowed columns, and the two conversions.
+//
+// Values are always bound. Table and column names cannot be bound - SQL has no
+// placeholder for them - so every identifier is checked against columns() first.
 abstract class DataMapper
 {
+    // Subclasses inherit both of these. Do not redeclare them in a subclass:
+    // PHP requires a redeclared property to repeat the parent type exactly.
     protected PDO $pdo;
 
-    /** One row loaded twice returns the same object. @var array<string,Entity> */
+    // One row loaded twice returns the same object.
     protected array $identityMap = [];
 
     public function __construct(?PDO $pdo = null)
@@ -32,12 +30,10 @@ abstract class DataMapper
 
     abstract protected function primaryKey(): string;
 
-    /** @return string[] */
     abstract protected function columns(): array;
 
     abstract protected function toEntity(array $row): Entity;
 
-    /** @return array<string,mixed> */
     abstract protected function toRow(Entity $entity): array;
 
     public function find(string $id): ?Entity
@@ -54,10 +50,6 @@ abstract class DataMapper
         return $row === null ? null : $this->register($this->toEntity($row));
     }
 
-    /**
-     * @param array<string,mixed> $conditions column => value, combined with AND
-     * @return Entity[]
-     */
     public function findBy(array $conditions = [], ?string $orderBy = null, string $direction = 'ASC'): array
     {
         $where  = [];
@@ -94,8 +86,8 @@ abstract class DataMapper
         $sql = sprintf(
             'INSERT INTO `%s` (%s) VALUES (%s)',
             $this->table(),
-            implode(', ', array_map(static fn (string $c): string => '`' . $c . '`', array_keys($row))),
-            implode(', ', array_map(static fn (string $c): string => ':' . $c, array_keys($row)))
+            implode(', ', array_map(function ($c) { return '`' . $c . '`'; }, array_keys($row))),
+            implode(', ', array_map(function ($c) { return ':' . $c; }, array_keys($row)))
         );
 
         $this->execute($sql, $this->bind($row));
@@ -141,7 +133,6 @@ abstract class DataMapper
         unset($this->identityMap[$id]);
     }
 
-    /** @return array<int,array<string,mixed>> */
     protected function select(string $sql, array $params = []): array
     {
         $statement = $this->pdo->prepare($sql);
@@ -150,7 +141,6 @@ abstract class DataMapper
         return $statement->fetchAll();
     }
 
-    /** @return array<string,mixed>|null */
     protected function selectOne(string $sql, array $params = []): ?array
     {
         return $this->select($sql, $params)[0] ?? null;
@@ -164,7 +154,6 @@ abstract class DataMapper
         return $statement->rowCount();
     }
 
-    /** @return Entity[] */
     protected function hydrateAll(array $rows): array
     {
         $entities = [];
@@ -209,7 +198,6 @@ abstract class DataMapper
         return $this->identityMap[$id] ??= $entity;
     }
 
-    /** @return array<string,mixed> */
     private function bind(array $row): array
     {
         $params = [];

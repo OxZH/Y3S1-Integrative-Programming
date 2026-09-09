@@ -101,9 +101,144 @@
         render();
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', setUpVenuePreview);
-    } else {
+    /* ----------------------------------------------------------------------
+       Open the browser's own date and time picker.
+
+       type="date" and type="time" already come with a picker, but only the
+       small icon opens it - clicking the rest of the box puts the cursor in it
+       to type. Clicking anywhere on the field now opens the picker instead.
+       showPicker() is newer than the rest of this file, so it is only called
+       when the browser has it. Typing still works either way.
+       ---------------------------------------------------------------------- */
+
+    function setUpPickers() {
+        var fields = document.querySelectorAll('input[type="date"], input[type="time"]');
+
+        Array.prototype.forEach.call(fields, function (field) {
+            field.addEventListener('click', function () {
+                if (typeof field.showPicker === 'function') {
+                    try {
+                        field.showPicker();
+                    } catch (error) {
+                        // Some browsers refuse unless the click was on the icon.
+                    }
+                }
+            });
+        });
+    }
+
+    /* ----------------------------------------------------------------------
+       Suggestions under a text box, for the sport and the venue type.
+
+       The whole list arrives with the page in a data-suggest attribute, the
+       same way the venue preview gets its venues, so typing does not send a
+       request per letter. It can be done that way because the list is short: it
+       is one entry per sport, not one per event, so it stays about the same size
+       however many events the site ends up with.
+
+       Anything can still be typed in. If what is typed is not in the list, the
+       last chip offers to add it, which is only there to make that obvious -
+       the value in the box is what gets submitted either way.
+       ---------------------------------------------------------------------- */
+
+    function setUpSuggestions(box) {
+        var list;
+
+        try {
+            list = JSON.parse(box.getAttribute('data-suggest') || '[]');
+        } catch (error) {
+            return;
+        }
+
+        var panel = document.getElementById(box.id + 'Suggest');
+
+        if (!panel) {
+            return;
+        }
+
+        function choose(value) {
+            box.value = value;
+            panel.hidden = true;
+            box.focus();
+        }
+
+        function render() {
+            var typed = box.value.trim().toLowerCase();
+            var shown = 0;
+            var exact = false;
+
+            panel.innerHTML = '';
+
+            for (var i = 0; i < list.length; i++) {
+                var name = list[i];
+
+                if (name.toLowerCase() === typed) {
+                    exact = true;
+                }
+
+                if (typed !== '' && name.toLowerCase().indexOf(typed) === -1) {
+                    continue;
+                }
+
+                if (shown >= 8) {
+                    continue;
+                }
+
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'btn ghost small';
+                // textContent, not innerHTML: these came from what other people
+                // typed into their own events.
+                chip.textContent = name;
+                chip.addEventListener('click', pick(name));
+                panel.appendChild(chip);
+                shown++;
+            }
+
+            if (typed !== '' && !exact) {
+                var add = document.createElement('button');
+                add.type = 'button';
+                add.className = 'btn ghost small';
+                add.textContent = 'Add "' + box.value.trim() + '"';
+                add.addEventListener('click', pick(box.value.trim()));
+                panel.appendChild(add);
+                shown++;
+            }
+
+            panel.hidden = shown === 0;
+        }
+
+        // A separate function so the loop variable is not shared by every chip.
+        function pick(value) {
+            return function () {
+                choose(value);
+            };
+        }
+
+        box.addEventListener('input', render);
+        box.addEventListener('focus', render);
+
+        // Hiding on blur would fire before the click on a chip lands, so the
+        // panel closes only once the focus has gone somewhere outside it.
+        document.addEventListener('click', function (event) {
+            if (event.target !== box && !panel.contains(event.target)) {
+                panel.hidden = true;
+            }
+        });
+    }
+
+    function start() {
         setUpVenuePreview();
+        setUpPickers();
+
+        var boxes = document.querySelectorAll('[data-suggest]');
+
+        Array.prototype.forEach.call(boxes, setUpSuggestions);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
     }
 }());

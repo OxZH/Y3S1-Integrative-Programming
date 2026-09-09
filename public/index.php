@@ -1,8 +1,6 @@
 <?php
 // Front controller. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 use App\AuthorizationException;
@@ -70,6 +68,14 @@ try {
     renderError(404, 'Not found', $e->getMessage());
 } catch (ServiceUnavailableException $e) {
     renderError(503, 'Temporarily unavailable', $e->getMessage());
+} catch (PDOException $e) {
+    // Caught separately and never shown, not even while debugging. A database
+    // message names our tables, columns and constraints, which is a free map of
+    // the schema for anyone probing the site. It goes to the error log, where
+    // only we can read it.
+    error_log(sprintf('Database error: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+
+    renderError(500, 'Something went wrong', 'We could not save that. Please try again.');
 } catch (Throwable $e) {
     error_log(sprintf('Unhandled %s: %s in %s:%d', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
 

@@ -1,8 +1,6 @@
 <?php
 // Demo account picker. Author: Goh Jian Yu
-
-/** @var \App\Model\Account[] $owners */
-/** @var \App\Model\Account[] $users */
+// Receives: $owners, $users
 ?>
 <h1>Choose a demo account</h1>
 <p class="lede">Temporary stand-in for the User Authentication module.</p>

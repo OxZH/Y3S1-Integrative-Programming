@@ -1,7 +1,6 @@
 <?php
 // A facility owner's own venues. Author: Goh Jian Yu
-
-/** @var \App\Model\Facility[] $facilities */
+// Receives: $facilities
 ?>
 <h1>My venues</h1>
 <p class="lede">Register venues, adjust pricing and opening hours, and delist a venue without losing its history.</p>
@@ -25,11 +24,13 @@
             <?php foreach ($facilities as $facility): ?>
                 <?php
                 $status = $facility->getStatus();
-                $pill   = match ($status->value) {
-                    'ACTIVE'  => 'live',
-                    'PENDING' => 'wait',
-                    default   => 'dead',
-                };
+                $statusClass = 'dead';
+
+                if ($status->value === 'ACTIVE') {
+                    $statusClass = 'live';
+                } else if ($status->value === 'PENDING') {
+                    $statusClass = 'wait';
+                }
                 ?>
                 <tr>
                     <td>
@@ -39,7 +40,7 @@
                     <td><?= e($facility->getType()) ?></td>
                     <td><?= e(money($facility->getBookingFee())) ?></td>
                     <td class="small"><?= e(hhmm($facility->getOperationalHrsStart())) ?>&ndash;<?= e(hhmm($facility->getOperationalHrsEnd())) ?></td>
-                    <td><span class="pill <?= e($pill) ?>"><?= e($status->label()) ?></span></td>
+                    <td><span class="pill <?= e($statusClass) ?>"><?= e($status->label()) ?></span></td>
                     <td class="actions">
                         <a class="btn ghost small" href="<?= e(url('facility', 'edit', ['id' => $facility->getFacilityId()])) ?>">Edit</a>
 

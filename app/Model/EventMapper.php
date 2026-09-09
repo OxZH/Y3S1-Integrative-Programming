@@ -1,8 +1,6 @@
 <?php
 // Event persistence and queries. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Competitiveness;
@@ -17,8 +15,8 @@ use InvalidArgumentException;
 
 final class EventMapper extends DataMapper
 {
-    private ?FacilityMapper $facilities = null;
-    private ?AccountMapper $accounts = null;
+    private $facilities = null;
+    private $accounts = null;
 
     protected function table(): string
     {
@@ -63,8 +61,8 @@ final class EventMapper extends DataMapper
         $hostId     = (string) $row['hostId'];
         $facilityId = (string) $row['facilityId'];
 
-        $event->setLoader('host', fn () => $this->accounts()->findAccount($hostId));
-        $event->setLoader('location', fn () => $this->facilities()->find($facilityId));
+        $event->setLoader('host', function () use ($hostId) { return $this->accounts()->findAccount($hostId); });
+        $event->setLoader('location', function () use ($facilityId) { return $this->facilities()->find($facilityId); });
 
         return $event;
     }
@@ -103,13 +101,9 @@ final class EventMapper extends DataMapper
         ];
     }
 
-    /**
-     * Events already using part of the requested slot. Two intervals overlap
-     * when each starts before the other ends, so touching ends do not clash and
-     * a court can change hands at 20:00. A cancelled event releases its slot.
-     *
-     * @return Event[]
-     */
+    // Events already using part of the requested slot. Two intervals overlap
+    // when each starts before the other ends, so touching ends do not clash and
+    // a court can change hands at 20:00. A cancelled event releases its slot.
     public function findClashes(
         string $facilityId,
         DateTimeImmutable $date,
@@ -137,13 +131,11 @@ final class EventMapper extends DataMapper
             $params[':ignore'] = $ignoreEventId;
         }
 
-        /** @var Event[] $events */
         $events = $this->hydrateAll($this->select($sql, $params));
 
         return $events;
     }
 
-    /** @return Event[] */
     public function findPublishedUpcoming(?string $sport = null, int $limit = 50): array
     {
         $sql    = 'SELECT * FROM `Event` WHERE `status` = :status AND `eventDate` >= CURDATE()';
@@ -156,16 +148,13 @@ final class EventMapper extends DataMapper
 
         $sql .= ' ORDER BY `eventDate`, `startTime` LIMIT ' . min(100, max(1, $limit));
 
-        /** @var Event[] $events */
         $events = $this->hydrateAll($this->select($sql, $params));
 
         return $events;
     }
 
-    /** @return Event[] */
     public function findByHost(string $hostId): array
     {
-        /** @var Event[] $events */
         $events = $this->hydrateAll($this->select(
             'SELECT * FROM `Event` WHERE `hostId` = :hostId ORDER BY `eventDate` DESC, `startTime` DESC',
             [':hostId' => $hostId]
@@ -174,7 +163,6 @@ final class EventMapper extends DataMapper
         return $events;
     }
 
-    /** @return Event[] */
     public function findByFacility(string $facilityId, bool $upcomingOnly = true): array
     {
         $sql = 'SELECT * FROM `Event` WHERE `facilityId` = :facilityId AND `status` <> :cancelled';
@@ -185,7 +173,6 @@ final class EventMapper extends DataMapper
 
         $sql .= ' ORDER BY `eventDate`, `startTime`';
 
-        /** @var Event[] $events */
         $events = $this->hydrateAll($this->select($sql, [
             ':facilityId' => $facilityId,
             ':cancelled'  => EventStatus::CANCELLED->value,
@@ -194,11 +181,9 @@ final class EventMapper extends DataMapper
         return $events;
     }
 
-    /**
-     * EventRegistration belongs to the Discovery module. Reading a single count
-     * here rather than calling their service is deliberate: capacity shows on
-     * every event card, and an HTTP round trip per card is not worth it.
-     */
+    // EventRegistration belongs to the Discovery module. Reading a single count
+    // here rather than calling their service is deliberate: capacity shows on
+    // every event card, and an HTTP round trip per card is not worth it.
     public function countParticipants(string $eventId): int
     {
         $row = $this->selectOne(
@@ -210,11 +195,9 @@ final class EventMapper extends DataMapper
         return (int) ($row['total'] ?? 0);
     }
 
-    /**
-     * Evidence that the event was actually used. Invite links are excluded on
-     * purpose: one is minted with every event, so counting them would mean no
-     * event was ever hard-deletable. They cascade away with the row.
-     */
+    // Evidence that the event was actually used. Invite links are excluded on
+    // purpose: one is minted with every event, so counting them would mean no
+    // event was ever hard-deletable. They cascade away with the row.
     public function countDependents(string $eventId): int
     {
         $row = $this->selectOne(
@@ -224,6 +207,16 @@ final class EventMapper extends DataMapper
         );
 
         return (int) ($row['total'] ?? 0);
+    }
+
+    // Every sport already used, for the suggestions under the sport box on the
+    // event form. There are only ever a handful of these however many events
+    // exist, because it is one row per sport and not one per event.
+    public function listSports(): array
+    {
+        $rows = $this->select('SELECT DISTINCT `sport` AS v FROM `Event` ORDER BY `sport`');
+
+        return array_map(function ($r) { return $r['v']; }, $rows);
     }
 
     private function facilities(): FacilityMapper

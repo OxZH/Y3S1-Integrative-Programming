@@ -30,6 +30,7 @@
     --brand-dark: #175c3a;
     --warn:       #b54708;
     --danger:     #b42318;
+    --star:       #e8a207;
 
     --success-bg:   #ecfdf3;
     --success-ink:  #05603a;
@@ -570,4 +571,137 @@ td.actions {
 
 .spaced-top {
     margin-top: 12px;
+}
+
+
+/* 13 -- star ratings ------------------------------------------------------ */
+
+/* Two rows of five stars stacked on top of each other. The grey row sets the
+   width, the gold row sits over it and is clipped to the score. The width comes
+   from a .stars-NN class so no percentage has to be written inline. */
+
+.stars {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 15px;
+    line-height: 1;
+    letter-spacing: 1px;
+}
+
+.stars-off {
+    display: block;
+    color: var(--line);
+}
+
+.stars-on {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    overflow: hidden;
+    color: var(--star);
+}
+
+.stars-0  { width: 0; }
+.stars-5  { width: 10%; }
+.stars-10 { width: 20%; }
+.stars-15 { width: 30%; }
+.stars-20 { width: 40%; }
+.stars-25 { width: 50%; }
+.stars-30 { width: 60%; }
+.stars-35 { width: 70%; }
+.stars-40 { width: 80%; }
+.stars-45 { width: 90%; }
+.stars-50 { width: 100%; }
+
+.stars-value {
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    vertical-align: middle;
+}
+
+.stars-none {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* The rating card on the venue page, and the rating in the event form preview,
+   both sit on the right. */
+
+.rating-block {
+    text-align: right;
+}
+
+.rating-block .stars {
+    font-size: 22px;
+}
+
+.venue-preview-rating {
+    margin-left: auto;
+    text-align: right;
+}
+
+
+/* 14 -- venue photo ------------------------------------------------------- */
+
+.venue-photo {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+}
+
+.upload-preview {
+    display: block;
+    width: 160px;
+    height: 110px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    margin: 6px 0 10px;
+}
+
+.advanced {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    padding: 10px 12px;
+    margin: 4px 0 12px;
+}
+
+.advanced summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+/* Suggestions under the sport and venue type boxes. */
+
+.suggest {
+    margin: 6px 0 4px;
+}
+
+.suggest[hidden] {
+    display: none;
+}
+
+/* Buttons standing in for another module's screen. Deliberately loud so they
+   are not mistaken for finished work during a demo. */
+
+.btn.placeholder {
+    background: var(--warn-bg);
+    border: 1px dashed var(--warn);
+    color: var(--warn-ink);
+    font-weight: 700;
+}
+
+.btn.placeholder:hover {
+    background: var(--warn-line);
 }

@@ -1,8 +1,6 @@
 <?php
 // Shown after the booking module returns. Author: Goh Jian Yu
-
-/** @var \App\Model\Event $event */
-/** @var string|null $blocker */
+// Receives: $event, $blocker
 
 $facility = $event->getLocation();
 $ready    = $blocker === null;

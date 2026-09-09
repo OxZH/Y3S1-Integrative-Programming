@@ -1,55 +1,7 @@
 <?php
-/**
- * Facility web service (exposed). Author: Goh Jian Yu
- *
- * INTERFACE AGREEMENT
- *
- * Protocol       RESTful, JSON over HTTP POST
- * Description    Returns bookable venue information: one venue's details, or a
- *                filtered, distance-sorted list.
- * Source Module  Event & Facility Management
- * Target Module  Venue Booking & Payment, Discovery & Event Matchmaking,
- *                Social Networking & Review System
- * URL            http://localhost:8000/api/facility.php
- * Function Name  getFacilityDetails, searchFacilities
- *
- * Request
- * Field       Type     M/O        Description             Format
- * requestId   String   Mandatory  Unique id for the call  36 chars max
- * timeStamp   String   Mandatory  When it was sent        YYYY-MM-DD HH:MM:SS
- * function    String   Mandatory  Operation wanted        getFacilityDetails,
- *                                                         searchFacilities
- * facilityId  String   Mandatory  Venue wanted            UUID, getFacilityDetails only
- * keyword     String   Optional   Name or street match    searchFacilities only
- * city        String   Optional   Filter by city          searchFacilities only
- * type        String   Optional   Filter by venue type    searchFacilities only
- * maxFee      Decimal  Optional   Highest hourly fee      searchFacilities only
- * lat, lng    Decimal  Optional   Origin for distance     searchFacilities only
- * radius      Decimal  Optional   Limit in km             searchFacilities only
- * limit       Integer  Optional   Max rows                1-100, default 50
- *
- * Response
- * Field       Type     M/O        Description             Format
- * status      String   Mandatory  Result of the request   S: Success
- *                                                         F: Fail
- *                                                         E: Error
- * requestId   String   Mandatory  Echo of the request id
- * timeStamp   String   Mandatory  When generated          YYYY-MM-DD HH:MM:SS
- * message     String   Mandatory  Outcome in words
- * data        Object   Optional   Null on F and E
- *                                 getFacilityDetails -> facility
- *                                 searchFacilities   -> count, facilities[]
- *
- * facility: facilityId, name, type, addressLine, city, state, fullAddress,
- * bookingFee, operationalHrsStart, operationalHrsEnd, latitude, longitude,
- * status, imageUrl, owner{baseUserId, username, contactNumber}, distanceKm
- * (search only, when lat and lng are given).
- *
- * Only ACTIVE venues are exposed. The owner's bank details sit on the same
- * tables and are deliberately absent.
- */
-
-declare(strict_types=1);
+/*
+  Facility web service (provider). Author: Goh Jian Yu
+*/
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
@@ -81,7 +33,6 @@ ServiceLog::start(
     (string) $request['timeStamp']
 );
 
-/** @return array<string,mixed> */
 function facilityToArray(Facility $facility, ?float $originLat = null, ?float $originLng = null): array
 {
     $owner = $facility->getOwner();
@@ -157,7 +108,7 @@ try {
         ]);
 
         $facilities = array_map(
-            static fn (Facility $f): array => facilityToArray($f, $criteria->latitude, $criteria->longitude),
+            function ($f) use ($criteria) { return facilityToArray($f, $criteria->latitude, $criteria->longitude); },
             $facade->searchFacilities($criteria)
         );
 

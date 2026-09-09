@@ -1,16 +1,13 @@
 <?php
 // Base entity. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Core;
 
 use Closure;
 
 abstract class Entity
 {
-    /** @var array<string,Closure> */
-    private array $loaders = [];
+    private $loaders = [];
 
     abstract public function getIdentity(): ?string;
 

@@ -1,56 +1,7 @@
 <?php
-/**
- * Event web service (exposed). Author: Goh Jian Yu
- *
- * INTERFACE AGREEMENT
- *
- * Protocol       RESTful, JSON over HTTP POST
- * Description    Returns published event information: one event's detail, the
- *                upcoming list, or the events at a given venue.
- * Source Module  Event & Facility Management
- * Target Module  Discovery & Event Matchmaking, Venue Booking & Payment,
- *                Social Networking & Review System
- * URL            http://localhost:8000/api/event.php
- * Function Name  getEventDetails, listUpcomingEvents, getEventsByFacility
- *
- * Request
- * Field       Type     M/O        Description               Format
- * requestId   String   Mandatory  Unique id for the call    36 chars max
- * timeStamp   String   Mandatory  When it was sent          YYYY-MM-DD HH:MM:SS
- * function    String   Mandatory  Operation wanted          getEventDetails,
- *                                                           listUpcomingEvents,
- *                                                           getEventsByFacility
- * eventId     String   Mandatory  Event wanted              UUID, getEventDetails only
- * facilityId  String   Mandatory  Venue wanted              UUID, getEventsByFacility only
- * sport       String   Optional   Filter by sport           listUpcomingEvents only
- * viewerId    String   Optional   Whose visibility to apply UUID of a user
- * limit       Integer  Optional   Max rows                  1-100, default 50
- *
- * Response
- * Field       Type     M/O        Description               Format
- * status      String   Mandatory  Result of the request     S: Success
- *                                                           F: Fail
- *                                                           E: Error
- * requestId   String   Mandatory  Echo of the request id
- * timeStamp   String   Mandatory  When generated            YYYY-MM-DD HH:MM:SS
- * message     String   Mandatory  Outcome in words
- * data        Object   Optional   Null on F and E
- *                                 getEventDetails     -> event
- *                                 listUpcomingEvents  -> count, events[]
- *                                 getEventsByFacility -> count, events[]
- *
- * event: eventId, name, sport, eventDate, startTime, endTime, durationHours,
- * status, visibility, skillLevel, fitnessRequirement, competitiveness,
- * minParticipants, maxParticipants, confirmedParticipants, spacesLeft,
- * feePerParticipant, host{baseUserId, username},
- * facility{facilityId, name, city, latitude, longitude}.
- *
- * Without viewerId only public published events are returned. Pass viewerId and
- * the same visibility policy the web pages use is applied for that person, so a
- * friends-only event is released only to a friend of the host.
- */
-
-declare(strict_types=1);
+/*
+Event web service (provider). Author: Goh Jian Yu
+*/
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
@@ -81,7 +32,6 @@ ServiceLog::start(
     (string) $request['timeStamp']
 );
 
-/** @return array<string,mixed> */
 function eventToArray(Event $event, EventManagementFacade $facade): array
 {
     $facility  = $event->getLocation();
@@ -147,7 +97,7 @@ try {
         $limit = min(100, max(1, (int) ($request['limit'] ?? 50)));
 
         $events = array_map(
-            static fn (Event $e): array => eventToArray($e, $facade),
+            function ($e) use ($facade) { return eventToArray($e, $facade); },
             $facade->listVisibleEvents($sport, $limit, $viewerId)
         );
 
@@ -169,7 +119,7 @@ try {
         }
 
         $events = array_map(
-            static fn (Event $e): array => eventToArray($e, $facade),
+            function ($e) use ($facade) { return eventToArray($e, $facade); },
             $facade->listEventsAtFacility($facilityId, true, $viewerId)
         );
 

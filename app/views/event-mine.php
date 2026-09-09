@@ -1,7 +1,6 @@
 <?php
 // Events organised by the signed-in user. Author: Goh Jian Yu
-
-/** @var \App\Model\Event[] $events */
+// Receives: $events
 ?>
 <h1>My events</h1>
 <p class="lede">Everything you have organised, in every state.</p>
@@ -25,12 +24,21 @@
             <?php foreach ($events as $event): ?>
                 <?php
                 $status = $event->getStatus();
-                $pill   = match ($status->value) {
-                    'PUBLISHED', 'ONGOING'     => 'live',
-                    'DRAFT', 'PENDING_PAYMENT' => 'wait',
-                    'CANCELLED'                => 'dead',
-                    default                    => '',
-                };
+                $statusClass = '';
+
+                if ($status->isPublished() || $status->value === 'ONGOING') {
+                    $statusClass = 'live';
+                } else if ($status->value === 'DRAFT' || $status->value === 'PENDING_PAYMENT') {
+                    $statusClass = 'wait';
+                } else if ($status->isCancelled()) {
+                    $statusClass = 'dead';
+                }
+
+                // An event stays a draft until the venue is booked and paid for.
+                // If the organiser closed the tab partway through, this is the
+                // way back in - otherwise the event is stuck with no route to
+                // finish it.
+                $needsPayment = $status->value === 'DRAFT' || $status->value === 'PENDING_PAYMENT';
                 ?>
                 <tr>
                     <td>
@@ -43,10 +51,17 @@
                     </td>
                     <td class="small"><?= e($event->getLocation()?->getName() ?? '—') ?></td>
                     <td class="small"><?= e($event->getVisibility()->label()) ?></td>
-                    <td><span class="pill <?= e($pill) ?>"><?= e($status->label()) ?></span></td>
+                    <td><span class="pill <?= e($statusClass) ?>"><?= e($status->label()) ?></span></td>
                     <td class="actions">
                         <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">Open</a>
                         <a class="btn ghost small" href="<?= e(url('event', 'invites', ['id' => $event->getEventId()])) ?>">Links</a>
+
+                        <?php if ($needsPayment): ?>
+                            <a class="btn placeholder small"
+                               href="booking.php?eventId=<?= e(urlencode((string) $event->getEventId())) ?>">
+                                COMPLETE BOOKING/PAYMENT ZH!!!
+                            </a>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

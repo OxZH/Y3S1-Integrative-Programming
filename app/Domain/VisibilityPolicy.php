@@ -1,8 +1,6 @@
 <?php
 // Who may see an event. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
 use App\Model\Event;
@@ -10,24 +8,22 @@ use App\Model\EventInvite;
 use App\Service\RemoteServices;
 use App\ServiceUnavailableException;
 
-/**
- * Every Public vs Friends-Only rule lives here, so the web page, the REST
- * endpoint and the invite route cannot disagree.
- *
- *   1 the host always sees their own event, in any state
- *   2 an unpublished event is nobody else's business
- *   3 a published public event is visible to everyone
- *   4 a published friends-only event needs an accepted friendship, or a usable
- *     invite link for that event
- *
- * Rule 4 needs the Social Networking module. If it cannot answer this returns
- * false: hiding a private event during an outage is a mild inconvenience,
- * showing one because the check could not run is the failure the setting exists
- * to prevent.
- */
+// Every Public vs Friends-Only rule lives here, so the web page, the REST
+// endpoint and the invite route cannot disagree.
+//
+//   1 the host always sees their own event, in any state
+//   2 an unpublished event is nobody else's business
+//   3 a published public event is visible to everyone
+//   4 a published friends-only event needs an accepted friendship, or a usable
+//     invite link for that event
+//
+// Rule 4 needs the Social Networking module. If it cannot answer this returns
+// false: hiding a private event during an outage is a mild inconvenience,
+// showing one because the check could not run is the failure the setting exists
+// to prevent.
 final class VisibilityPolicy
 {
-    public function __construct(private readonly RemoteServices $services)
+    public function __construct(private RemoteServices $services)
     {
     }
 
@@ -64,18 +60,13 @@ final class VisibilityPolicy
         }
     }
 
-    /**
-     * Public events short-circuit before any service call, so a listing of
-     * public events costs zero HTTP requests.
-     *
-     * @param Event[] $events
-     * @return Event[]
-     */
+    // Public events short-circuit before any service call, so a listing of
+    // public events costs zero HTTP requests.
     public function filterVisible(array $events, ?string $viewerId): array
     {
         return array_values(array_filter(
             $events,
-            fn (Event $event): bool => $this->isVisibleTo($event, $viewerId)
+            function ($event) use ($viewerId) { return $this->isVisibleTo($event, $viewerId); }
         ));
     }
 }

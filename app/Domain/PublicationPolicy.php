@@ -1,8 +1,6 @@
 <?php
 // Whether an event may go live. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
 use App\Model\Event;
@@ -11,22 +9,16 @@ use App\Service\RemoteServices;
 use App\ServiceUnavailableException;
 use DomainException;
 
-/**
- * The last condition is the interesting one: whether the venue is paid for is
- * not in our tables at all, so we ask the Venue Booking module. If that cannot
- * be confirmed we do not publish - an event advertised at a court nobody
- * reserved is worse than one that publishes ten minutes late.
- */
+// The last condition is the interesting one: whether the venue is paid for is
+// not in our tables at all, so we ask the Venue Booking module. If that cannot
+// be confirmed we do not publish - an event advertised at a court nobody
+// reserved is worse than one that publishes ten minutes late.
 final class PublicationPolicy
 {
-    public function __construct(private readonly RemoteServices $services)
+    public function __construct(private RemoteServices $services)
     {
     }
 
-    /**
-     * @throws DomainException with a message the organiser can read
-     * @throws ServiceUnavailableException if payment cannot be established
-     */
     public function assertPublishable(Event $event): BookingStatus
     {
         if ($event->getStatus()->isCancelled()) {
@@ -54,7 +46,7 @@ final class PublicationPolicy
         return $booking;
     }
 
-    /** Non-throwing form, for showing a hint on the event page. */
+    // Non-throwing form, for showing a hint on the event page.
     public function explainBlockers(Event $event): ?string
     {
         try {

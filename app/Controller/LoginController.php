@@ -1,19 +1,15 @@
 <?php
 // Temporary account picker for testing this module. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Controller;
 
 use App\Core\Controller;
 use App\Model\AccountMapper;
 use App\Security\Auth;
 
-/**
- * Stand-in until the User Authentication module is wired in. It checks no
- * password - it only selects a seeded account so this module's ownership checks
- * and host-only actions can be exercised. Delete it then.
- */
+// Stand-in until the User Authentication module is wired in. It checks no
+// password - it only selects a seeded account so this module's ownership checks
+// and host-only actions can be exercised. Delete it then.
 final class LoginController extends Controller
 {
     public function index(): void

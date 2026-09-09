@@ -1,20 +1,16 @@
 <?php
 // Cross-site request forgery tokens. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Security;
 
 use App\AuthorizationException;
 
-/**
- * A browser attaches the session cookie because of where a request is going,
- * not where it came from, so a form on another site can make a logged-in owner's
- * browser send an authenticated POST that drops their venue price to zero. What
- * is missing is proof of intent, which the token supplies: the attacker's page
- * can send the request but the same-origin policy stops it reading ours to learn
- * the token.
- */
+// A browser attaches the session cookie because of where a request is going,
+// not where it came from, so a form on another site can make a logged-in owner's
+// browser send an authenticated POST that drops their venue price to zero. What
+// is missing is proof of intent, which the token supplies: the attacker's page
+// can send the request but the same-origin policy stops it reading ours to learn
+// the token.
 final class Csrf
 {
     private const SESSION_KEY = '_csrf_token';
@@ -54,7 +50,6 @@ final class Csrf
         return hash_equals($expected, $submitted);
     }
 
-    /** @param array<string,mixed> $request */
     public static function check(array $request): void
     {
         $submitted = $request[self::FIELD_NAME] ?? null;

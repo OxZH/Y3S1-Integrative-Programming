@@ -1,32 +1,46 @@
 <?php
 // Shareable invite link for an event. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Core\Entity;
 use DateTimeImmutable;
 
-/**
- * The token is a bearer credential - whoever holds the link can open a
- * friends-only event without being a friend - so it can expire, be capped to a
- * number of uses, and be revoked.
- */
+// A link an organiser can send to somebody so they can open a friends-only
+// event without being a friend. Because holding the link is enough to get in,
+// it can be given an expiry date, capped to a number of uses, and revoked.
 class EventInvite extends Entity
 {
+    private $eventInviteId;
+    private $eventId;
+    private $token;
+    private $createdBy;
+    private $createdAt;
+    private $expiresAt;
+    private $maxUses;
+    private $useCount;
+    private $revoked;
+
     public function __construct(
-        private ?string $eventInviteId,
-        private string $eventId,
-        private string $token,
-        private string $createdBy,
-        private ?DateTimeImmutable $createdAt = null,
-        private ?DateTimeImmutable $expiresAt = null,
-        private ?int $maxUses = null,
-        private int $useCount = 0,
-        private bool $revoked = false
+        $eventInviteId,
+        $eventId,
+        $token,
+        $createdBy,
+        DateTimeImmutable $createdAt = null,
+        DateTimeImmutable $expiresAt = null,
+        $maxUses = null,
+        $useCount = 0,
+        $revoked = false
     ) {
-        $this->createdAt ??= new DateTimeImmutable();
+        $this->eventInviteId = $eventInviteId;
+        $this->eventId = $eventId;
+        $this->token = $token;
+        $this->createdBy = $createdBy;
+        $this->createdAt = $createdAt === null ? new DateTimeImmutable() : $createdAt;
+        $this->expiresAt = $expiresAt;
+        $this->maxUses = $maxUses;
+        $this->useCount = $useCount;
+        $this->revoked = $revoked;
     }
 
     public function getIdentity(): ?string
@@ -34,80 +48,80 @@ class EventInvite extends Entity
         return $this->eventInviteId;
     }
 
-    public function getEventInviteId(): ?string
+    public function getEventInviteId()
     {
         return $this->eventInviteId;
     }
 
-    public function getEventId(): string
+    public function getEventId()
     {
         return $this->eventId;
     }
 
-    public function getToken(): string
+    public function getToken()
     {
         return $this->token;
     }
 
-    public function getCreatedBy(): string
+    public function getCreatedBy()
     {
         return $this->createdBy;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt()
     {
         return $this->createdAt;
     }
 
-    public function getExpiresAt(): ?DateTimeImmutable
+    public function getExpiresAt()
     {
         return $this->expiresAt;
     }
 
-    public function getMaxUses(): ?int
+    public function getMaxUses()
     {
         return $this->maxUses;
     }
 
-    public function getUseCount(): int
+    public function getUseCount()
     {
         return $this->useCount;
     }
 
-    public function isRevoked(): bool
+    public function isRevoked()
     {
         return $this->revoked;
     }
 
-    public function hasExpired(): bool
+    public function hasExpired()
     {
         return $this->expiresAt !== null && $this->expiresAt < new DateTimeImmutable();
     }
 
-    public function isExhausted(): bool
+    public function isExhausted()
     {
         return $this->maxUses !== null && $this->useCount >= $this->maxUses;
     }
 
-    // Every reason a link can be dead, in one place.
-    public function isUsable(): bool
+    // every reason a link can be dead, kept in one place
+    public function isUsable()
     {
         return !$this->revoked && !$this->hasExpired() && !$this->isExhausted();
     }
 
-    public function recordUse(): void
+    public function recordUse()
     {
         $this->useCount++;
     }
 
-    public function revoke(): void
+    public function revoke()
     {
         $this->revoked = true;
     }
 
-    public function getShareableUrl(): string
+    public function getShareableUrl()
     {
-        return rtrim((string) config('app.base_url'), '/')
+        return rtrim(config('app.base_url'), '/')
              . '/index.php?c=event&a=invite&token=' . $this->token;
     }
 }

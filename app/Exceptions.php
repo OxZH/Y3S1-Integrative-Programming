@@ -1,8 +1,6 @@
 <?php
 // Application exceptions. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App;
 
 use RuntimeException;
@@ -25,13 +23,11 @@ class ServiceUnavailableException extends RuntimeException
 
 class ValidationException extends RuntimeException
 {
-    /** @param array<string,string> $errors field => message */
     public function __construct(private array $errors)
     {
         parent::__construct('Please correct the highlighted fields.');
     }
 
-    /** @return array<string,string> */
     public function getErrors(): array
     {
         return $this->errors;

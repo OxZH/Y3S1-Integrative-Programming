@@ -1,30 +1,21 @@
 <?php
 // HTTP transport for consumed web services. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Service;
 
 use App\ServiceUnavailableException;
 
-/**
- * Builds the IFA envelope, makes the call, checks the reply is the shape it
- * promised, logs both ends, and turns anything unexpected into one exception.
- *
- * Timeouts matter: a teammate's dev server that accepts the connection and then
- * goes quiet would otherwise hang our page until PHP's own limit.
- *
- * Failures raise rather than returning null. A caller that forgets to check a
- * null gets a working page with silently wrong data; one that ignores an
- * exception gets an obvious failure.
- */
+// Builds the IFA envelope, makes the call, checks the reply is the shape it
+// promised, logs both ends, and turns anything unexpected into one exception.
+//
+// Timeouts matter: a teammate's dev server that accepts the connection and then
+// goes quiet would otherwise hang our page until PHP's own limit.
+//
+// Failures raise rather than returning null. A caller that forgets to check a
+// null gets a working page with silently wrong data; one that ignores an
+// exception gets an obvious failure.
 final class ServiceClient
 {
-    /**
-     * @param string $service key under 'services' in config.php
-     * @param array<string,mixed> $params
-     * @return array<string,mixed> the response `data`, plus __status
-     */
     public function call(string $service, string $function, array $params = []): array
     {
         $url    = (string) config("services.$service.url", '');
@@ -86,16 +77,11 @@ final class ServiceClient
         return (is_array($data) ? $data : []) + ['__status' => Ifa::STATUS_SUCCESS];
     }
 
-    /** @param array<string,mixed> $data */
     public function refused(array $data): bool
     {
         return ($data['__status'] ?? null) === Ifa::STATUS_FAIL;
     }
 
-    /**
-     * @param array<string,mixed> $payload
-     * @return array{0:string|null,1:int,2:string|null}
-     */
     private function post(string $url, array $payload): array
     {
         $handle = curl_init($url);

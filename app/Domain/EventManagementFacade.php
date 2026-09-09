@@ -1,8 +1,6 @@
 <?php
 // Single entry point for this module's operations. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
 use App\Core\Database;
@@ -19,22 +17,20 @@ use App\Security\EventFacilitySecurity;
 use App\Service\RemoteServices;
 use DateTimeImmutable;
 
-/**
- * Facade over this module's subsystem: three mappers, four policy and factory
- * classes, four remote services, the ownership checks and the transaction
- * boundary.
- *
- * Publishing an event means load it, check the caller hosts it, ask the Venue
- * Booking module over HTTP whether it is paid, tell a refusal apart from an
- * outage, flip the status and save. Without this class every caller - the
- * controller, the REST endpoint, any admin tool - would repeat that sequence and
- * be coupled to all of it. Here they call publishEvent().
- *
- * The rule this class keeps: it delegates and orders, it does not decide. There
- * is no opening-hours arithmetic, no "is it paid", no "are they friends" below;
- * each of those is asked of the class that owns it. The only conditionals here
- * are "the row does not exist, raise 404".
- */
+// Facade over this module's subsystem: three mappers, four policy and factory
+// classes, four remote services, the ownership checks and the transaction
+// boundary.
+//
+// Publishing an event means load it, check the caller hosts it, ask the Venue
+// Booking module over HTTP whether it is paid, tell a refusal apart from an
+// outage, flip the status and save. Without this class every caller - the
+// controller, the REST endpoint, any admin tool - would repeat that sequence and
+// be coupled to all of it. Here they call publishEvent().
+//
+// The rule this class keeps: it delegates and orders, it does not decide. There
+// is no opening-hours arithmetic, no "is it paid", no "are they friends" below;
+// each of those is asked of the class that owns it. The only conditionals here
+// are "the row does not exist, raise 404".
 final class EventManagementFacade
 {
     private FacilityMapper $facilities;
@@ -67,7 +63,6 @@ final class EventManagementFacade
 
     // -- facility onboarding and management ---------------------------------
 
-    /** @param array<string,mixed> $validated */
     public function onboardFacility(array $validated): Facility
     {
         $owner = Auth::requireFacilityOwner();
@@ -82,7 +77,6 @@ final class EventManagementFacade
         return $facility;
     }
 
-    /** @param array<string,mixed> $validated */
     public function updateFacility(string $facilityId, array $validated): Facility
     {
         $facility = $this->requireFacility($facilityId);
@@ -119,20 +113,15 @@ final class EventManagementFacade
         return $facility;
     }
 
-    /** @return Facility[] */
     public function listMyFacilities(): array
     {
         return $this->facilities->findByOwner(Auth::requireFacilityOwner()->getBaseUserId());
     }
 
-    /**
-     * Removes a venue outright when nothing references it, otherwise delists it.
-     * A venue with events, reviews or ratings behind it is history: deleting the
-     * row would take the reviews and ratings with it, and the events would block
-     * it at the foreign key anyway.
-     *
-     * @return string DELETED or SUSPENDED, for the message shown to the owner
-     */
+    // Removes a venue outright when nothing references it, otherwise delists it.
+    // A venue with events, reviews or ratings behind it is history: deleting the
+    // row would take the reviews and ratings with it, and the events would block
+    // it at the foreign key anyway.
     public function removeFacility(string $facilityId): string
     {
         $facility = $this->requireFacility($facilityId);
@@ -153,35 +142,25 @@ final class EventManagementFacade
 
     // -- facility search ----------------------------------------------------
 
-    /**
-     * Search is exposed as a web service for the Discovery module to build its
-     * map and browse screens on. This module itself only needs the plain list
-     * below, for the venue field on the event form.
-     *
-     * @return Facility[]
-     */
+    // Search is exposed as a web service for the Discovery module to build its
+    // map and browse screens on. This module itself only needs the plain list
+    // below, for the venue field on the event form.
     public function searchFacilities(SearchCriteria $criteria): array
     {
         return $this->facilities->search($criteria);
     }
 
-    /** @return Facility[] every venue that can currently be booked */
     public function listBookableFacilities(): array
     {
-        /** @var Facility[] $facilities */
         $facilities = $this->facilities->findBy(['status' => FacilityStatus::ACTIVE->value], 'name');
 
         return $facilities;
     }
 
-    /**
-     * @param Facility[] $facilities
-     * @return array<string,float> facilityId => average rating
-     */
     public function ratingsFor(array $facilities): array
     {
         return $this->services->facilityRatings(array_map(
-            static fn (Facility $f): string => (string) $f->getFacilityId(),
+            function ($f) { return $f->getFacilityId(); },
             $facilities
         ));
     }
@@ -191,19 +170,21 @@ final class EventManagementFacade
         return $this->requireFacility($facilityId);
     }
 
-    /** @return string[] */
     public function listCities(): array
     {
         return $this->facilities->listCities();
     }
 
-    /** @return string[] */
     public function listTypes(): array
     {
         return $this->facilities->listTypes();
     }
 
-    /** @return array<int,array{start:string,end:string}> */
+    public function listSports(): array
+    {
+        return $this->events->listSports();
+    }
+
     public function findOpenSlots(string $facilityId, DateTimeImmutable $date, int $slotHours = 1): array
     {
         return $this->availability->openSlots($this->requireFacility($facilityId), $date, $slotHours);
@@ -211,12 +192,8 @@ final class EventManagementFacade
 
     // -- events -------------------------------------------------------------
 
-    /**
-     * Both writes go in one transaction: an event saved without its link, or a
-     * link pointing at an event that failed to save, are each a broken half-state.
-     *
-     * @param array<string,mixed> $validated
-     */
+    // Both writes go in one transaction: an event saved without its link, or a
+    // link pointing at an event that failed to save, are each a broken half-state.
     public function createEvent(string $facilityId, array $validated): Event
     {
         $host     = Auth::requireLogin();
@@ -239,7 +216,6 @@ final class EventManagementFacade
         });
     }
 
-    /** @param array<string,mixed> $validated */
     public function updateEvent(string $eventId, array $validated): Event
     {
         $event = $this->requireEvent($eventId);
@@ -290,13 +266,9 @@ final class EventManagementFacade
         return $this->publication->explainBlockers($this->requireEvent($eventId));
     }
 
-    /**
-     * Removes an event outright when nobody has booked or joined it, otherwise
-     * cancels it. An abandoned draft is just clutter; one with a booking behind
-     * it is a financial record and stays.
-     *
-     * @return string DELETED or CANCELLED
-     */
+    // Removes an event outright when nobody has booked or joined it, otherwise
+    // cancels it. An abandoned draft is just clutter; one with a booking behind
+    // it is a financial record and stays.
     public function removeEvent(string $eventId): string
     {
         $event = $this->requireEvent($eventId);
@@ -316,10 +288,8 @@ final class EventManagementFacade
         return 'DELETED';
     }
 
-    /**
-     * Whether the requested slot is free, without throwing. Used by the venue
-     * step of event creation to mark venues the draft cannot actually use.
-     */
+    // Whether the requested slot is free, without throwing. Used by the venue
+    // step of event creation to mark venues the draft cannot actually use.
     public function slotProblem(string $facilityId, DateTimeImmutable $date, string $startTime, string $endTime): ?string
     {
         return $this->availability->check($this->requireFacility($facilityId), $date, $startTime, $endTime);
@@ -342,7 +312,6 @@ final class EventManagementFacade
         return $invite;
     }
 
-    /** @return EventInvite[] */
     public function listInviteLinks(string $eventId): array
     {
         $event = $this->requireEvent($eventId);
@@ -366,7 +335,7 @@ final class EventManagementFacade
         $this->invites->update($invite);
     }
 
-    /** The token is spent before the event is returned, so a race cannot let two people in. */
+    // The token is spent before the event is returned, so a race cannot let two people in.
     public function redeemInvite(string $token): Event
     {
         $invite = $this->invites->findByToken($token);
@@ -400,7 +369,6 @@ final class EventManagementFacade
         return $event;
     }
 
-    /** @return Event[] */
     public function listVisibleEvents(?string $sport = null, int $limit = 50, ?string $viewerId = null): array
     {
         return $this->visibility->filterVisible(
@@ -409,13 +377,11 @@ final class EventManagementFacade
         );
     }
 
-    /** @return Event[] */
     public function listMyEvents(): array
     {
         return $this->events->findByHost(Auth::requireLogin()->getBaseUserId());
     }
 
-    /** @return Event[] */
     public function listEventsAtFacility(string $facilityId, bool $upcomingOnly = true, ?string $viewerId = null): array
     {
         return $this->visibility->filterVisible(

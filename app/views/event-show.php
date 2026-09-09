@@ -1,21 +1,20 @@
 <?php
 // Event detail and organiser controls. Author: Goh Jian Yu
-
-/** @var \App\Model\Event $event */
-/** @var int $participants */
-/** @var bool $isHost */
-/** @var string|null $blocker */
+// Receives: $event, $participants, $isHost, $blocker
 
 $facility = $event->getLocation();
 $host     = $event->getHost();
 $status   = $event->getStatus();
 
-$pill = match ($status->value) {
-    'PUBLISHED', 'ONGOING'     => 'live',
-    'DRAFT', 'PENDING_PAYMENT' => 'wait',
-    'CANCELLED'                => 'dead',
-    default                    => '',
-};
+$statusClass = '';
+
+if ($status->isPublished() || $status->value === 'ONGOING') {
+    $statusClass = 'live';
+} else if ($status->value === 'DRAFT' || $status->value === 'PENDING_PAYMENT') {
+    $statusClass = 'wait';
+} else if ($status->isCancelled()) {
+    $statusClass = 'dead';
+}
 ?>
 <div class="page-head">
     <div>
@@ -26,7 +25,7 @@ $pill = match ($status->value) {
         </p>
     </div>
     <div class="badge-group">
-        <span class="pill <?= e($pill) ?>"><?= e($status->label()) ?></span>
+        <span class="pill <?= e($statusClass) ?>"><?= e($status->label()) ?></span>
         <span class="pill <?= $event->isFriendsOnly() ? 'wait' : 'live' ?>"><?= e($event->getVisibility()->label()) ?></span>
     </div>
 </div>

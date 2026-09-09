@@ -1,8 +1,6 @@
 <?php
 // Builds entities from validated input. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
 use App\Competitiveness;
@@ -16,14 +14,11 @@ use App\Model\Facility;
 use App\SkillLevel;
 use DateTimeImmutable;
 
-/**
- * The arrays here have already been through Validator, so every value present is
- * the right type and every value absent was never asked for. Must never be
- * handed a raw $_POST.
- */
+// The arrays here have already been through Validator, so every value present is
+// the right type and every value absent was never asked for. Must never be
+// handed a raw $_POST.
 final class EntityFactory
 {
-    /** @param array<string,mixed> $validated */
     public function newFacility(array $validated, Account $owner): Facility
     {
         $facility = new Facility(
@@ -52,13 +47,9 @@ final class EntityFactory
         return $facility;
     }
 
-    /**
-     * Status is not taken from the form. Validator's allow-list already drops a
-     * hopeful &status=PUBLISHED, but an event cannot start life published and
-     * that is worth being explicit about.
-     *
-     * @param array<string,mixed> $validated
-     */
+    // Status is not taken from the form. Validator's allow-list already drops a
+    // hopeful &status=PUBLISHED, but an event cannot start life published and
+    // that is worth being explicit about.
     public function newEvent(array $validated, Account $host, Facility $facility): Event
     {
         $event = new Event(

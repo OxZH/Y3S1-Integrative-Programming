@@ -1,21 +1,17 @@
 <?php
 // Reads accounts belonging to the User Authentication module. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Core\DataMapper;
 use App\Core\Entity;
 use RuntimeException;
 
-/**
- * Read only. This module never creates or edits an account, it only resolves the
- * references Facility and Event hold.
- *
- * find() is overridden because the account tables use class table inheritance:
- * the shared columns are on BaseUser and each role adds its own table.
- */
+// Read only. This module never creates or edits an account, it only resolves the
+// references Facility and Event hold.
+//
+// find() is overridden because the account tables use class table inheritance:
+// the shared columns are on BaseUser and each role adds its own table.
 final class AccountMapper extends DataMapper
 {
     private const SELECT = 'SELECT b.baseUserId, b.username, b.email, b.contactNumber,
@@ -56,10 +52,8 @@ final class AccountMapper extends DataMapper
         return $found instanceof Account ? $found : null;
     }
 
-    /** @return Account[] */
     public function findByType(string $userType): array
     {
-        /** @var Account[] $accounts */
         $accounts = $this->hydrateAll($this->select(
             self::SELECT . ' WHERE b.userType = :type ORDER BY b.username',
             [':type' => $userType]
