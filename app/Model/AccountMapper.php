@@ -120,6 +120,31 @@ final class AccountMapper extends DataMapper
         return $accounts;
     }
 
+    /** @return User[] */
+    public function searchUsers(string $query, ?string $excludeId = null): array
+    {
+        $sql = self::SELECT . ' WHERE b.userType = :type AND b.accountStatus = :status';
+        $params = [
+            ':type'   => UserType::USER->value,
+            ':status' => AccountStatus::ACTIVE->value,
+        ];
+
+        if ($query !== '') {
+            $sql .= ' AND b.username LIKE :query';
+            $params[':query'] = '%' . $query . '%';
+        }
+
+        if ($excludeId !== null) {
+            $sql .= ' AND b.baseUserId <> :excludeId';
+            $params[':excludeId'] = $excludeId;
+        }
+
+        /** @var User[] $users */
+        $users = $this->hydrateAll($this->select($sql . ' ORDER BY b.username LIMIT 50', $params));
+
+        return $users;
+    }
+
     public function emailTaken(string $email, ?string $exceptId = null): bool
     {
         return $this->existsWith('email', $email, $exceptId);

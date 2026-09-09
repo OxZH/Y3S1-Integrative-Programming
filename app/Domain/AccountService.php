@@ -13,6 +13,7 @@ use App\Model\Admin;
 use App\Model\AuthEvent;
 use App\Model\AuthEventMapper;
 use App\Model\FacilityOwner;
+use App\Model\FriendConnectionMapper;
 use App\Model\PasswordResetMapper;
 use App\Model\PasswordResetToken;
 use App\Model\User;
@@ -36,9 +37,9 @@ final class AccountService implements AccountServiceInterface
     public function __construct(
         private AccountMapper $accounts = new AccountMapper(),
         private PasswordResetMapper $resets = new PasswordResetMapper(),
-        private AuthEventMapper $events = new AuthEventMapper()
-    ) {
-    }
+        private AuthEventMapper $events = new AuthEventMapper(),
+        private FriendConnectionMapper $friendConnections = new FriendConnectionMapper()
+    ) {}
 
     // ------------------------------------------------------------ registration
 
@@ -177,6 +178,30 @@ final class AccountService implements AccountServiceInterface
         }
 
         return $account;
+    }
+
+    public function viewPublicProfile(string $requestedUserId, string $currentUserId): Account
+    {
+        $account = $this->accounts->findAccount($requestedUserId);
+
+        if ($account === null) {
+            throw new NotFoundException('That account could not be found.');
+        }
+
+        // redact sensitive info if the requested profile is not a friend
+        $isSelf = $requestedUserId === $currentUserId;
+        $isFriend = !$isSelf && $this->friendConnections->areFriends($currentUserId, $requestedUserId);
+        if (!$isSelf && !$isFriend) {
+            $account->setEmail('');
+            $account->setContactNumber('');
+        }
+        return $account;
+    }
+
+    /** @return \App\Model\User[] */
+    public function searchUsers(string $query, ?string $excludeId = null): array
+    {
+        return $this->accounts->searchUsers($query, $excludeId);
     }
 
     /** @param array<string,mixed> $validated */

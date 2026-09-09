@@ -227,6 +227,48 @@ h2 {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
+.search-bar {
+    margin: 24px 0;
+}
+
+.search-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.search-row input {
+    flex: 1;
+}
+
+.profile-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.profile-card-image,
+.profile-card-placeholder {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 52px;
+}
+
+.profile-card-placeholder {
+    display: grid;
+    place-items: center;
+    background: var(--brand);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.profile-card .btn {
+    margin-left: auto;
+}
+
 .row {
     display: grid;
     gap: 14px;

@@ -26,6 +26,10 @@ interface AccountServiceInterface
     public function authenticate(string $email, string $plainPassword): Account;
 
     public function viewProfile(string $baseUserId): Account;
+    public function viewPublicProfile(string $requestedUserId, string $currentUserId): Account;
+
+    /** @return \App\Model\User[] */
+    public function searchUsers(string $query, ?string $excludeId = null): array;
 
     /** @param array<string,mixed> $validated */
     public function updateProfile(string $baseUserId, array $validated): Account;

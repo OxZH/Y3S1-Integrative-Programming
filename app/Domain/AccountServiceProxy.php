@@ -45,9 +45,7 @@ final class AccountServiceProxy implements AccountServiceInterface
 {
     private ?AccountService $service = null;
 
-    public function __construct(private ?AccountService $injected = null)
-    {
-    }
+    public function __construct(private ?AccountService $injected = null) {}
 
     // ------------------------------------------------------- open operations
     // No session is required to reach these: they are how someone gets one.
@@ -82,6 +80,17 @@ final class AccountServiceProxy implements AccountServiceInterface
         $this->assertSelfOrAdmin($baseUserId, 'view that profile');
 
         return $this->real()->viewProfile($baseUserId);
+    }
+
+    public function viewPublicProfile(string $requestedUserId, string $currentUserId): Account
+    {
+        return $this->real()->viewPublicProfile($requestedUserId, $currentUserId);
+    }
+
+    /** @return \App\Model\User[] */
+    public function searchUsers(string $query, ?string $excludeId = null): array
+    {
+        return $this->real()->searchUsers($query, $excludeId);
     }
 
     /** @param array<string,mixed> $validated */

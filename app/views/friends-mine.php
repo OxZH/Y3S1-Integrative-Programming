@@ -37,7 +37,7 @@ $currentUser = Auth::requireLogin();
                     <strong><?= e($friend->getUsername()) ?></strong>
                     <span class="pill live">Accepted</span>
                 </div>
-                <a class="btn small" href="<?= e(url('profile', 'show', ['id' => $friend->getBaseUserId()])) ?>">
+                <a class="btn small" href="<?= e(url('profile', 'showOther', ['id' => $friend->getBaseUserId()])) ?>">
                     View profile
                 </a>
                 <form method="post" action="<?= e(url('friends', 'respond')) ?>" class="button-row">

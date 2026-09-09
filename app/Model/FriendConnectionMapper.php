@@ -88,6 +88,71 @@ final class FriendConnectionMapper extends DataMapper
         return $statement->fetchColumn() !== false;
     }
 
+    public function connectionState(string $userId1, string $userId2): ?string
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT `state` FROM `FriendConnection`
+             WHERE (`requesterId` = :requesterId1 AND `addresseeId` = :addresseeId1)
+                OR (`requesterId` = :requesterId2 AND `addresseeId` = :addresseeId2)
+             ORDER BY `updatedAt` DESC
+             LIMIT 1'
+        );
+        $statement->execute([
+            ':requesterId1' => $userId1,
+            ':addresseeId1' => $userId2,
+            ':requesterId2' => $userId2,
+            ':addresseeId2' => $userId1,
+        ]);
+
+        $state = $statement->fetchColumn();
+
+        return is_string($state) ? $state : null;
+    }
+
+    public function sendRequest(Account $requester, Account $addressee): bool
+    {
+        $requesterId = $requester->getBaseUserId();
+        $addresseeId = $addressee->getBaseUserId();
+        if ($requesterId === $addresseeId) {
+            return false;
+        }
+
+        $state = $this->connectionState($requesterId, $addresseeId);
+        if ($state === FriendState::PENDING->value || $state === FriendState::ACCEPTED->value) {
+            return false;
+        } else if ($state === FriendState::REJECTED->value || $state === FriendState::REMOVED->value) {
+            // If the previous connection was rejected or removed, we can update it to pending again.
+            $statement = $this->pdo->prepare(
+                'UPDATE `FriendConnection` SET `state` = :state, `updatedAt` = NOW()
+                WHERE (`requesterId` = :requesterId1 AND `addresseeId` = :addresseeId1)
+                    OR (`requesterId` = :requesterId2 AND `addresseeId` = :addresseeId2)
+                LIMIT 1'
+            );
+            $statement->execute([
+                ':requesterId1' => $requesterId,
+                ':addresseeId1' => $addresseeId,
+                ':requesterId2' => $addresseeId,
+                ':addresseeId2' => $requesterId,
+                ':state' => FriendState::PENDING->value
+            ]);
+
+            return true;
+        } else {
+            // No previous connection exists, create a new one.
+            $createdAt = new \DateTimeImmutable();
+            $this->insert(new FriendConnection(
+                uuid(),
+                $requester,
+                $addressee,
+                new PendingFriendState(),
+                $createdAt,
+                $createdAt
+            ));
+
+            return true;
+        }
+    }
+
     /** @return FriendConnection[] */
     public function findIncoming(Account $currentAccount): array
     {
