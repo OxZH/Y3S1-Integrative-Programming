@@ -1,6 +1,8 @@
 <?php
 // Maps the account hierarchy to the BaseUser + role tables. Author: Ivan Lim Tze Yang
 
+declare(strict_types=1);
+
 namespace App\Model;
 
 use App\AccountStatus;

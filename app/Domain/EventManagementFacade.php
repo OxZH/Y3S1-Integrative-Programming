@@ -140,6 +140,15 @@ final class EventManagementFacade
         return 'DELETED';
     }
 
+    // Whether deleting really would delete. The venue list uses this to offer
+    // the button only when it can do what it says - otherwise the owner presses
+    // Delete and is told afterwards that it was delisted instead, which is a
+    // poor way to find out.
+    public function canDeleteFacility(string $facilityId): bool
+    {
+        return $this->facilities->countDependents($facilityId) === 0;
+    }
+
     // -- facility search ----------------------------------------------------
 
     // Search is exposed as a web service for the Discovery module to build its
@@ -266,26 +275,49 @@ final class EventManagementFacade
         return $this->publication->explainBlockers($this->requireEvent($eventId));
     }
 
-    // Removes an event outright when nobody has booked or joined it, otherwise
-    // cancels it. An abandoned draft is just clutter; one with a booking behind
-    // it is a financial record and stays.
+    // Removes an event outright when there is nothing to keep, otherwise cancels
+    // it. An abandoned draft is just clutter, but two things make the row worth
+    // keeping, and they are reported separately so the organiser is told which
+    // one applies:
+    //
+    //   JOINED - other people registered, and deleting would erase that
+    //   PAID   - the venue was paid for, and the Payment and Refund rows in the
+    //            Venue Booking module point at this event
     public function removeEvent(string $eventId): string
     {
         $event = $this->requireEvent($eventId);
 
         EventFacilitySecurity::assertHostsEvent($event);
 
-        if ($this->events->countDependents($eventId) > 0) {
+        $counts = $this->events->countDependents($eventId);
+
+        if ($counts['registrations'] > 0) {
             $event->cancel();
             $this->events->update($event);
 
-            return 'CANCELLED';
+            return 'CANCELLED_JOINED';
+        }
+
+        if ($counts['bookings'] > 0) {
+            $event->cancel();
+            $this->events->update($event);
+
+            return 'CANCELLED_PAID';
         }
 
         // Invite links cascade away with the row.
         $this->events->delete($eventId);
 
         return 'DELETED';
+    }
+
+    // Whether the delete button can really delete, so the page can label it
+    // honestly instead of promising something it cannot do.
+    public function canHardDelete(string $eventId): bool
+    {
+        $counts = $this->events->countDependents($eventId);
+
+        return $counts['registrations'] === 0 && $counts['bookings'] === 0;
     }
 
     // Whether the requested slot is free, without throwing. Used by the venue

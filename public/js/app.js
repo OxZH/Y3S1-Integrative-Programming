@@ -256,14 +256,57 @@
         render();
     }
 
+    /* ----------------------------------------------------------------------
+       Keep the start time ahead of now.
+
+       The date box already refuses any day before today, because the view
+       gives it a min. What it cannot do is notice that 09:00 is in the past
+       when it is already 21:00 today, so when today is the chosen day the
+       start time gets a min of the current time, and no min on any later day.
+
+       The server checks the same thing in Validator::notInThePast(). This is
+       only so the box says no before the form is sent.
+       ---------------------------------------------------------------------- */
+
+    function setUpPastTimeGuard() {
+        var date  = document.getElementById('eventDate');
+        var start = document.getElementById('startTime');
+
+        if (!date || !start) {
+            return;
+        }
+
+        function pad(n) {
+            return (n < 10 ? '0' : '') + n;
+        }
+
+        function sync() {
+            var now   = new Date();
+            var today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+
+            if (date.value === today) {
+                start.min = pad(now.getHours()) + ':' + pad(now.getMinutes());
+            } else {
+                start.removeAttribute('min');
+            }
+        }
+
+        date.addEventListener('change', sync);
+
+        // A date may already be filled in, either from a failed save or from
+        // the browser restoring the form.
+        sync();
+    }
+
     function start() {
         setUpVenuePreview();
         setUpPickers();
+        setUpRoleFields();
+        setUpPastTimeGuard();
 
         var boxes = document.querySelectorAll('[data-suggest]');
 
         Array.prototype.forEach.call(boxes, setUpSuggestions);
-        setUpRoleFields();
     }
 
     if (document.readyState === 'loading') {

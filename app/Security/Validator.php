@@ -421,6 +421,30 @@ final class Validator
         return $this;
     }
 
+    // The date and the start time together must still be ahead of us.
+    //
+    // date(..., mustBeFuture) only compares whole days, so it lets today
+    // through - which is right, people do organise a game for this evening. But
+    // on its own it also lets through 09:00 today when it is already 21:00. This
+    // is the check that catches that.
+    public function notInThePast(string $dateField, string $timeField, string $label): self
+    {
+        $date = $this->clean[$dateField] ?? null;
+        $time = $this->clean[$timeField] ?? null;
+
+        if (!$date instanceof DateTimeImmutable || !is_string($time)) {
+            return $this;
+        }
+
+        $starts = new DateTimeImmutable($date->format('Y-m-d') . ' ' . $time);
+
+        if ($starts < new DateTimeImmutable()) {
+            $this->fail($timeField, $label . ' has already passed. Please pick a later time.');
+        }
+
+        return $this;
+    }
+
     public function atLeast(string $minField, string $maxField, string $label): self
     {
         $min = $this->clean[$minField] ?? null;

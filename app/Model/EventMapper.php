@@ -198,15 +198,22 @@ final class EventMapper extends DataMapper
     // Evidence that the event was actually used. Invite links are excluded on
     // purpose: one is minted with every event, so counting them would mean no
     // event was ever hard-deletable. They cascade away with the row.
-    public function countDependents(string $eventId): int
+    // Two separate reasons an event cannot simply be deleted, counted apart so
+    // the message we show says which one it actually is. Lumping them together
+    // used to produce "people had already joined" for an event nobody joined,
+    // where the only row was the organiser paying for their own venue.
+    public function countDependents(string $eventId): array
     {
         $row = $this->selectOne(
-            'SELECT (SELECT COUNT(*) FROM `Booking` WHERE `eventId` = :a)
-                  + (SELECT COUNT(*) FROM `EventRegistration` WHERE `eventId` = :b) AS total',
+            'SELECT (SELECT COUNT(*) FROM `Booking` WHERE `eventId` = :a) AS bookings,
+                    (SELECT COUNT(*) FROM `EventRegistration` WHERE `eventId` = :b) AS registrations',
             [':a' => $eventId, ':b' => $eventId]
         );
 
-        return (int) ($row['total'] ?? 0);
+        return [
+            'bookings'      => (int) ($row['bookings'] ?? 0),
+            'registrations' => (int) ($row['registrations'] ?? 0),
+        ];
     }
 
     // Every sport already used, for the suggestions under the sport box on the

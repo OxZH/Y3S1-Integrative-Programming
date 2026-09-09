@@ -69,6 +69,26 @@ final class EventFacilitySecurity
         }
     }
 
+    // Only a player may organise a game. A facility owner has no row in the
+    // User table, and Event.hostId is a foreign key to it, so without this the
+    // insert reaches the database and comes back as a foreign key error - not
+    // something a user should ever be shown.
+    //
+    // The role itself is module 2's to define; this only asks their Account
+    // whether it is a player. It lives here rather than in Auth so that module 2
+    // owns one file and this module owns its own rules. If Ivan later adds a
+    // requirePlayer() to Auth, this becomes a one line call to it.
+    public static function assertCanHostEvents(): void
+    {
+        $account = Auth::requireLogin();
+
+        if (!$account->isPlayer()) {
+            throw new AuthorizationException(
+                'Only a member account can organise a game. Venue owners manage venues instead.'
+            );
+        }
+    }
+
     // Refuse, record it for us, and tell the caller nothing useful.
     //
     // A run of these in the log is what an enumeration attempt looks like, so

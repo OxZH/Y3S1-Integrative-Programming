@@ -1,6 +1,8 @@
 <?php
 // Abstract base of the account hierarchy. Author: Ivan Lim Tze Yang
 
+declare(strict_types=1);
+
 namespace App\Model;
 
 use App\AccountStatus;
@@ -26,15 +28,6 @@ use DateTimeImmutable;
  */
 abstract class Account extends Entity
 {
-    private $baseUserId;
-    private $username;
-    private $email;
-    private $contactNumber;
-    private $role;
-    private $accountStatus;
-    private $bankName;
-    private $businessRegNum;
-
     public function __construct(
         protected string $baseUserId,
         protected string $email,
@@ -46,14 +39,6 @@ abstract class Account extends Entity
         protected ?DateTimeImmutable $lastLoginAt = null,
         protected ?DateTimeImmutable $passwordChangedAt = null
     ) {
-        $this->baseUserId = $baseUserId;
-        $this->username = $username;
-        $this->email = $email;
-        $this->contactNumber = $contactNumber;
-        $this->role = $role;
-        $this->accountStatus = $accountStatus;
-        $this->bankName = $bankName;
-        $this->businessRegNum = $businessRegNum;
     }
 
     public function getIdentity(): ?string
@@ -61,7 +46,7 @@ abstract class Account extends Entity
         return $this->baseUserId;
     }
 
-    public function getBaseUserId()
+    public function getBaseUserId(): string
     {
         return $this->baseUserId;
     }
@@ -106,7 +91,7 @@ abstract class Account extends Entity
         return $this->passwordChangedAt;
     }
 
-    public function isFacilityOwner()
+    public function isFacilityOwner(): bool
     {
         return $this->userType === UserType::FACILITY_OWNER;
     }
@@ -121,14 +106,7 @@ abstract class Account extends Entity
         return $this->userType === UserType::USER;
     }
 
-    // Only a member can host a game. This matches the database: Event.hostId is
-    // a foreign key to the User table, and a facility owner has no row there.
-    public function isMember()
-    {
-        return $this->role === 'USER';
-    }
-
-    public function isActive()
+    public function isActive(): bool
     {
         return $this->accountStatus->isActive();
     }

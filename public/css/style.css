@@ -705,3 +705,13 @@ td.actions {
 .btn.placeholder:hover {
     background: var(--warn-line);
 }
+
+/* Something happened, but not what was asked for - a delete that had to become
+   a delisting, for instance. Green would overstate it, red would overstate it
+   the other way. */
+
+.flash.notice {
+    background: var(--warn-bg);
+    border-color: var(--warn-line);
+    color: var(--warn-ink);
+}

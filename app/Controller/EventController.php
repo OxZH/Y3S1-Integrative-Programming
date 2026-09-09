@@ -9,6 +9,7 @@ use App\Domain\EventManagementFacade;
 use App\EventVisibility;
 use App\FitnessRequirement;
 use App\Security\Auth;
+use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
 use App\ServiceUnavailableException;
 use App\SkillLevel;
@@ -48,7 +49,7 @@ final class EventController extends Controller
 
     public function mine(): void
     {
-        Auth::requireMember();
+        EventFacilitySecurity::assertCanHostEvents();
 
         $this->view('event-mine', [
             'title'  => 'My events',
@@ -73,6 +74,7 @@ final class EventController extends Controller
             'participants' => $this->facade->countParticipants($eventId),
             'isHost'       => $isHost,
             'blocker'      => $isHost ? $this->facade->explainPublicationBlockers($eventId) : null,
+            'canDelete'    => $isHost && $this->facade->canHardDelete($eventId),
         ]);
     }
 
@@ -94,7 +96,7 @@ final class EventController extends Controller
 
     public function create(): void
     {
-        Auth::requireMember();
+        EventFacilitySecurity::assertCanHostEvents();
 
         // facilityId in the query pre-selects the venue, for arriving from a
         // venue page rather than picking from the dropdown.
@@ -104,7 +106,7 @@ final class EventController extends Controller
     public function store(): void
     {
         $this->requirePostWithCsrf();
-        Auth::requireMember();
+        EventFacilitySecurity::assertCanHostEvents();
 
         try {
             $clean      = $this->validated($_POST);
@@ -135,12 +137,13 @@ final class EventController extends Controller
             $this->redirect(url('event', 'mine'));
         }
 
-        Auth::requireMember();
+        EventFacilitySecurity::assertCanHostEvents();
 
         $this->view('event-finalise', [
             'title'   => 'Confirm your event',
-            'event'   => $this->facade->viewEvent($eventId),
-            'blocker' => $this->facade->explainPublicationBlockers($eventId),
+            'event'     => $this->facade->viewEvent($eventId),
+            'blocker'   => $this->facade->explainPublicationBlockers($eventId),
+            'canDelete' => $this->facade->canHardDelete($eventId),
         ]);
     }
 
@@ -191,9 +194,15 @@ final class EventController extends Controller
             $this->redirect(url('event', 'show', ['id' => $eventId]));
         }
 
-        $this->flash('success', $outcome === 'DELETED'
-            ? 'The event has been deleted.'
-            : 'People had already booked or joined this event, so it has been cancelled rather than deleted.');
+        if ($outcome === 'DELETED') {
+            $this->flash('success', 'The event has been deleted.');
+        } else if ($outcome === 'CANCELLED_JOINED') {
+            $this->flash('success', 'Other players had already joined, so the event has been cancelled '
+                                  . 'rather than deleted and they can see that it is off.');
+        } else {
+            $this->flash('success', 'The venue for this event has been paid for, so the record is kept '
+                                  . 'for the payment history. The event has been cancelled instead.');
+        }
 
         $this->redirect(url('event', 'mine'));
     }
@@ -277,6 +286,7 @@ final class EventController extends Controller
             ->required('startTime', 'Start time')->time('startTime', 'Start time')
             ->required('endTime', 'End time')->time('endTime', 'End time', false)
             ->timeAfter('startTime', 'endTime', 'End time')
+            ->notInThePast('eventDate', 'startTime', 'That start time')
             ->required('minParticipants', 'Minimum players')->integer('minParticipants', 'Minimum players', 1, 200)
             ->required('maxParticipants', 'Maximum players')->integer('maxParticipants', 'Maximum players', 1, 200)
             ->atLeast('minParticipants', 'maxParticipants', 'Maximum players')

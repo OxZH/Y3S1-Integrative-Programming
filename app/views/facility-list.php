@@ -1,6 +1,6 @@
 <?php
 // A facility owner's own venues. Author: Goh Jian Yu
-// Receives: $facilities
+// Receives: $facilities, $deletable
 ?>
 <h1>My venues</h1>
 <p class="lede">Register venues, adjust pricing and opening hours, and delist a venue without losing its history.</p>
@@ -58,12 +58,20 @@
                             </form>
                         <?php endif; ?>
 
-                        <form method="post" action="<?= e(url('facility', 'delete')) ?>" class="inline-form"
-                              data-confirm="Delete this venue?">
-                            <?= $csrfField ?>
-                            <input type="hidden" name="facilityId" value="<?= e((string) $facility->getFacilityId()) ?>">
-                            <button class="btn ghost small" type="submit">Delete</button>
-                        </form>
+                        <?php
+                        // Only offered when it would really delete. A venue with
+                        // games or reviews behind it can only be delisted, and
+                        // the Delist button above already does that - so there is
+                        // no button here that has to apologise afterwards.
+                        ?>
+                        <?php if ($deletable[(string) $facility->getFacilityId()] ?? false): ?>
+                            <form method="post" action="<?= e(url('facility', 'delete')) ?>" class="inline-form"
+                                  data-confirm="Delete this venue? Nothing is booked or reviewed against it, so the record goes for good.">
+                                <?= $csrfField ?>
+                                <input type="hidden" name="facilityId" value="<?= e((string) $facility->getFacilityId()) ?>">
+                                <button class="btn danger small" type="submit">Delete</button>
+                            </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -73,6 +81,7 @@
 
     <p class="small muted">
         A new venue stays <strong>Pending</strong> until approved. Delisting hides it from search and
-        stops new bookings; games already scheduled there are untouched.
+        stops new bookings; games already scheduled there are untouched. Once a venue has games or
+        reviews against it, it can only be delisted, so <strong>Delete</strong> is no longer offered.
     </p>
 <?php endif; ?>

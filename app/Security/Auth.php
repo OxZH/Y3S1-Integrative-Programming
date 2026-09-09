@@ -1,21 +1,25 @@
 <?php
 // Who is signed in. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
+declare(strict_types=1);
+
 namespace App\Security;
 
 use App\AuthorizationException;
 use App\Model\Account;
 use App\Model\AccountMapper;
 
-// Identity and role checks, shared by every module.
-//
-// Authentication proper - registration, password hashing, recovery - belongs to
-// the User Authentication & Profile Management module. What lives here is the
-// session side each module needs to answer "who is this".
-//
-// Record-level decisions do NOT belong here. "May this person edit this venue"
-// is specific to whichever module owns that entity, so each module keeps its
-// own file for that; see App\Security\EventFacilitySecurity for this one.
+/**
+ * Identity and role checks, shared by every module.
+ *
+ * Authentication proper - registration, password hashing, recovery - belongs to
+ * the User Authentication & Profile Management module. What lives here is the
+ * session side each module needs to answer "who is this".
+ *
+ * Record-level decisions do NOT belong here. "May this person edit this venue"
+ * is specific to whichever module owns that entity, so each module keeps its
+ * own file for that; see App\Security\EventFacilitySecurity for this one.
+ */
 final class Auth
 {
     private const SESSION_KEY = '_auth_user_id';
@@ -116,24 +120,6 @@ final class Auth
         return $account;
     }
 
-    // FOR IVAN: this is the minimum needed to keep a facility owner off the
-    // event pages, because Event.hostId is a foreign key to the User table and
-    // an owner has no row there. Without it the insert reaches the database and
-    // comes back as a foreign key error, which is not something a user should
-    // ever be shown. Swap it for whatever your authorisation module ends up
-    // using (roles, permissions, a policy check) - the event controller only
-    // calls this one method.
-    public static function requireMember(): Account
-    {
-        $account = self::requireLogin();
-
-        if (!$account->isMember()) {
-            throw new AuthorizationException('Only a member account can create a game. Venue owners manage venues instead.');
-        }
-
-        return $account;
-    }
-    
     public static function requireAdmin(): Account
     {
         $account = self::requireLogin();

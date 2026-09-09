@@ -1,6 +1,6 @@
 <?php
 // Event detail and organiser controls. Author: Goh Jian Yu
-// Receives: $event, $participants, $isHost, $blocker
+// Receives: $event, $participants, $isHost, $blocker, $canDelete
 
 $facility = $event->getLocation();
 $host     = $event->getHost();
@@ -88,21 +88,27 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
 
         <a class="btn ghost" href="<?= e(url('event', 'invites', ['id' => $event->getEventId()])) ?>">Manage invite links</a>
 
-        <?php if (!$status->isCancelled()): ?>
+        <?php
+        // One destructive button, not two. Delete removes the row, but only
+        // when there is nothing worth keeping; once the venue is paid for or
+        // somebody has joined, cancelling is the only honest thing on offer,
+        // so that is the button shown instead.
+        ?>
+        <?php if ($canDelete): ?>
+            <form method="post" action="<?= e(url('event', 'delete')) ?>" class="inline-form"
+                  data-confirm="Delete this event? Nothing is booked against it, so the record goes for good.">
+                <?= $csrfField ?>
+                <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
+                <button class="btn danger" type="submit">Delete event</button>
+            </form>
+        <?php elseif (!$status->isCancelled()): ?>
             <form method="post" action="<?= e(url('event', 'cancel')) ?>" class="inline-form"
-                  data-confirm="Cancel this event?">
+                  data-confirm="Cancel this event? Anyone who joined will see that it is off.">
                 <?= $csrfField ?>
                 <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
                 <button class="btn danger" type="submit">Cancel event</button>
             </form>
         <?php endif; ?>
-
-        <form method="post" action="<?= e(url('event', 'delete')) ?>" class="inline-form"
-              data-confirm="Delete this event?">
-            <?= $csrfField ?>
-            <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
-            <button class="btn ghost" type="submit">Delete</button>
-        </form>
     </div>
 
     <p class="small muted">

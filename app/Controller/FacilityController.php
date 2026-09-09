@@ -51,9 +51,22 @@ final class FacilityController extends Controller
     {
         Auth::requireFacilityOwner();
 
+        $facilities = $this->facade->listMyFacilities();
+
+        // Worked out per venue so the list can offer Delete only where it would
+        // really delete. A venue with games or reviews behind it can only be
+        // delisted, and there is already a button for that.
+        $deletable = [];
+
+        foreach ($facilities as $facility) {
+            $id = (string) $facility->getFacilityId();
+            $deletable[$id] = $this->facade->canDeleteFacility($id);
+        }
+
         $this->view('facility-list', [
             'title'      => 'My venues',
-            'facilities' => $this->facade->listMyFacilities(),
+            'facilities' => $facilities,
+            'deletable'  => $deletable,
         ]);
     }
 
@@ -187,9 +200,16 @@ final class FacilityController extends Controller
 
         $outcome = $this->facade->removeFacility((string) ($_POST['facilityId'] ?? ''));
 
-        $this->flash('success', $outcome === 'DELETED'
-            ? 'The venue has been deleted.'
-            : 'This venue already has events or reviews against it, so it has been delisted rather than deleted.');
+        if ($outcome === 'DELETED') {
+            $this->flash('success', 'The venue has been deleted.');
+        } else {
+            // Not reachable from the venue list any more, which only offers
+            // Delete when it can delete. Kept for a request that arrives some
+            // other way, and reported as a notice rather than a success,
+            // because the owner did not get what they asked for.
+            $this->flash('notice', 'This venue has games or reviews against it, so it was delisted '
+                                 . 'instead of deleted. Its history is intact.');
+        }
 
         $this->redirect(url('facility', 'mine'));
     }

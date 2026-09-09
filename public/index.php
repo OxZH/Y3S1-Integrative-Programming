@@ -60,14 +60,31 @@ function renderError(int $status, string $heading, string $message, ?string $det
         http_response_code($status);
     }
 
-    echo View::render('error', [
-        'title'   => $heading,
-        'status'  => $status,
-        'heading' => $heading,
-        'message' => $message,
-        'detail'  => $detail,
-        'flash'   => [],
-    ]);
+    // The normal error page is a normal page: it draws the layout, and the
+    // layout asks Auth::user() who is signed in, which reads the database. So
+    // when the thing that failed IS the database, rendering the error page
+    // fails too - and that second failure has nothing left to catch it, so the
+    // browser gets a stack trace instead of the tidy page we meant to send.
+    //
+    // Hence the fallback: if the page cannot be drawn, answer with plain HTML
+    // that needs nothing at all. The handler always manages to say something.
+    try {
+        echo View::render('error', [
+            'title'   => $heading,
+            'status'  => $status,
+            'heading' => $heading,
+            'message' => $message,
+            'detail'  => $detail,
+            'flash'   => [],
+        ]);
+    } catch (Throwable $e) {
+        error_log('Error page itself failed: ' . $e->getMessage());
+
+        echo '<!doctype html><meta charset="utf-8">'
+           . '<title>' . htmlspecialchars($heading, ENT_QUOTES) . '</title>'
+           . '<h1>' . htmlspecialchars($heading, ENT_QUOTES) . '</h1>'
+           . '<p>' . htmlspecialchars($message, ENT_QUOTES) . '</p>';
+    }
 
     exit;
 }

@@ -1,6 +1,6 @@
 <?php
 // Shown after the booking module returns. Author: Goh Jian Yu
-// Receives: $event, $blocker
+// Receives: $event, $blocker, $canDelete
 
 $facility = $event->getLocation();
 $ready    = $blocker === null;
@@ -44,9 +44,9 @@ $ready    = $blocker === null;
     <a class="btn ghost" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">View event</a>
 
     <form method="post" action="<?= e(url('event', 'delete')) ?>" class="inline-form"
-          data-confirm="Discard this event?">
+          data-confirm="<?= $canDelete ? 'Discard this event?' : 'Cancel this event? The venue has been paid for, so the record is kept.' ?>">
         <?= $csrfField ?>
         <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
-        <button class="btn ghost" type="submit">Discard</button>
+        <button class="btn ghost" type="submit"><?= $canDelete ? 'Discard' : 'Cancel event' ?></button>
     </form>
 </div>
