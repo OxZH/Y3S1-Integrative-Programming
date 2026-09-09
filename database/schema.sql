@@ -51,6 +51,15 @@ CREATE TABLE `BaseUser` (
     `userType`      ENUM('USER','FACILITY_OWNER','ADMIN') NOT NULL,  -- [+] CTI discriminator: tells the Data Mapper which subclass to build
     `accountStatus` ENUM('ACTIVE','DEACTIVATED','SUSPENDED')
                     NOT NULL DEFAULT 'ACTIVE',                       -- [+] Ivan: module 2 lists account deactivation
+
+    -- [+] Ivan, 5.2 threat 1 (brute force / credential stuffing). The counter and
+    --     the lock live on the account so the check costs no extra query on the
+    --     login path, and a lock survives the attacker dropping their session.
+    `failedLoginAttempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `lockedUntil`         DATETIME NULL,
+    `lastLoginAt`         DATETIME NULL,                             -- [+] Ivan: shown to the user on next sign-in
+    `passwordChangedAt`   DATETIME NULL,                             -- [+] Ivan: password age, and invalidates older reset tokens
+
     PRIMARY KEY (`baseUserId`),
     UNIQUE KEY `uq_BaseUser_email`    (`email`),
     UNIQUE KEY `uq_BaseUser_username` (`username`),
@@ -88,6 +97,52 @@ CREATE TABLE `Admin` (
     UNIQUE KEY `uq_Admin_adminId` (`adminId`),
     CONSTRAINT `fk_Admin_BaseUser`
         FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- [+] Ivan, 5.2 threat 1. Password recovery is an authentication path, so it is
+--     controlled like one: the row stores a HASH of the token, never the token
+--     itself, so a leak of this table does not let anyone reset an account.
+--     usedAt makes a link single use; expiresAt keeps the window short.
+CREATE TABLE `PasswordReset` (
+    `passwordResetId` VARCHAR(36) NOT NULL,
+    `baseUserId`      VARCHAR(36) NOT NULL,
+    `tokenHash`       CHAR(64)    NOT NULL,   -- hash('sha256', token); the raw token only ever exists in the emailed link
+    `requestedAt`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `expiresAt`       DATETIME    NOT NULL,
+    `usedAt`          DATETIME    NULL,       -- NULL = still redeemable
+    `requestIp`       VARCHAR(45) NULL,       -- 45 chars covers IPv6
+    PRIMARY KEY (`passwordResetId`),
+    UNIQUE KEY `uq_PasswordReset_tokenHash` (`tokenHash`),
+    CONSTRAINT `fk_PasswordReset_BaseUser`
+        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE,
+    KEY `idx_PasswordReset_user` (`baseUserId`, `usedAt`)
+) ENGINE=InnoDB;
+
+-- [+] Ivan, 5.2 threat 2 (unnoticed account takeover and privilege change).
+--     The audit trail. Every authentication and account event lands here,
+--     success and failure alike. It deliberately holds NO password, no reset
+--     token and no session id, so the log itself is not worth stealing.
+--     baseUserId is nullable: a login attempt against an address that does not
+--     exist still has to be recorded, and there is no account to point at.
+CREATE TABLE `AuthEventLog` (
+    `authEventId` VARCHAR(36) NOT NULL,
+    `baseUserId`  VARCHAR(36) NULL,
+    `eventType`   ENUM('LOGIN_SUCCESS','LOGIN_FAILED','LOGOUT','ACCOUNT_LOCKED',
+                       'REGISTERED','PASSWORD_CHANGED','PASSWORD_RESET_REQUESTED',
+                       'PASSWORD_RESET_COMPLETED','PROFILE_UPDATED',
+                       'ACCOUNT_DEACTIVATED','ACCOUNT_REACTIVATED',
+                       'ROLE_CHANGED','ACCESS_DENIED') NOT NULL,
+    `emailTried`  VARCHAR(255) NULL,          -- what was typed, when no account matched
+    `succeeded`   TINYINT(1)   NOT NULL,
+    `ipAddress`   VARCHAR(45)  NULL,
+    `userAgent`   VARCHAR(255) NULL,
+    `detail`      VARCHAR(255) NULL,          -- short, written by us, never raw user input
+    `occurredAt`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`authEventId`),
+    CONSTRAINT `fk_AuthEventLog_BaseUser`
+        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE SET NULL,
+    KEY `idx_AuthEventLog_user` (`baseUserId`, `occurredAt`),
+    KEY `idx_AuthEventLog_type` (`eventType`, `occurredAt`)
 ) ENGINE=InnoDB;
 
 

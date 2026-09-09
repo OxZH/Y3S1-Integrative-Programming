@@ -38,18 +38,23 @@ $assetVersion = static function (string $relative) use ($assets): string {
                     <?php // an owner cannot host a game, so the link is not shown to them ?>
                     <a href="<?= e(url('event', 'mine')) ?>">My events</a>
                 <?php endif; ?>
+                <a href="<?= e(url('profile')) ?>">My profile</a>
+                <?php if ($currentUser->isAdmin()): ?>
+                    <a href="<?= e(url('admin', 'accounts')) ?>">Accounts</a>
+                <?php endif; ?>
             <?php endif; ?>
         </nav>
 
         <div class="session">
             <?php if ($currentUser !== null): ?>
                 <span>Signed in as <strong><?= e($currentUser->getUsername()) ?></strong></span>
-                <form method="post" action="<?= e(url('login', 'logout')) ?>" class="inline-form">
+                <form method="post" action="<?= e(url('auth', 'logout')) ?>" class="inline-form">
                     <?= $csrfField ?? '' ?>
                     <button class="btn ghost small" type="submit">Sign out</button>
                 </form>
             <?php else: ?>
-                <a class="btn ghost small" href="<?= e(url('login')) ?>">Sign in</a>
+                <a class="btn ghost small" href="<?= e(url('auth')) ?>">Sign in</a>
+                <a class="btn small" href="<?= e(url('auth', 'register')) ?>">Register</a>
             <?php endif; ?>
         </div>
     </div>

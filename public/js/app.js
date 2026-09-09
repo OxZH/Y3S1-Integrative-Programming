@@ -226,6 +226,35 @@
             }
         });
     }
+    
+    //    Role fields on the registration form.  (Module 2 - Ivan)
+
+    //    A player and a facility owner need different questions, so only the block
+    //    matching the chosen account type is shown. This is convenience only: the
+    //    server decides which fields it will accept from the submitted userType,
+    //    so hiding a block here is not what keeps a player from sending bank
+    //    details, and unhiding one in the browser achieves nothing.
+    //    ---------------------------------------------------------------------- */
+
+    function setUpRoleFields() {
+        var select = document.querySelector('[data-role-toggle]');
+        var blocks = document.querySelectorAll('[data-role-fields]');
+
+        if (!select || blocks.length === 0) {
+            return;
+        }
+
+        function render() {
+            Array.prototype.forEach.call(blocks, function (block) {
+                block.hidden = block.getAttribute('data-role-fields') !== select.value;
+            });
+        }
+
+        select.addEventListener('change', render);
+
+        // Runs once on load so the correct block is showing after a failed save.
+        render();
+    }
 
     function start() {
         setUpVenuePreview();
@@ -234,6 +263,7 @@
         var boxes = document.querySelectorAll('[data-suggest]');
 
         Array.prototype.forEach.call(boxes, setUpSuggestions);
+        setUpRoleFields();
     }
 
     if (document.readyState === 'loading') {

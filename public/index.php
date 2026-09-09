@@ -4,9 +4,11 @@
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 use App\AuthorizationException;
+use App\Controller\AdminController;
+use App\Controller\AuthController;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
-use App\Controller\LoginController;
+use App\Controller\ProfileController;
 use App\Core\View;
 use App\NotFoundException;
 use App\ServiceUnavailableException;
@@ -27,11 +29,27 @@ $routes = [
                       'publish', 'cancel', 'delete',
                       'invite', 'invites', 'createInvite', 'revokeInvite'],
     ],
-    'login' => [
-        'class'   => LoginController::class,
-        'actions' => ['index', 'login', 'logout'],
+    // MODULE 2 - User Authentication & Profile Management (Ivan)
+    'auth' => [
+        'class'   => AuthController::class,
+        'actions' => ['index', 'login', 'logout', 'register', 'store',
+                      'forgot', 'sendReset', 'resetForm', 'reset'],
+    ],
+    'profile' => [
+        'class'   => ProfileController::class,
+        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate'],
+    ],
+    'admin' => [
+        'class'   => AdminController::class,
+        'actions' => ['accounts', 'reactivate', 'audit'],
     ],
 ];
+
+// The demo account picker this module replaced. Anything still pointing at
+// ?c=login lands on the real sign-in page instead of a 404.
+if (($_GET['c'] ?? null) === 'login') {
+    $_GET['c'] = 'auth';
+}
 
 $controllerName = is_string($_GET['c'] ?? null) ? $_GET['c'] : 'event';
 $actionName     = is_string($_GET['a'] ?? null) ? $_GET['a'] : 'index';

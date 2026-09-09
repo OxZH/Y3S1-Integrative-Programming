@@ -26,8 +26,12 @@ final class Auth
     {
     }
 
-    // Temporary: real login is the User Authentication module's job. Everything
-    // below only ever asks Auth::id(), so none of it changes when it arrives.
+    /**
+     * Establishes the session for an account that has ALREADY been
+     * authenticated. Verifying the password is module 2's job and happens in
+     * App\Domain\AccountService::authenticate() - this method is only the
+     * session half, and must never be called without that check first.
+     */
     public static function login(string $baseUserId): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -124,9 +128,18 @@ final class Auth
         $account = self::requireLogin();
 
         if (!$account->isMember()) {
-            throw new AuthorizationException(
-                'Only a member account can create a game. Venue owners manage venues instead.'
-            );
+            throw new AuthorizationException('Only a member account can create a game. Venue owners manage venues instead.');
+        }
+
+        return $account;
+    }
+    
+    public static function requireAdmin(): Account
+    {
+        $account = self::requireLogin();
+
+        if (!$account->isAdmin()) {
+            throw new AuthorizationException('You do not have access to that.');
         }
 
         return $account;

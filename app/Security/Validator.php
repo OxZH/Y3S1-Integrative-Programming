@@ -59,6 +59,70 @@ final class Validator
         return $this;
     }
 
+    /**
+     * Normalised to lower case, because an address is stored once and matched
+     * on at every sign-in - "Aisyah@..." and "aisyah@..." must not become two
+     * accounts that both look correct to their owner.
+     */
+    public function email(string $field, string $label): self
+    {
+        $value = $this->raw($field);
+
+        if ($value === null || $value === '') {
+            return $this;
+        }
+
+        if (mb_strlen($value) > 255) {
+            return $this->fail($field, $label . ' must be 255 characters or fewer.');
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
+            return $this->fail($field, 'Please enter a valid ' . strtolower($label) . '.');
+        }
+
+        $this->clean[$field] = mb_strtolower($value);
+
+        return $this;
+    }
+
+    /** Digits, with an optional leading +. Spaces and dashes are dropped, not rejected. */
+    public function phone(string $field, string $label): self
+    {
+        $value = $this->raw($field);
+
+        if ($value === null || $value === '') {
+            return $this;
+        }
+
+        $compact = preg_replace('/[\s()-]/', '', $value) ?? '';
+
+        if (preg_match('/^\+?\d{7,19}$/', $compact) !== 1) {
+            return $this->fail($field, $label . ' must be 7 to 19 digits, optionally starting with +.');
+        }
+
+        $this->clean[$field] = $compact;
+
+        return $this;
+    }
+
+    /**
+     * A password is passed through unchanged - not trimmed, not case folded,
+     * not length checked here. Strength is PasswordPolicy's decision, and
+     * trimming would silently alter what the user chose.
+     */
+    public function password(string $field, string $label): self
+    {
+        $value = $this->input[$field] ?? null;
+
+        if (!is_string($value) || $value === '') {
+            return $this->fail($field, $label . ' is required.');
+        }
+
+        $this->clean[$field] = $value;
+
+        return $this;
+    }
+
     public function integer(string $field, string $label, ?int $min = null, ?int $max = null): self
     {
         $value = $this->raw($field);
