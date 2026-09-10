@@ -31,12 +31,20 @@ $assetVersion = static function (string $relative) use ($assets): string {
 
         <nav class="site-nav">
             <a href="<?= e(url('event')) ?>">Upcoming games</a>
+            <!-- js part - Discovery & Event Matchmaking -->
+            <a href="<?= e(url('discovery')) ?>">Find a game</a>
+            <a href="<?= e(url('discovery', 'map')) ?>">Map</a>
+            <!-- /js part -->
             <?php if ($currentUser !== null): ?>
                 <?php if ($currentUser->isFacilityOwner()): ?>
                     <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>
                 <?php else: ?>
                     <?php // an owner cannot host a game, so the link is not shown to them ?>
                     <a href="<?= e(url('event', 'mine')) ?>">My events</a>
+                    <!-- js part -->
+                    <a href="<?= e(url('discovery', 'recommended')) ?>">Recommended</a>
+                    <a href="<?= e(url('discovery', 'mine')) ?>">My participation</a>
+                    <!-- /js part -->
                 <?php endif; ?>
                 <a href="<?= e(url('profile')) ?>">My profile</a>
                 <?php if ($currentUser->isAdmin()): ?>

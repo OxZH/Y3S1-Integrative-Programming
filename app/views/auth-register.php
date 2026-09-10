@@ -86,10 +86,16 @@ $chosenType = is_string($input['userType'] ?? null) ? $input['userType'] : UserT
                 <?= $err('favoriteSport') ?>
             </div>
             <div>
-                <label for="location">Where you play</label>
+                <!-- A fuller address geocodes to a better position, and position is
+                     what the discovery module sorts and recommends games by -->
+                <label for="location">Location</label>
                 <input class="<?= e($bad('location')) ?>" type="text" id="location" name="location"
-                       maxlength="255" placeholder="Setapak, Kuala Lumpur"
+                       maxlength="255" placeholder="77, Lorong Lembah Permai 3, 11200 Tanjung Bungah, Pulau Pinang"
                        value="<?= old($input, 'location') ?>">
+                <p class="small muted">
+                    Your address, or just the area you play in. Used to work out how far games are from
+                    you - other players only ever see the distance, never your address.
+                </p>
                 <?= $err('location') ?>
             </div>
             <div>

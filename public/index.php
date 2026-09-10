@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/app/bootstrap.php';
 use App\AuthorizationException;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
+use App\Controller\DiscoveryController;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\ProfileController;
@@ -42,6 +43,11 @@ $routes = [
     'admin' => [
         'class'   => AdminController::class,
         'actions' => ['accounts', 'reactivate', 'audit'],
+    ],
+    // js part - Discovery & Event Matchmaking.
+    'discovery' => [
+        'class'   => DiscoveryController::class,
+        'actions' => ['index', 'map', 'recommended', 'join', 'leave', 'mine'],
     ],
 ];
 
