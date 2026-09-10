@@ -5,6 +5,7 @@
 /** @var array<string,string> $errors */
 
 use App\Security\PasswordPolicy;
+use App\Sport;
 use App\UserType;
 
 $bad = static fn (string $f): string => isset($errors[$f]) ? 'bad' : '';
@@ -13,6 +14,13 @@ $err = static fn (string $f): string => isset($errors[$f])
     : '';
 
 $chosenType = is_string($input['userType'] ?? null) ? $input['userType'] : UserType::USER->value;
+
+// Kept after a failed save, so the ticked sports come back ticked.
+$chosenSports = is_array($input['favoriteSports'] ?? null) ? $input['favoriteSports'] : [];
+
+// The date box will not offer a day that would make the account holder younger
+// than this. The server checks it again in Validator::minimumAge().
+$latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format('Y-m-d');
 ?>
 <h1>Create an account</h1>
 <p class="lede">Players organise and join games. Facility owners list venues.</p>
@@ -58,45 +66,74 @@ $chosenType = is_string($input['userType'] ?? null) ? $input['userType'] : UserT
     <div class="row">
         <div>
             <label for="password">Password</label>
-            <input class="<?= e($bad('password')) ?>" type="password" id="password" name="password"
-                   autocomplete="new-password" required>
+            <div class="password-field">
+                <input class="<?= e($bad('password')) ?>" type="password" id="password" name="password"
+                       autocomplete="new-password" required data-no-copy>
+                <button class="btn ghost small reveal-btn" type="button"
+                        data-reveal-password="password" aria-pressed="false">Hold to show</button>
+            </div>
             <?= $err('password') ?>
         </div>
         <div>
             <label for="passwordConfirm">Confirm password</label>
-            <input class="<?= e($bad('passwordConfirm')) ?>" type="password" id="passwordConfirm"
-                   name="passwordConfirm" autocomplete="new-password" required>
+            <div class="password-field">
+                <input class="<?= e($bad('passwordConfirm')) ?>" type="password" id="passwordConfirm"
+                       name="passwordConfirm" autocomplete="new-password" required data-no-copy>
+                <button class="btn ghost small reveal-btn" type="button"
+                        data-reveal-password="passwordConfirm" aria-pressed="false">Hold to show</button>
+            </div>
             <?= $err('passwordConfirm') ?>
         </div>
     </div>
     <p class="small muted">
         At least <?= (int) PasswordPolicy::MIN_LENGTH ?> characters, using three of:
         lower case, upper case, a digit, a symbol. It must not contain your name or email.
+        Copying out of these two boxes is disabled, so the confirmation has to be typed.
     </p>
 
     <!-- Player fields -->
     <div data-role-fields="<?= e(UserType::USER->value) ?>">
         <h2 class="sub">Your profile</h2>
-        <div class="row-3">
+        <label for="favoriteSports">Favourite sports</label>
+        <select class="<?= e($bad('favoriteSports')) ?>" id="favoriteSports" name="favoriteSports[]"
+                multiple size="8">
+            <?php foreach (Sport::cases() as $sport): ?>
+                <option value="<?= e($sport->value) ?>"
+                    <?= in_array($sport->value, $chosenSports, true) ? 'selected' : '' ?>>
+                    <?= e($sport->label()) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <?= $err('favoriteSports') ?>
+        <p class="small muted">
+            Pick as many as you like - hold Ctrl (or Cmd) to select more than one.
+            Games in these sports are recommended to you first.
+        </p>
+
+        <div class="row">
             <div>
-                <label for="favoriteSport">Favourite sport</label>
-                <input class="<?= e($bad('favoriteSport')) ?>" type="text" id="favoriteSport"
-                       name="favoriteSport" maxlength="50" placeholder="Badminton"
-                       value="<?= old($input, 'favoriteSport') ?>">
-                <?= $err('favoriteSport') ?>
-            </div>
-            <div>
-                <label for="location">Where you play</label>
+                <!-- A fuller address geocodes to a better position, and position is
+                     what the discovery module sorts and recommends games by -->
+                <label for="location">Location</label>
                 <input class="<?= e($bad('location')) ?>" type="text" id="location" name="location"
-                       maxlength="255" placeholder="Setapak, Kuala Lumpur"
-                       value="<?= old($input, 'location') ?>">
+                       maxlength="255" placeholder="77, Lorong Lembah Permai 3, 11200 Tanjung Bungah, Pulau Pinang"
+                       value="<?= old($input, 'location') ?>"
+                       data-location-lookup="<?= e(url('location', 'lookup')) ?>">
+                <!-- Filled in by app.js once the address has been looked up. -->
+                <div class="small" id="locationConfirm" hidden></div>
+                <p class="small muted">
+                    Your address, or just the area you play in. We look it up on the map and
+                    ask you to confirm it. Other players only ever see how far away you are,
+                    never your address.
+                </p>
                 <?= $err('location') ?>
             </div>
             <div>
                 <label for="birthDate">Date of birth</label>
                 <input class="<?= e($bad('birthDate')) ?>" type="date" id="birthDate" name="birthDate"
-                       value="<?= old($input, 'birthDate') ?>">
+                       max="<?= e($latestBirthDate) ?>" value="<?= old($input, 'birthDate') ?>">
                 <?= $err('birthDate') ?>
+                <p class="small muted">You must be at least 3 years old.</p>
             </div>
         </div>
     </div>

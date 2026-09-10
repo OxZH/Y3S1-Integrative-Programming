@@ -8,12 +8,14 @@ namespace App\Controller;
 use App\Core\Controller;
 use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
+use App\Domain\ProfileImage;
 use App\Model\FacilityOwner;
 use App\Model\User;
 use App\Security\Auth;
 use App\Security\PasswordPolicy;
 use App\Security\Validator;
 use App\Service\ParticipationHistory;
+use App\Sport;
 use App\ValidationException;
 
 /**
@@ -26,6 +28,9 @@ use App\ValidationException;
  */
 final class ProfileController extends Controller
 {
+    /** Kept in step with AuthController: the same rule on both forms. */
+    private const MINIMUM_AGE_YEARS = 3;
+
     private AccountServiceInterface $accounts;
 
     public function __construct(?AccountServiceInterface $accounts = null)
@@ -85,8 +90,39 @@ final class ProfileController extends Controller
         // refused before any input is looked at.
         $account = $this->accounts->viewProfile($baseUserId);
 
+        $previousPicture = $account instanceof User ? $account->getProfilePicURL() : null;
+
         try {
-            $this->accounts->updateProfile($baseUserId, $this->profileRules($_POST, $account));
+            $validated = $this->profileRules($_POST, $account);
+
+            if ($account instanceof User) {
+                // Saved to disk only after the proxy has agreed this is the
+                // caller's own account, so a refused request writes no file.
+                // The id comes from the resolved account, never from the form.
+                $uploaded = ProfileImage::save($_FILES['profilePicture'] ?? null, $baseUserId);
+
+                if ($uploaded !== null) {
+                    $validated['profilePicURL'] = $uploaded;
+                } elseif (($_POST['removeProfilePicture'] ?? '') === '1') {
+                    $validated['profilePicURL'] = null;
+                }
+                // Neither: the key stays absent and the stored picture is kept.
+            }
+
+            $this->accounts->updateProfile($baseUserId, $validated);
+
+            // Only once the row is saved. Deleting first would lose the old
+            // picture if the update then failed on a duplicate email.
+            // array_key_exists, not ??. Removing a picture sets the key to
+            // NULL on purpose, and ?? treats an explicit null as absent - so
+            // the old file would be left behind on disk after every removal.
+            $newPicture = array_key_exists('profilePicURL', $validated)
+                ? $validated['profilePicURL']
+                : $previousPicture;
+
+            if ($previousPicture !== null && $previousPicture !== $newPicture) {
+                ProfileImage::remove($previousPicture);
+            }
 
             $this->flash('success', 'Your profile has been updated.');
             $this->redirect(url('profile'));
@@ -188,12 +224,17 @@ final class ProfileController extends Controller
 
         if ($account instanceof User) {
             $validator
-                ->text('favoriteSport', 'Favourite sport', 2, 50)
+                ->inListMultiple('favoriteSports', 'Favourite sports', Sport::values())
                 ->text('location', 'Location', 2, 255)
                 ->date('birthDate', 'Date of birth')
-                ->imageUrl('profilePicURL', 'Profile picture address')
-                ->latitude('latitude', 'Latitude')
-                ->longitude('longitude', 'Longitude');
+                ->minimumAge('birthDate', 'Date of birth', self::MINIMUM_AGE_YEARS);
+
+            // No profilePicURL rule: the picture is an uploaded file now, not
+            // a typed address, so the path is produced by ProfileImage rather
+            // than accepted from the request.
+
+            // No latitude/longitude rules. The form does not offer them and the
+            // service ignores them, so there is nothing here to validate.
         }
 
         if ($account instanceof FacilityOwner) {
@@ -214,7 +255,7 @@ final class ProfileController extends Controller
         // that WAS submitted and came back blank is passed on as an explicit
         // null; a field that was not submitted at all is left out entirely and
         // the service keeps the stored value.
-        foreach (['favoriteSport', 'location', 'profilePicURL', 'birthDate', 'latitude', 'longitude'] as $optional) {
+        foreach (['favoriteSports', 'location', 'birthDate'] as $optional) {
             if (array_key_exists($optional, $input) && !array_key_exists($optional, $validated)) {
                 $validated[$optional] = null;
             }

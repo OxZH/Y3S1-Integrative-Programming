@@ -335,6 +335,15 @@
         setUpPickers();
         setUpRoleFields();
         setUpSlotGuard();
+        setUpNoCopyFields();
+        setUpPasswordReveal();
+        setUpDropzones();
+        setUpLocationConfirm();
+        setUpPastTimeGuard();
+
+        var boxes = document.querySelectorAll('[data-suggest]');
+
+        Array.prototype.forEach.call(boxes, setUpSuggestions);
     }
 
     if (document.readyState === 'loading') {

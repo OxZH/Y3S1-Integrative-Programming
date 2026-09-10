@@ -426,15 +426,54 @@ final class AccountService implements AccountServiceInterface
             );
         }
 
-        return new User(
+        $user = new User(
             $id,
             $email,
             $username,
             $contact,
-            favoriteSport: $this->nullable($validated['favoriteSport'] ?? null),
+            favoriteSports: is_array($validated['favoriteSports'] ?? null) ? $validated['favoriteSports'] : [],
             location: $this->nullable($validated['location'] ?? null),
             birthDate: ($validated['birthDate'] ?? null) instanceof DateTimeImmutable ? $validated['birthDate'] : null
         );
+
+        // Turn the address into coordinates, so the discovery module can sort
+        // events by distance and recommend nearby ones.
+        $this->applyGeocodedCoordinates($user);
+
+        return $user;
+    }
+
+    /**
+     * Best effort address lookup. A player types where they live, the discovery
+     * module needs that as a point on a map; AddressGeocoder asks OpenStreetMap
+     * and falls back to a fixed city table.
+     *
+     * Failure is silent on purpose: an account must still be created, and a
+     * profile must still save, when the lookup finds nothing or OpenStreetMap
+     * is unreachable. The player can always type the coordinates on the profile
+     * form instead.
+     */
+    private function applyGeocodedCoordinates(User $user): void
+    {
+        $location = $user->getLocation();
+
+        // An address that was cleared takes its coordinates with it, otherwise
+        // the player would keep being placed where they used to live.
+        if ($location === null || trim($location) === '') {
+            $user->setCoordinates(null, null);
+
+            return;
+        }
+
+        // This is the ONLY place a player's coordinates are ever set. The
+        // browser is shown the matched address to confirm, never the numbers,
+        // and never gets to send them back - so there is no request a player
+        // can craft that puts them somewhere they are not.
+        $coordinates = (new AddressGeocoder())->locate($location);
+
+        if ($coordinates !== null) {
+            $user->setCoordinates($coordinates[0], $coordinates[1]);
+        }
     }
 
     /** @param array<string,mixed> $validated */
@@ -444,12 +483,17 @@ final class AccountService implements AccountServiceInterface
         // not include means "leave it alone", never "clear it" - otherwise a
         // partial form silently wipes whatever it happened not to render.
         if ($account instanceof User) {
-            if (array_key_exists('favoriteSport', $validated)) {
-                $account->setFavoriteSport($this->nullable($validated['favoriteSport']));
+            if (array_key_exists('favoriteSports', $validated) && is_array($validated['favoriteSports'])) {
+                $account->setFavoriteSports($validated['favoriteSports']);
             }
 
             if (array_key_exists('location', $validated)) {
                 $account->setLocation($this->nullable($validated['location']));
+
+                // A new address means the old coordinates are stale, so they
+                // are always worked out again here. Coordinates are never taken
+                // from the request - see applyGeocodedCoordinates().
+                $this->applyGeocodedCoordinates($account);
             }
 
             if (array_key_exists('profilePicURL', $validated)) {
@@ -460,15 +504,9 @@ final class AccountService implements AccountServiceInterface
                 $account->setBirthDate($validated['birthDate'] instanceof DateTimeImmutable ? $validated['birthDate'] : null);
             }
 
-            if (array_key_exists('latitude', $validated) || array_key_exists('longitude', $validated)) {
-                $latitude  = $validated['latitude']  ?? null;
-                $longitude = $validated['longitude'] ?? null;
-
-                $account->setCoordinates(
-                    is_numeric($latitude) ? (float) $latitude : null,
-                    is_numeric($longitude) ? (float) $longitude : null
-                );
-            }
+            // No branch for latitude/longitude on purpose. They are not fields
+            // a player fills in - they are derived from `location` above, and
+            // anything the request sends under those names is ignored.
 
             return;
         }

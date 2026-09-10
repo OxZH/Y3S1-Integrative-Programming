@@ -1,6 +1,7 @@
 <?php
 // Event detail and organiser controls. Author: Goh Jian Yu
 // Receives: $event, $participants, $isHost, $blocker, $canDelete
+// Receives: $myRegistration, $playerPage - js part
 
 $facility = $event->getLocation();
 $host     = $event->getHost();
@@ -69,6 +70,118 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
         <?php endif; ?>
     </div>
 </div>
+
+<?php
+// js part - Discovery & Event Matchmaking owns joining, and this is the page a
+// player is on when they decide, so its one button lives here.
+//
+// The button follows the viewer's registration, not their role. An organiser is
+// usually playing too, and hiding this from them would strand anyone who is
+// both: they would sit in the player list and the headcount with no way out.
+// Hosting a game and being in it are separate facts.
+//
+// What the button does is still Discovery's to authorise - it re-checks
+// visibility and capacity on submit, so nothing here is trusted as permission.
+?>
+<?php if ($status->isPublished() || $status->value === 'ONGOING'): ?>
+    <div class="card toolbar toolbar-flush">
+        <?php if (!App\Security\Auth::check()): ?>
+            <a class="btn" href="<?= e(url('auth')) ?>">Sign in to join this game</a>
+        <?php elseif ($myRegistration !== null): ?>
+            <form method="post" action="<?= e(url('discovery', 'leave')) ?>" class="inline-form"
+                  data-confirm="Leave this game? Your spot goes back to whoever wants it.">
+                <?= $csrfField ?>
+                <input type="hidden" name="eventRegistrationId"
+                       value="<?= e($myRegistration->getEventRegistrationId()) ?>">
+                <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
+                <button class="btn ghost" type="submit">Leave this game</button>
+            </form>
+            <span class="small muted">You are in this game.</span>
+        <?php elseif ($participants >= $event->getMaxParticipants()): ?>
+            <span class="small muted">This game is full.</span>
+        <?php else: ?>
+            <?php
+            // Joining is a commitment to turn up, and to a fee when there is
+            // one, so the amount is named in the prompt rather than left for
+            // the player to remember from the panel above.
+            $joinPrompt = $event->getFeePerParticipant() > 0
+                ? sprintf(
+                    'Join this game? The fee is %s per player, and you are counted in from now on.',
+                    money($event->getFeePerParticipant())
+                )
+                : 'Join this game? You are counted in from now on, and the organiser will see you have joined.';
+            ?>
+            <form method="post" action="<?= e(url('discovery', 'join')) ?>" class="inline-form"
+                  data-confirm="<?= e($joinPrompt) ?>">
+                <?= $csrfField ?>
+                <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
+                <button class="btn" type="submit">Join this game</button>
+            </form>
+            <span class="small muted">
+                <?= e((string) ($event->getMaxParticipants() - $participants)) ?> spot(s) left.
+            </span>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+<?php
+// Who is in the game. The rows belong to Discovery & Event Matchmaking, so the
+// controller asks that module for one page of them rather than counting here.
+// Ten to a page: enough for a full side, short enough to read at a glance.
+?>
+<?php if ($playerPage['total'] > 0): ?>
+    <h2>Players</h2>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr><th>#</th><th>Player</th><th>Joined</th></tr>
+            </thead>
+            <tbody>
+                <?php $rank = ($playerPage['page'] - 1) * App\Domain\DiscoveryFacade::PLAYERS_PER_PAGE; ?>
+                <?php foreach ($playerPage['players'] as $registration): ?>
+                    <?php $player = $registration->getUser(); ?>
+                    <tr>
+                        <td><?= e((string) ++$rank) ?></td>
+                        <td>
+                            <?= e($player?->getUsername() ?? 'A player') ?>
+                            <?php if ($myRegistration !== null
+                                && $registration->getUserId() === $myRegistration->getUserId()): ?>
+                                <span class="pill live">You</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="small muted">
+                            <?= e($registration->getRegisterTime()->format('D, d M Y')) ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <?php if ($playerPage['pages'] > 1): ?>
+            <div class="toolbar toolbar-flush spaced-top">
+                <?php if ($playerPage['page'] > 1): ?>
+                    <a class="btn ghost small" href="<?= e(url('event', 'show', [
+                        'id'      => $event->getEventId(),
+                        'players' => $playerPage['page'] - 1,
+                    ])) ?>">Previous</a>
+                <?php endif; ?>
+
+                <span class="small muted">
+                    Page <?= e((string) $playerPage['page']) ?> of <?= e((string) $playerPage['pages']) ?>
+                    &middot; <?= e((string) $playerPage['total']) ?> player(s)
+                </span>
+
+                <?php if ($playerPage['page'] < $playerPage['pages']): ?>
+                    <a class="btn ghost small" href="<?= e(url('event', 'show', [
+                        'id'      => $event->getEventId(),
+                        'players' => $playerPage['page'] + 1,
+                    ])) ?>">Next</a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+<?php // end js part ?>
 
 <?php if ($isHost): ?>
     <h2>Organiser controls</h2>

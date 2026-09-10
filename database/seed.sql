@@ -44,14 +44,30 @@ INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`, `busine
 ('own-001', 'Maybank',    '514012345678', 'SSM-202401001234'),
 ('own-002', 'CIMB Bank',  '800987654321', 'SSM-202402005678');
 
+-- latitude/longitude are what geocoding `location` produces. They are seeded
+-- here so the demo has them without calling OpenStreetMap 6 times on setup.
 INSERT INTO `User`
-    (`baseUserId`, `favoriteSport`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`) VALUES
-('usr-001', 'Badminton',  'Setapak, Kuala Lumpur',    '/uploads/profile/usr-001.jpg', '2003-05-14', 3.2168000, 101.7291000),
-('usr-002', 'Futsal',     'Wangsa Maju, Kuala Lumpur','/uploads/profile/usr-002.jpg', '2002-11-30', 3.2050000, 101.7370000),
-('usr-003', 'Basketball', 'Cheras, Kuala Lumpur',     '/uploads/profile/usr-003.jpg', '2004-02-08', 3.1041000, 101.7420000),
-('usr-004', 'Badminton',  'Kepong, Kuala Lumpur',     NULL,                           '2001-07-22', 3.2088000, 101.6355000),
-('usr-005', 'Futsal',     'Klang, Selangor',          '/uploads/profile/usr-005.jpg', '2003-09-03', 3.0449000, 101.4455000),
-('usr-006', 'Basketball', 'Ampang, Selangor',         NULL,                           '2000-12-19', 3.1500000, 101.7600000);
+    (`baseUserId`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`) VALUES
+-- profilePicURL is seeded NULL. A profile picture is an uploaded file living in
+-- public/static/profile/<baseUserId>.jpg, and there are no image files in the
+-- repository - pointing at ones that do not exist would show a broken image on
+-- every demo profile. Upload one from Edit profile to see it.
+('usr-001', 'Setapak, Kuala Lumpur',    NULL, '2003-05-14', 3.2168000, 101.7291000),
+('usr-002', 'Wangsa Maju, Kuala Lumpur',NULL, '2002-11-30', 3.2050000, 101.7370000),
+('usr-003', 'Cheras, Kuala Lumpur',     NULL, '2004-02-08', 3.1041000, 101.7420000),
+('usr-004', 'Kepong, Kuala Lumpur',     NULL, '2001-07-22', 3.2088000, 101.6355000),
+('usr-005', 'Klang, Selangor',          NULL, '2003-09-03', 3.0449000, 101.4455000),
+('usr-006', 'Ampang, Selangor',         NULL, '2000-12-19', 3.1500000, 101.7600000);
+
+-- Favourite sports, one row per sport per player. Several players list more
+-- than one, so the recommendation engine has something to match on.
+INSERT INTO `UserFavoriteSport` (`baseUserId`, `sport`) VALUES
+('usr-001', 'Badminton'),  ('usr-001', 'Table Tennis'),
+('usr-002', 'Futsal'),     ('usr-002', 'Football'),
+('usr-003', 'Basketball'),
+('usr-004', 'Badminton'),  ('usr-004', 'Squash'),      ('usr-004', 'Running'),
+('usr-005', 'Futsal'),     ('usr-005', 'Sepak Takraw'),
+('usr-006', 'Basketball');
 
 -- ---------------------------------------------------------------------------
 --  Facilities   (MODULE 1 - mine)
@@ -64,11 +80,11 @@ INSERT INTO `User`
 INSERT INTO `Facility`
     (`facilityId`, `ownerId`, `name`, `imageUrl`, `addressLine`, `city`, `state`, `type`,
      `bookingFee`, `operationalHrsStart`, `operationalHrsEnd`, `latitude`, `longitude`, `status`, `createdAt`) VALUES
-('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang, 53100', 'Setapak', 'Kuala Lumpur', 'Badminton' ,  35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
-('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati, 53100', 'Setapak', 'Kuala Lumpur', 'Basketball',50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
-('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor',     'Futsal'    ,    80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
-('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru, 41050','Klang',      'Selangor',     'Badminton' ,  40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
-('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor', 'Futsal'    , 60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
+('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang, 53100', 'Setapak', 'Kuala Lumpur', 'Badminton Hall',  35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
+('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati, 53100', 'Setapak', 'Kuala Lumpur', 'Basketball Court',50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
+('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor',     'Futsal Court',    80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
+('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru, 41050','Klang',      'Selangor',     'Badminton Hall',  40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
+('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor', 'Futsal Court', 60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
 
 -- ---------------------------------------------------------------------------
 --  Events   (MODULE 1 - mine)

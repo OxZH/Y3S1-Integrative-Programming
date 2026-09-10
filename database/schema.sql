@@ -68,15 +68,29 @@ CREATE TABLE `BaseUser` (
 
 CREATE TABLE `User` (
     `baseUserId`    VARCHAR(36)   NOT NULL,   -- PK + FK (Class Table Inheritance)
-    `favoriteSport` VARCHAR(50)   NULL,       -- [D]
     `location`      VARCHAR(255)  NULL,       -- [D] human-readable home area
     `profilePicURL` VARCHAR(500)  NULL,       -- [D]
     `birthDate`     DATE          NULL,       -- [D]
     `latitude`      DECIMAL(10,7) NULL,       -- [+] js: recommendations based on how close events are to the user
     `longitude`     DECIMAL(10,7) NULL,       -- [+] js: same
+                                              --     Ivan: derived from `location` by geocoding, never typed by
+                                              --     the user and never shown to them. Only ever used to work
+                                              --     out how far an event is.
     PRIMARY KEY (`baseUserId`),
     CONSTRAINT `fk_User_BaseUser`
         FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+-- The diagram draws User.favoriteSport as one value, but the module brief asks
+-- for "a curated list of their favorite sports". A repeating group in a single
+-- column would break 1NF and make "does this player like badminton" a LIKE over
+-- a delimited string, so the list gets its own table.
+CREATE TABLE `UserFavoriteSport` (            -- [+] Ivan: replaces User.favoriteSport
+    `baseUserId` VARCHAR(36) NOT NULL,
+    `sport`      VARCHAR(50) NOT NULL,        -- one of App\Sport
+    PRIMARY KEY (`baseUserId`, `sport`),      -- the same sport cannot be picked twice
+    CONSTRAINT `fk_UserFavoriteSport_User`
+        FOREIGN KEY (`baseUserId`) REFERENCES `User`(`baseUserId`) ON DELETE CASCADE,
+    KEY `idx_UserFavoriteSport_sport` (`sport`)   -- "who likes futsal", for recommendations
 ) ENGINE=InnoDB;
 
 CREATE TABLE `FacilityOwner` (

@@ -368,6 +368,85 @@ final class Validator
     // The value has to be one of the ones we offered. Used for the state
     // dropdown: a dropdown stops a mistake in the browser, this stops one sent
     // straight to the server.
+    /**
+     * A date of birth that would make the person younger than $years, or put
+     * them in the future, is rejected. Run it after date(), which is what
+     * parses the value.
+     *
+     * Age is compared with DateTime's own diff rather than by subtracting
+     * years, so 29 February and the day before a birthday both come out right.
+     */
+    public function minimumAge(string $field, string $label, int $years): self
+    {
+        $value = $this->clean[$field] ?? null;
+
+        if (!$value instanceof DateTimeImmutable) {
+            return $this;
+        }
+
+        $today = new DateTimeImmutable('today');
+
+        if ($value > $today) {
+            return $this->fail($field, $label . ' cannot be in the future.');
+        }
+
+        if ($value->diff($today)->y < $years) {
+            return $this->fail($field, sprintf(
+                '%s must be at least %d year%s ago.',
+                $label,
+                $years,
+                $years === 1 ? '' : 's'
+            ));
+        }
+
+        return $this;
+    }
+
+    /**
+     * A checkbox group or a <select multiple>: the browser sends an array, and
+     * every entry has to be one of $allowed.
+     *
+     * The whole submission is rejected if any single entry is unknown, rather
+     * than quietly dropping it - a value that is not on the list did not come
+     * from the form, and silently accepting the rest would hide that.
+     *
+     * @param string[] $allowed
+     */
+    public function inListMultiple(string $field, string $label, array $allowed, int $max = 20): self
+    {
+        $value = $this->input[$field] ?? null;
+
+        if ($value === null || $value === '' || $value === []) {
+            $this->clean[$field] = [];
+
+            return $this;
+        }
+
+        if (!is_array($value)) {
+            return $this->fail($field, $label . ' must all be chosen from the list.');
+        }
+
+        if (count($value) > $max) {
+            return $this->fail($field, sprintf('Please choose %d or fewer.', $max));
+        }
+
+        $chosen = [];
+
+        foreach ($value as $entry) {
+            if (!is_string($entry) || !in_array($entry, $allowed, true)) {
+                return $this->fail($field, $label . ' must all be chosen from the list.');
+            }
+
+            if (!in_array($entry, $chosen, true)) {
+                $chosen[] = $entry;
+            }
+        }
+
+        $this->clean[$field] = $chosen;
+
+        return $this;
+    }
+
     public function inList(string $field, string $label, array $allowed): self
     {
         $value = $this->raw($field);

@@ -146,6 +146,30 @@ try {
         ], 'Friendship checked.'));
     }
 
+    // js part - added for Discovery & Event Matchmaking.
+    if ($function === 'listFriends') {
+        $baseUserId = $request['baseUserId'] ?? null;
+
+        if (!is_string($baseUserId) || $baseUserId === '') {
+            Ifa::respond(Ifa::fail($requestId, 'baseUserId is mandatory.'), 400);
+        }
+
+        // Friendship is undirected, so the accepted id can sit on either side of the pair.
+        $statement = $pdo->prepare(
+            "SELECT `requesterId`, `addresseeId` FROM `FriendConnection`
+              WHERE `state` = 'ACCEPTED' AND (`requesterId` = :id OR `addresseeId` = :id2)"
+        );
+        $statement->execute([':id' => $baseUserId, ':id2' => $baseUserId]);
+
+        $friendIds = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $friendIds[] = $row['requesterId'] === $baseUserId ? $row['addresseeId'] : $row['requesterId'];
+        }
+
+        Ifa::respond(Ifa::success($requestId, ['friendIds' => $friendIds], count($friendIds) . ' friend(s) found.'));
+    }
+
     Ifa::respond(Ifa::fail($requestId, 'Unknown function: ' . $function), 400);
 } catch (Throwable $e) {
     error_log('api/stub: ' . $e->getMessage());
