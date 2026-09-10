@@ -86,12 +86,42 @@ final class ReviewMapper extends DataMapper
         return $reviews;
     }
 
+    /** @return Review[] */
+    public function findVisibleByFacilityId(string $facilityId, int $page = 1, int $perPage = 5): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(20, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        /** @var Review[] $reviews */
+        $reviews = $this->hydrateAll($this->select(
+            'SELECT * FROM `Review`
+             WHERE `facilityId` = :facilityId AND `moderationStatus` = :status
+             ORDER BY `reviewTimestamp` DESC
+             LIMIT ' . $perPage . ' OFFSET ' . $offset,
+            [':facilityId' => $facilityId, ':status' => ModerationStatus::VISIBLE->value]
+        ));
+
+        return $reviews;
+    }
+
     public function countVisibleByTargetUserId(string $targetUserId): int
     {
         $row = $this->selectOne(
             'SELECT COUNT(*) AS total FROM `Review`
              WHERE `targetUserId` = :targetUserId AND `moderationStatus` = :status',
             [':targetUserId' => $targetUserId, ':status' => ModerationStatus::VISIBLE->value]
+        );
+
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function countVisibleByFacilityId(string $facilityId): int
+    {
+        $row = $this->selectOne(
+            'SELECT COUNT(*) AS total FROM `Review`
+             WHERE `facilityId` = :facilityId AND `moderationStatus` = :status',
+            [':facilityId' => $facilityId, ':status' => ModerationStatus::VISIBLE->value]
         );
 
         return (int) ($row['total'] ?? 0);
@@ -118,6 +148,21 @@ final class ReviewMapper extends DataMapper
             $authorId,
             null,
             $targetUserId,
+            $title,
+            $comment,
+            0,
+            new \DateTimeImmutable(),
+            ModerationStatus::VISIBLE
+        ));
+    }
+
+    public function createFacilityReview(string $authorId, string $facilityId, string $title, string $comment): void
+    {
+        $this->insert(new Review(
+            uuid(),
+            $authorId,
+            $facilityId,
+            null,
             $title,
             $comment,
             0,
@@ -172,7 +217,7 @@ final class ReviewMapper extends DataMapper
 
     protected function toEntity(array $row): Entity
     {
-        if (!array_key_exists('facilityId', $row) || !isset($row['reviewId'], $row['authorId'], $row['targetUserId'], $row['reviewTitle'], $row['reviewComment'], $row['reviewVotes'], $row['reviewTimestamp'], $row['moderationStatus'])) {
+        if (!array_key_exists('facilityId', $row) || !array_key_exists('targetUserId', $row) || !isset($row['reviewId'], $row['authorId'], $row['reviewTitle'], $row['reviewComment'], $row['reviewVotes'], $row['reviewTimestamp'], $row['moderationStatus'])) {
             throw new RuntimeException('Missing required fields for Review entity.');
         }
 
@@ -180,7 +225,7 @@ final class ReviewMapper extends DataMapper
             (string) $row['reviewId'],
             (string) $row['authorId'],
             $row['facilityId'] !== null ? (string) $row['facilityId'] : null,
-            (string) $row['targetUserId'],
+            $row['targetUserId'] !== null ? (string) $row['targetUserId'] : null,
             (string) $row['reviewTitle'],
             (string) $row['reviewComment'],
             (int) $row['reviewVotes'],

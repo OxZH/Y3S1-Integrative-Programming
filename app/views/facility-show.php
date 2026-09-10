@@ -7,6 +7,13 @@ use App\Security\Auth;
 /** @var \App\Model\Event[] $events */
 /** @var array $slots */
 /** @var \DateTimeImmutable $slotDate */
+/** @var \App\Model\Review[] $reviews */
+/** @var array<string,\App\Model\Account|null> $reviewAuthors */
+/** @var int $reviewPage */
+/** @var int $reviewPages */
+
+use App\Model\Admin;
+use App\Model\User;
 
 $owner = $facility->getOwner();
 ?>
@@ -66,26 +73,34 @@ $owner = $facility->getOwner();
 
 <h2>Games at this venue</h2>
 <?php if ($events === []): ?>
-    <div class="card empty"><p>No upcoming games here yet.</p></div>
+    <div class="card empty">
+        <p>No upcoming games here yet.</p>
+    </div>
 <?php else: ?>
     <div class="card card-table">
         <table>
             <thead>
-            <tr><th>Event</th><th>Sport</th><th>When</th><th>Players</th><th></th></tr>
+                <tr>
+                    <th>Event</th>
+                    <th>Sport</th>
+                    <th>When</th>
+                    <th>Players</th>
+                    <th></th>
+                </tr>
             </thead>
             <tbody>
-            <?php foreach ($events as $event): ?>
-                <tr>
-                    <td><strong><?= e($event->getName()) ?></strong></td>
-                    <td><?= e($event->getSport()) ?></td>
-                    <td>
-                        <?= e($event->getEventDate()->format('d M')) ?>,
-                        <?= e(hhmm($event->getStartTime())) ?>&ndash;<?= e(hhmm($event->getEndTime())) ?>
-                    </td>
-                    <td class="muted"><?= e((string) $event->getMaxParticipants()) ?> max</td>
-                    <td><a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">Open</a></td>
-                </tr>
-            <?php endforeach; ?>
+                <?php foreach ($events as $event): ?>
+                    <tr>
+                        <td><strong><?= e($event->getName()) ?></strong></td>
+                        <td><?= e($event->getSport()) ?></td>
+                        <td>
+                            <?= e($event->getEventDate()->format('d M')) ?>,
+                            <?= e(hhmm($event->getStartTime())) ?>&ndash;<?= e(hhmm($event->getEndTime())) ?>
+                        </td>
+                        <td class="muted"><?= e((string) $event->getMaxParticipants()) ?> max</td>
+                        <td><a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">Open</a></td>
+                    </tr>
+                <?php endforeach; ?>
             </tbody>
         </table>
     </div>
@@ -95,6 +110,80 @@ $owner = $facility->getOwner();
     <a class="btn" href="<?= e(url('event', 'create', ['facilityId' => $facility->getFacilityId()])) ?>">
         Create an event here
     </a>
+
+    <section class="reviews-section">
+        <div class="page-head">
+            <div>
+                <h2>Reviews</h2>
+                <p class="lede lede-flush">What other players have said.</p>
+            </div>
+        </div>
+
+        <?php if ($reviews === []): ?>
+            <div class="card empty">
+                <p>No reviews yet.</p>
+            </div>
+        <?php else: ?>
+            <div class="review-list">
+                <?php foreach ($reviews as $review): ?>
+                    <?php $author = $reviewAuthors[$review->getAuthorId()] ?? null; ?>
+                    <article class="card review-card">
+                        <div class="review-author">
+                            <?php if ($author instanceof User && $author->getProfilePicURL() !== null): ?>
+                                <img class="review-avatar" src="<?= e($author->getProfilePicURL()) ?>"
+                                    alt="<?= e($author->getUsername()) ?> profile picture">
+                            <?php else: ?>
+                                <div class="review-avatar review-avatar-placeholder" aria-hidden="true">
+                                    <?= e(strtoupper(substr($author?->getUsername() ?? '?', 0, 1))) ?>
+                                </div>
+                            <?php endif; ?>
+                            <strong><?= e($author?->getUsername() ?? 'Unknown user') ?></strong>
+                        </div>
+                        <h3><?= e($review->getTitle()) ?></h3>
+                        <p><?= nl2br(e($review->getComment())) ?></p>
+                        <div class="review-footer">
+                            <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
+                                <?= $csrfField ?? '' ?>
+                                <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                <input type="hidden" name="targetType" value="facility">
+                                <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+                                <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
+                                <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
+                                <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
+                            </form>
+                            <time class="small muted" datetime="<?= e($review->getReviewTimestamp()->format(DATE_ATOM)) ?>">
+                                <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
+                            </time>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+
+            <?php if ($reviewPages > 1): ?>
+                <nav class="pagination" aria-label="Review pages">
+                    <?php for ($page = 1; $page <= $reviewPages; $page++): ?>
+                        <a class="btn small <?= $page === $reviewPage ? '' : 'ghost' ?>"
+                            href="<?= e(url('facility', 'show', ['id' => $facility->getFacilityId(), 'page' => $page])) ?>">
+                            <?= $page ?>
+                        </a>
+                    <?php endfor; ?>
+                </nav>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
+            <?= $csrfField ?? '' ?>
+            <input type="hidden" name="targetType" value="facility">
+            <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+            <h3>Write a review</h3>
+            <label for="reviewTitle">Title</label>
+            <input id="reviewTitle" name="reviewTitle" maxlength="50" required>
+            <label for="reviewComment">Review</label>
+            <textarea id="reviewComment" name="reviewComment" rows="5" maxlength="200" required></textarea>
+            <br />
+            <button class="btn" type="submit">Submit review</button>
+        </form>
+    </section>
 <?php else: ?>
     <a class="btn ghost" href="<?= e(url('auth')) ?>">Sign in to organise a game here</a>
 <?php endif; ?>

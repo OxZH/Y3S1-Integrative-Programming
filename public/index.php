@@ -11,6 +11,7 @@ use App\Controller\AuthController;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\ProfileController;
+use App\Controller\ReviewController;
 use App\Controller\FriendsController;
 use App\Core\View;
 use App\NotFoundException;
@@ -66,7 +67,11 @@ $routes = [
     ],
     'profile' => [
         'class'   => ProfileController::class,
-        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate', 'showOther', 'sendFriendRequest', 'submitReview', 'voteReview', 'discover'],
+        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate', 'showOther', 'sendFriendRequest', 'discover'],
+    ],
+    'review' => [
+        'class'   => ReviewController::class,
+        'actions' => ['store', 'vote'],
     ],
     'admin' => [
         'class'   => AdminController::class,

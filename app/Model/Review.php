@@ -15,7 +15,7 @@ class Review extends Entity
         private string $reviewId,
         private string $authorId, // store id for now
         private ?string $facilityId,
-        private string $targetUserId,
+        private ?string $targetUserId,
         private string $title,
         private string $comment,
         private int $votes,
@@ -44,7 +44,7 @@ class Review extends Entity
         return $this->facilityId;
     }
 
-    public function getTargetUserId(): string
+    public function getTargetUserId(): ?string
     {
         return $this->targetUserId;
     }

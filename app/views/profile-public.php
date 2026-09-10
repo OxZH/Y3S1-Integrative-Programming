@@ -174,10 +174,11 @@ use App\Model\User;
                     <h3><?= e($review->getTitle()) ?></h3>
                     <p><?= nl2br(e($review->getComment())) ?></p>
                     <div class="review-footer">
-                        <form method="post" action="<?= e(url('profile', 'voteReview')) ?>" class="button-row">
+                        <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
                             <?= $csrfField ?? '' ?>
                             <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
-                            <input type="hidden" name="targetUserId" value="<?= e($account->getBaseUserId()) ?>">
+                            <input type="hidden" name="targetType" value="user">
+                            <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
                             <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
                             <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
                             <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
@@ -203,9 +204,10 @@ use App\Model\User;
     <?php endif; ?>
 
     <?php if (!$isSelf): ?>
-        <form method="post" action="<?= e(url('profile', 'submitReview')) ?>" class="card review-form">
+        <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
             <?= $csrfField ?? '' ?>
-            <input type="hidden" name="targetUserId" value="<?= e($account->getBaseUserId()) ?>">
+            <input type="hidden" name="targetType" value="user">
+            <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
             <h3>Write a review</h3>
             <label for="reviewTitle">Title</label>
             <input id="reviewTitle" name="reviewTitle" maxlength="50" required>

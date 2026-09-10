@@ -12,14 +12,17 @@ use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
 use App\ValidationException;
 use DateTimeImmutable;
+use App\Service\ReviewService;
 
 final class FacilityController extends Controller
 {
     private EventManagementFacade $facade;
+    private ReviewService $reviews;
 
-    public function __construct()
+    public function __construct(?ReviewService $reviews = null)
     {
         $this->facade = new EventManagementFacade();
+        $this->reviews = $reviews ?? new ReviewService();
     }
 
     public function show(): void
@@ -32,6 +35,8 @@ final class FacilityController extends Controller
 
         $facility = $this->facade->getFacility($facilityId);
         $date     = $this->requestedDate();
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $reviewData = $this->reviews->page('facility', $facilityId, $page);
 
         $this->view('facility-show', [
             'title'    => $facility->getName(),
@@ -39,6 +44,10 @@ final class FacilityController extends Controller
             'events'   => $this->facade->listEventsAtFacility($facilityId),
             'slots'    => $this->facade->findOpenSlots($facilityId, $date, 2),
             'slotDate' => $date,
+            'reviews'       => $reviewData['reviews'],
+            'reviewAuthors' => $reviewData['reviewAuthors'],
+            'reviewPage'    => $page,
+            'reviewPages'   => $reviewData['reviewPages'],
         ]);
     }
 
