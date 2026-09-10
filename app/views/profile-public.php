@@ -52,27 +52,6 @@ use App\Model\User;
             <a class="btn ghost" href="<?= e(url('profile', 'security')) ?>">Password &amp; security</a>
         </div>
     <?php endif; ?>
-    <?php if (!$isSelf): ?>
-        <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
-            data-rating-widget>
-            <?= $csrfField ?? '' ?>
-            <input type="hidden" name="targetType" value="user">
-            <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
-            <?php foreach (['attitude' => 'Attitude', 'attendance' => 'Attendance'] as $ratingType => $label): ?>
-                <div class="rating-group" data-rating-group="<?= e($ratingType) ?>" data-current-rating="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>">
-                    <input type="hidden" name="<?= e($ratingType) ?>Rating" value="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>" data-rating-value>
-                    <span class="small muted"><?= e($label) ?> rating</span>
-                    <div class="rating-stars" role="group" aria-label="Rate this profile's <?= e(strtolower($label)) ?> from one to five stars">
-                        <?php for ($star = 1; $star <= 5; $star++): ?>
-                            <button class="rating-star <?= $star <= ($userRatings[$ratingType] ?? 0) ? 'is-selected' : '' ?>"
-                                type="button" data-rating-star="<?= $star ?>" aria-label="<?= $star ?> star<?= $star === 1 ? '' : 's' ?>">&#9733;</button>
-                        <?php endfor; ?>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-            <button class="btn small" type="submit" data-rating-submit>Submit ratings</button>
-        </form>
-    <?php endif; ?>
 </div>
 
 <?php if ($isSelf && $lastLoginAt !== null): ?>
@@ -168,6 +147,28 @@ use App\Model\User;
         </div>
     <?php endif; ?>
 </div>
+
+<?php if (!$isSelf): ?>
+    <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
+        data-rating-widget>
+        <?= $csrfField ?? '' ?>
+        <input type="hidden" name="targetType" value="user">
+        <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
+        <?php foreach (['attitude' => 'Attitude', 'attendance' => 'Attendance'] as $ratingType => $label): ?>
+            <div class="rating-group" data-rating-group="<?= e($ratingType) ?>" data-current-rating="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>">
+                <input type="hidden" name="<?= e($ratingType) ?>Rating" value="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>" data-rating-value>
+                <span class="small muted"><?= e($label) ?> rating</span>
+                <div class="rating-stars" role="group" aria-label="Rate this profile's <?= e(strtolower($label)) ?> from one to five stars">
+                    <?php for ($star = 1; $star <= 5; $star++): ?>
+                        <button class="rating-star <?= $star <= ($userRatings[$ratingType] ?? 0) ? 'is-selected' : '' ?>"
+                            type="button" data-rating-star="<?= $star ?>" aria-label="<?= $star ?> star<?= $star === 1 ? '' : 's' ?>">&#9733;</button>
+                    <?php endfor; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <button class="btn small" type="submit" data-rating-submit>Submit ratings</button>
+    </form>
+<?php endif; ?>
 
 <section class="reviews-section">
     <div class="page-head">
