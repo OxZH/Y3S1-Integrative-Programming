@@ -44,6 +44,56 @@ final class AddressGeocoder
     private const TIMEOUT = 5;
 
     /**
+     * As locate(), but also says WHICH place was matched, so a form can show it
+     * and ask "is this you?" before saving.  (Added by Ivan for module 2: the
+     * account forms confirm the address with the player instead of geocoding it
+     * silently.)
+     *
+     * The label is whatever OpenStreetMap called the match. When only the city
+     * table could place it there is no label, and the caller should say the
+     * position is approximate.
+     *
+     * @return array{latitude:float,longitude:float,label:?string}|null
+     */
+    public function describe(string $address): ?array
+    {
+        $address = trim($address);
+
+        if ($address === '') {
+            return null;
+        }
+
+        $attempts = [$address];
+        $withoutNumber = $this->withoutStreetNumber($address);
+
+        if ($withoutNumber !== null && $withoutNumber !== $address) {
+            $attempts[] = $withoutNumber;
+        }
+
+        foreach ($attempts as $index => $query) {
+            if ($index > 0) {
+                usleep(self::PAUSE_BETWEEN_CALLS_US);
+            }
+
+            $found = $this->ask($query, true);
+
+            if ($found !== null) {
+                return [
+                    'latitude'  => $found[0],
+                    'longitude' => $found[1],
+                    'label'     => $found[2] ?? null,
+                ];
+            }
+        }
+
+        $rough = $this->fromCityTable($address);
+
+        return $rough === null
+            ? null
+            : ['latitude' => $rough[0], 'longitude' => $rough[1], 'label' => null];
+    }
+
+    /**
      * @return array{0:float,1:float}|null [latitude, longitude], or null when
      *         even the city table could not place it
      */
@@ -100,8 +150,11 @@ final class AddressGeocoder
         return implode(', ', $parts);
     }
 
-    /** @return array{0:float,1:float}|null */
-    private function ask(string $query): ?array
+    /**
+     * @param bool $withLabel also return OpenStreetMap's name for the match
+     * @return array{0:float,1:float,2?:string}|null
+     */
+    private function ask(string $query, bool $withLabel = false): ?array
     {
         $url = self::ENDPOINT . '?' . http_build_query([
             'q'              => $query,
@@ -150,6 +203,10 @@ final class AddressGeocoder
         // A hit outside Malaysia means the query matched something unrelated.
         if ($latitude < 0.5 || $latitude > 7.5 || $longitude < 99.0 || $longitude > 120.0) {
             return null;
+        }
+
+        if ($withLabel && isset($results[0]['display_name']) && is_string($results[0]['display_name'])) {
+            return [$latitude, $longitude, $results[0]['display_name']];
         }
 
         return [$latitude, $longitude];

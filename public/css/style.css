@@ -306,6 +306,57 @@ select.bad {
     max-width: 260px;
 }
 
+/* Sign in, password recovery and the pages like them.  (Module 2 - Ivan)
+   These have one short form and nothing else, so they get a single column
+   centred in the page rather than a form stranded against the left edge.
+
+   The column is centred; what is inside it is not. Labels and inputs stay left
+   aligned, because a centred label sitting above a full width box is harder to
+   scan, not easier. Only the heading and the line under it are centred.
+
+   Note narrow-field and medium-field above are for ONE input - putting either
+   on a card shrinks the whole card, which is what used to make this page look
+   so cramped. */
+.auth-page {
+    max-width: 440px;
+    margin: 0 auto;
+}
+
+.auth-page > h1,
+.auth-page > .lede {
+    text-align: center;
+}
+
+.auth-card {
+    padding: 26px 28px;
+}
+
+.auth-card .form-actions {
+    margin-top: 22px;
+}
+
+/* A password box with a hold-to-show button beside it.  (Module 2 - Ivan)
+   The button sits on the same line and keeps its own width, so the box still
+   stretches to fill whatever is left. */
+.password-field {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.password-field input {
+    flex: 1 1 auto;
+    min-width: 0;   /* without this a flex item refuses to shrink below its content */
+}
+
+.reveal-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    /* Holding the button should not start selecting its label. */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 
 /* 7 -- buttons ------------------------------------------------------------ */
 
@@ -656,6 +707,60 @@ td.actions {
     border: 1px solid var(--line);
     border-radius: var(--radius);
     margin-bottom: 14px;
+}
+
+/* Drag a file here, or click to pick one.  (Module 2 - Ivan)
+   The file input is still a real, focusable input - it is only made invisible,
+   not display:none - so the keyboard and screen readers still reach it and the
+   form works with JavaScript switched off. */
+.dropzone {
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-small);
+    background: var(--bg);
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+}
+
+.dropzone:hover,
+.dropzone:focus-within {
+    border-color: var(--brand);
+}
+
+/* Added by app.js only while a file is being dragged over it. */
+.dropzone.is-dragging {
+    border-color: var(--brand);
+    border-style: solid;
+    background: #eef7f2;
+}
+
+.dropzone .upload-preview {
+    margin: 0 auto 10px;
+}
+
+.dropzone .upload-preview.is-hidden {
+    display: none;
+}
+
+.dropzone-hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.dropzone-link {
+    color: var(--brand);
+    text-decoration: underline;
+}
+
+/* Off-screen rather than hidden, so it keeps its place in the tab order. */
+.dropzone input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
 }
 
 .upload-preview {

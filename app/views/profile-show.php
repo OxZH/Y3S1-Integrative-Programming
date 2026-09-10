@@ -39,6 +39,15 @@ use App\Model\User;
 <div class="row">
     <div class="card">
         <h2>Account</h2>
+
+        <?php if ($account instanceof User): ?>
+            <?php $picture = App\Domain\ProfileImage::cacheBustedSrc($account->getProfilePicURL()); ?>
+            <?php if ($picture !== ''): ?>
+                <img class="upload-preview" src="<?= e($picture) ?>"
+                     alt="<?= e($account->getUsername()) ?>">
+            <?php endif; ?>
+        <?php endif; ?>
+
         <p class="stat"><span class="sub-tight">Email</span><br><?= e($account->getEmail()) ?></p>
         <p class="stat"><span class="sub-tight">Contact number</span><br><?= e($account->getContactNumber()) ?></p>
         <p class="stat"><span class="sub-tight">Member since</span><br>
@@ -46,8 +55,15 @@ use App\Model\User;
         </p>
 
         <?php if ($account instanceof User): ?>
-            <p class="stat"><span class="sub-tight">Favourite sport</span><br>
-                <?= e($account->getFavoriteSport() ?? 'Not set') ?>
+            <p class="stat"><span class="sub-tight">Favourite sports</span><br>
+                <?php $sports = $account->getFavoriteSports(); ?>
+                <?php if ($sports === []): ?>
+                    Not set
+                <?php else: ?>
+                    <?php foreach ($sports as $sport): ?>
+                        <span class="pill"><?= e($sport) ?></span>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </p>
             <p class="stat"><span class="sub-tight">Plays around</span><br>
                 <?= e($account->getLocation() ?? 'Not set') ?>

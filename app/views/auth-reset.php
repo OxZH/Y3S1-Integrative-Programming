@@ -11,6 +11,8 @@ $err = static fn (string $f): string => isset($errors[$f])
     ? '<div class="field-error">' . e($errors[$f]) . '</div>'
     : '';
 ?>
+<div class="auth-page">
+
 <h1>Choose a new password</h1>
 <p class="lede">This link works once. After you set a password it stops working.</p>
 
@@ -18,7 +20,7 @@ $err = static fn (string $f): string => isset($errors[$f])
     <div class="flash error">Please correct the highlighted fields.</div>
 <?php endif; ?>
 
-<form method="post" action="<?= e(url('auth', 'reset')) ?>" class="card narrow-field">
+<form method="post" action="<?= e(url('auth', 'reset')) ?>" class="card auth-card">
     <?= $csrfField ?>
 
     <!-- Carried in the form body, not the address bar, so it does not end up in
@@ -45,3 +47,5 @@ $err = static fn (string $f): string => isset($errors[$f])
         <a class="btn ghost" href="<?= e(url('auth')) ?>">Cancel</a>
     </div>
 </form>
+
+</div>

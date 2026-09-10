@@ -9,6 +9,7 @@ use App\Controller\AuthController;
 use App\Controller\DiscoveryController;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
+use App\Controller\LocationController;
 use App\Controller\ProfileController;
 use App\Core\View;
 use App\NotFoundException;
@@ -43,6 +44,10 @@ $routes = [
     'admin' => [
         'class'   => AdminController::class,
         'actions' => ['accounts', 'reactivate', 'audit'],
+    ],
+    'location' => [
+        'class'   => LocationController::class,
+        'actions' => ['lookup'],
     ],
     // MODULE 5 - Discovery & Event Matchmaking (js)
     'discovery' => [

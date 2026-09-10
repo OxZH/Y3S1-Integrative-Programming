@@ -81,7 +81,7 @@ final class DiscoveryRemoteServices
      * plain latitude/longitude here only so the rest of this module does not
      * need to know or care whose API supplied the number.
      *
-     * @return array{favoriteSport:?string,latitude:?float,longitude:?float}|null
+     * @return array{favoriteSports:string[],latitude:?float,longitude:?float}|null
      */
     public function userProfile(string $baseUserId): ?array
     {
@@ -98,7 +98,11 @@ final class DiscoveryRemoteServices
         }
 
         return [
-            'favoriteSport' => isset($data['favoriteSport']) ? (string) $data['favoriteSport'] : null,
+            // A player may now list several favourite sports. Older responses
+            // carry only the single favoriteSport, so that is accepted too.
+            'favoriteSports' => is_array($data['favoriteSports'] ?? null)
+                ? array_values(array_filter($data['favoriteSports'], 'is_string'))
+                : (isset($data['favoriteSport']) ? [(string) $data['favoriteSport']] : []),
             'latitude'      => isset($data['approxLatitude']) ? (float) $data['approxLatitude'] : null,
             'longitude'     => isset($data['approxLongitude']) ? (float) $data['approxLongitude'] : null,
         ];

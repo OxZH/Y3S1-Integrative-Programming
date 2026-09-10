@@ -32,6 +32,53 @@ enum UserType: string
     }
 }
 
+/**
+ * The sports a player can pick as a favourite.
+ *
+ * A fixed list rather than a free text box, for two reasons. The recommendation
+ * engine matches a player's favourites against an event's sport by name, and
+ * "Badminton", "badminton" and "Badmintons" would score as three different
+ * sports. And a closed list means the value is checked against something real
+ * on the way in, so nothing arbitrary reaches the database.
+ *
+ * Chosen for what is actually played in Malaysia - badminton, football and
+ * futsal at the top, sepak takraw and silat included, ice hockey not.
+ */
+enum Sport: string
+{
+    case BADMINTON    = 'Badminton';
+    case FOOTBALL     = 'Football';
+    case FUTSAL       = 'Futsal';
+    case SEPAK_TAKRAW = 'Sepak Takraw';
+    case BASKETBALL   = 'Basketball';
+    case VOLLEYBALL   = 'Volleyball';
+    case TABLE_TENNIS = 'Table Tennis';
+    case TENNIS       = 'Tennis';
+    case SQUASH       = 'Squash';
+    case HOCKEY       = 'Hockey';
+    case NETBALL      = 'Netball';
+    case BOWLING      = 'Bowling';
+    case SWIMMING     = 'Swimming';
+    case CYCLING      = 'Cycling';
+    case RUNNING      = 'Running';
+    case RUGBY        = 'Rugby';
+    case SILAT        = 'Silat';
+    case GOLF         = 'Golf';
+    case PICKLEBALL   = 'Pickleball';
+    case CRICKET      = 'Cricket';
+
+    public function label(): string
+    {
+        return $this->value;
+    }
+
+    /** @return string[] the stored values, for a dropdown or a validator */
+    public static function values(): array
+    {
+        return array_map(static fn (self $s): string => $s->value, self::cases());
+    }
+}
+
 enum AccountStatus: string
 {
     case ACTIVE      = 'ACTIVE';

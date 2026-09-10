@@ -44,14 +44,30 @@ INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`, `busine
 ('own-001', 'Maybank',    '514012345678', 'SSM-202401001234'),
 ('own-002', 'CIMB Bank',  '800987654321', 'SSM-202402005678');
 
+-- latitude/longitude are what geocoding `location` produces. They are seeded
+-- here so the demo has them without calling OpenStreetMap 6 times on setup.
 INSERT INTO `User`
-    (`baseUserId`, `favoriteSport`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`) VALUES
-('usr-001', 'Badminton',  'Setapak, Kuala Lumpur',    '/uploads/profile/usr-001.jpg', '2003-05-14', 3.2168000, 101.7291000),
-('usr-002', 'Futsal',     'Wangsa Maju, Kuala Lumpur','/uploads/profile/usr-002.jpg', '2002-11-30', 3.2050000, 101.7370000),
-('usr-003', 'Basketball', 'Cheras, Kuala Lumpur',     '/uploads/profile/usr-003.jpg', '2004-02-08', 3.1041000, 101.7420000),
-('usr-004', 'Badminton',  'Kepong, Kuala Lumpur',     NULL,                           '2001-07-22', 3.2088000, 101.6355000),
-('usr-005', 'Futsal',     'Klang, Selangor',          '/uploads/profile/usr-005.jpg', '2003-09-03', 3.0449000, 101.4455000),
-('usr-006', 'Basketball', 'Ampang, Selangor',         NULL,                           '2000-12-19', 3.1500000, 101.7600000);
+    (`baseUserId`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`) VALUES
+-- profilePicURL is seeded NULL. A profile picture is an uploaded file living in
+-- public/static/profile/<baseUserId>.jpg, and there are no image files in the
+-- repository - pointing at ones that do not exist would show a broken image on
+-- every demo profile. Upload one from Edit profile to see it.
+('usr-001', 'Setapak, Kuala Lumpur',    NULL, '2003-05-14', 3.2168000, 101.7291000),
+('usr-002', 'Wangsa Maju, Kuala Lumpur',NULL, '2002-11-30', 3.2050000, 101.7370000),
+('usr-003', 'Cheras, Kuala Lumpur',     NULL, '2004-02-08', 3.1041000, 101.7420000),
+('usr-004', 'Kepong, Kuala Lumpur',     NULL, '2001-07-22', 3.2088000, 101.6355000),
+('usr-005', 'Klang, Selangor',          NULL, '2003-09-03', 3.0449000, 101.4455000),
+('usr-006', 'Ampang, Selangor',         NULL, '2000-12-19', 3.1500000, 101.7600000);
+
+-- Favourite sports, one row per sport per player. Several players list more
+-- than one, so the recommendation engine has something to match on.
+INSERT INTO `UserFavoriteSport` (`baseUserId`, `sport`) VALUES
+('usr-001', 'Badminton'),  ('usr-001', 'Table Tennis'),
+('usr-002', 'Futsal'),     ('usr-002', 'Football'),
+('usr-003', 'Basketball'),
+('usr-004', 'Badminton'),  ('usr-004', 'Squash'),      ('usr-004', 'Running'),
+('usr-005', 'Futsal'),     ('usr-005', 'Sepak Takraw'),
+('usr-006', 'Basketball');
 
 -- ---------------------------------------------------------------------------
 --  Facilities   (MODULE 1 - mine)

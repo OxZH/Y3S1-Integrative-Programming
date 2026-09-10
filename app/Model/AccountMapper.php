@@ -31,7 +31,10 @@ final class AccountMapper extends DataMapper
     private const SELECT = 'SELECT b.baseUserId, b.email, b.username, b.contactNumber,
                                    b.registerTime, b.userType, b.accountStatus,
                                    b.lastLoginAt, b.passwordChangedAt,
-                                   u.favoriteSport, u.location, u.profilePicURL,
+                                   (SELECT GROUP_CONCAT(s.sport ORDER BY s.sport SEPARATOR \',\')
+                                      FROM `UserFavoriteSport` s
+                                     WHERE s.baseUserId = b.baseUserId) AS favoriteSports,
+                                   u.location, u.profilePicURL,
                                    u.birthDate, u.latitude, u.longitude,
                                    o.bankName, o.bankAccountNum, o.businessRegNum,
                                    a.adminId
@@ -319,7 +322,7 @@ final class AccountMapper extends DataMapper
         return match ($type) {
             UserType::USER => new User(
                 ...$shared,
-                favoriteSport: $this->toNullableString($row['favoriteSport'] ?? null),
+                favoriteSports: $this->toSportList($row['favoriteSports'] ?? null),
                 location:      $this->toNullableString($row['location'] ?? null),
                 profilePicURL: $this->toNullableString($row['profilePicURL'] ?? null),
                 birthDate:     $this->toDate($row['birthDate'] ?? null, 'Y-m-d'),
@@ -362,11 +365,10 @@ final class AccountMapper extends DataMapper
         if ($account instanceof User) {
             $this->execute(
                 'INSERT INTO `User`
-                     (`baseUserId`, `favoriteSport`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`)
-                 VALUES (:id, :sport, :location, :pic, :birth, :lat, :lng)',
+                     (`baseUserId`, `location`, `profilePicURL`, `birthDate`, `latitude`, `longitude`)
+                 VALUES (:id, :location, :pic, :birth, :lat, :lng)',
                 [
                     ':id'       => $account->getBaseUserId(),
-                    ':sport'    => $account->getFavoriteSport(),
                     ':location' => $account->getLocation(),
                     ':pic'      => $account->getProfilePicURL(),
                     ':birth'    => $account->getBirthDate()?->format('Y-m-d'),
@@ -374,6 +376,10 @@ final class AccountMapper extends DataMapper
                     ':lng'      => $account->getLongitude(),
                 ]
             );
+
+            // Both callers already run inside Database::transaction(), so the
+            // User row and its sports either both land or neither does.
+            $this->replaceFavoriteSports($account);
 
             return;
         }
@@ -406,11 +412,10 @@ final class AccountMapper extends DataMapper
         if ($account instanceof User) {
             $this->execute(
                 'UPDATE `User`
-                    SET `favoriteSport` = :sport, `location` = :location, `profilePicURL` = :pic,
+                    SET `location` = :location, `profilePicURL` = :pic,
                         `birthDate` = :birth, `latitude` = :lat, `longitude` = :lng
                   WHERE `baseUserId` = :id',
                 [
-                    ':sport'    => $account->getFavoriteSport(),
                     ':location' => $account->getLocation(),
                     ':pic'      => $account->getProfilePicURL(),
                     ':birth'    => $account->getBirthDate()?->format('Y-m-d'),
@@ -419,6 +424,8 @@ final class AccountMapper extends DataMapper
                     ':id'       => $account->getBaseUserId(),
                 ]
             );
+
+            $this->replaceFavoriteSports($account);
 
             return;
         }
@@ -462,6 +469,43 @@ final class AccountMapper extends DataMapper
         $row = $this->selectOne($sql, $params);
 
         return ((int) ($row['total'] ?? 0)) > 0;
+    }
+
+    /**
+     * Replace, not merge: the form sends the complete set of favourites every
+     * time, so a sport the player unticked has to disappear. Deleting the lot
+     * and re-inserting is a handful of rows and keeps "what is stored" and
+     * "what was submitted" identical, with no diffing to get wrong.
+     */
+    private function replaceFavoriteSports(User $user): void
+    {
+        $this->execute(
+            'DELETE FROM `UserFavoriteSport` WHERE `baseUserId` = :id',
+            [':id' => $user->getBaseUserId()]
+        );
+
+        foreach ($user->getFavoriteSports() as $sport) {
+            $this->execute(
+                'INSERT INTO `UserFavoriteSport` (`baseUserId`, `sport`) VALUES (:id, :sport)',
+                [':id' => $user->getBaseUserId(), ':sport' => $sport]
+            );
+        }
+    }
+
+    /**
+     * GROUP_CONCAT hands back one comma-joined string, or NULL when the player
+     * has picked nothing. A sport name never contains a comma - they all come
+     * from the App\Sport list - so splitting on one is safe.
+     *
+     * @return string[]
+     */
+    private function toSportList(mixed $value): array
+    {
+        if (!is_string($value) || $value === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $value)), static fn (string $s): bool => $s !== ''));
     }
 
     private function toDate(mixed $value, string $format): ?DateTimeImmutable

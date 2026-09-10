@@ -47,7 +47,9 @@
  *    Description : Public profile fields for a player, for the discovery and
  *                  social modules. Never returns an email or a phone number.
  *    Request adds nothing beyond baseUserId. Response data carries
- *    username, favoriteSport, location, userType, memberSince and, only when
+ *    username, favoriteSports (an array), favoriteSport (the first of them, kept
+ *    for callers written before the list existed), location, userType,
+ *    memberSince and, only when
  *    the account has them, latitude and longitude rounded to 2 decimal places.
  *
  *  FUNCTION: accountExists
@@ -164,7 +166,11 @@ try {
         ];
 
         if ($account instanceof User) {
-            $data['favoriteSport'] = $account->getFavoriteSport();
+            // A list now, not one value. favoriteSport is still sent, holding
+            // the first of them, so a consumer written against the old shape
+            // keeps working instead of silently reading null.
+            $data['favoriteSports'] = $account->getFavoriteSports();
+            $data['favoriteSport']  = $account->getFavoriteSport();
             $data['location']      = $account->getLocation();
             $data['profilePicURL'] = $account->getProfilePicURL();
 

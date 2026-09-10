@@ -1,3 +1,10 @@
 # Stands in for the user's inbox while there is no mail server. Holds live
 # password reset links, so it must never be committed.
 /storage/
+
+# Uploaded pictures belong to whoever is running the site, not to the repo.
+# The folders and their .htaccess guards are kept; the images are not.
+/public/static/profile/*
+!/public/static/profile/.htaccess
+/public/static/uploads/facilities/*
+!/public/static/uploads/facilities/.htaccess
