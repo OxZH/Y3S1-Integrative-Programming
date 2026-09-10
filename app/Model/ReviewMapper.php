@@ -44,6 +44,20 @@ final class ReviewMapper extends DataMapper
     }
 
     /** @return Review[] */
+    public function findAllForSpamCheck(): array
+    {
+        /** @var Review[] $reviews */
+        $reviews = $this->hydrateAll($this->select(
+            'SELECT * FROM `Review`
+             WHERE `moderationStatus` <> :removed
+             ORDER BY `reviewTimestamp` DESC',
+            [':removed' => ModerationStatus::REMOVED->value]
+        ));
+
+        return $reviews;
+    }
+
+    /** @return Review[] */
     public function findByFacilityId(string $facilityId): array
     {
         /** @var Review[] $reviews */
@@ -68,38 +82,46 @@ final class ReviewMapper extends DataMapper
     }
 
     /** @return Review[] */
-    public function findVisibleByTargetUserId(string $targetUserId, int $page = 1, int $perPage = 5): array
+    public function findVisibleByTargetUserId(string $targetUserId, int $page = 1, int $perPage = 5, bool $includeModerated = false): array
     {
         $page = max(1, $page);
         $perPage = max(1, min(20, $perPage));
         $offset = ($page - 1) * $perPage;
 
+        $statusFilter = $includeModerated ? '' : ' AND `moderationStatus` = :status';
+
         /** @var Review[] $reviews */
         $reviews = $this->hydrateAll($this->select(
             'SELECT * FROM `Review`
-             WHERE `targetUserId` = :targetUserId AND `moderationStatus` = :status
+             WHERE `targetUserId` = :targetUserId' . $statusFilter . '
              ORDER BY `reviewTimestamp` DESC
              LIMIT ' . $perPage . ' OFFSET ' . $offset,
-            [':targetUserId' => $targetUserId, ':status' => ModerationStatus::VISIBLE->value]
+            $includeModerated
+                ? [':targetUserId' => $targetUserId]
+                : [':targetUserId' => $targetUserId, ':status' => ModerationStatus::VISIBLE->value]
         ));
 
         return $reviews;
     }
 
     /** @return Review[] */
-    public function findVisibleByFacilityId(string $facilityId, int $page = 1, int $perPage = 5): array
+    public function findVisibleByFacilityId(string $facilityId, int $page = 1, int $perPage = 5, bool $includeModerated = false): array
     {
         $page = max(1, $page);
         $perPage = max(1, min(20, $perPage));
         $offset = ($page - 1) * $perPage;
 
+        $statusFilter = $includeModerated ? '' : ' AND `moderationStatus` = :status';
+
         /** @var Review[] $reviews */
         $reviews = $this->hydrateAll($this->select(
             'SELECT * FROM `Review`
-             WHERE `facilityId` = :facilityId AND `moderationStatus` = :status
+             WHERE `facilityId` = :facilityId' . $statusFilter . '
              ORDER BY `reviewTimestamp` DESC
              LIMIT ' . $perPage . ' OFFSET ' . $offset,
-            [':facilityId' => $facilityId, ':status' => ModerationStatus::VISIBLE->value]
+            $includeModerated
+                ? [':facilityId' => $facilityId]
+                : [':facilityId' => $facilityId, ':status' => ModerationStatus::VISIBLE->value]
         ));
 
         return $reviews;
@@ -116,6 +138,17 @@ final class ReviewMapper extends DataMapper
         return (int) ($row['total'] ?? 0);
     }
 
+    public function countByTargetUserId(string $targetUserId, bool $includeModerated = false): int
+    {
+        if (!$includeModerated) {
+            return $this->countVisibleByTargetUserId($targetUserId);
+        }
+
+        $row = $this->selectOne('SELECT COUNT(*) AS total FROM `Review` WHERE `targetUserId` = :targetUserId', [':targetUserId' => $targetUserId]);
+
+        return (int) ($row['total'] ?? 0);
+    }
+
     public function countVisibleByFacilityId(string $facilityId): int
     {
         $row = $this->selectOne(
@@ -125,6 +158,46 @@ final class ReviewMapper extends DataMapper
         );
 
         return (int) ($row['total'] ?? 0);
+    }
+
+    public function countByFacilityId(string $facilityId, bool $includeModerated = false): int
+    {
+        if (!$includeModerated) {
+            return $this->countVisibleByFacilityId($facilityId);
+        }
+
+        $row = $this->selectOne('SELECT COUNT(*) AS total FROM `Review` WHERE `facilityId` = :facilityId', [':facilityId' => $facilityId]);
+
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function setModerationStatus(string $reviewId, ModerationStatus $status): void
+    {
+        $this->execute(
+            'UPDATE `Review` SET `moderationStatus` = :status WHERE `reviewId` = :reviewId',
+            [':status' => $status->value, ':reviewId' => $reviewId]
+        );
+
+        unset($this->identityMap[$reviewId]);
+    }
+
+    public function remove(string $reviewId, string $message): void
+    {
+        $this->execute(
+            'UPDATE `Review`
+                SET `reviewTitle` = :title,
+                    `reviewComment` = :message,
+                    `moderationStatus` = :status
+              WHERE `reviewId` = :reviewId',
+            [
+                ':title'  => "Review Removed",
+                ':message'  => $message,
+                ':status'   => ModerationStatus::REMOVED->value,
+                ':reviewId' => $reviewId,
+            ]
+        );
+
+        unset($this->identityMap[$reviewId]);
     }
 
     public function countByAuthorSince(string $authorId, DateTimeImmutable $since): int

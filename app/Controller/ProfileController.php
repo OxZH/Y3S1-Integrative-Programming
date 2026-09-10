@@ -17,6 +17,7 @@ use App\Security\Validator;
 use App\Service\ParticipationHistory;
 use App\Service\RemoteServices;
 use App\Service\ReviewService;
+use App\Service\RatingService;
 use App\ValidationException;
 
 /**
@@ -32,15 +33,18 @@ final class ProfileController extends Controller
     private AccountServiceInterface $accounts;
     private RemoteServices $services;
     private ReviewService $reviews;
+    private RatingService $ratings;
 
     public function __construct(
         ?AccountServiceInterface $accounts = null,
         ?RemoteServices $services = null,
-        ?ReviewService $reviews = null
+        ?ReviewService $reviews = null,
+        ?RatingService $ratings = null
     ) {
         $this->accounts = $accounts ?? new AccountServiceProxy();
         $this->services = $services ?? new RemoteServices();
         $this->reviews = $reviews ?? new ReviewService();
+        $this->ratings = $ratings ?? new RatingService();
     }
 
     public function index(): void
@@ -202,7 +206,7 @@ final class ProfileController extends Controller
             $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
         }
 
-        $reviewData = $this->reviews->page('user', $userId, $page);
+        $reviewData = $this->reviews->page('user', $userId, $page, $current->isAdmin());
 
         $this->view('profile-public', [
             'title'        => $account->getUsername(),
@@ -216,6 +220,9 @@ final class ProfileController extends Controller
             'reviewAuthors' => $reviewData['reviewAuthors'],
             'reviewPage'    => $page,
             'reviewPages'   => $reviewData['reviewPages'],
+            'isAdmin'       => $current->isAdmin(),
+            'isPlayer'       => $current->isPlayer(),
+            'userRatings'    => $this->ratings->userRating($current->getBaseUserId(), $userId),
         ]);
     }
 

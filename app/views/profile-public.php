@@ -11,6 +11,9 @@
 /** @var array<string,\App\Model\Account|null> $reviewAuthors */
 /** @var int $reviewPage */
 /** @var int $reviewPages */
+/** @var bool $isAdmin */
+/** @var bool $isPlayer */
+/** @var array{attitude:?int,attendance:?int}|null $userRatings */
 
 use App\Model\Admin;
 use App\Model\FacilityOwner;
@@ -31,12 +34,14 @@ use App\Model\User;
             <?= $csrfField ?? '' ?>
             <input type="hidden" name="userId" value="<?= e($account->getBaseUserId()) ?>">
 
-            <?php if ($connectionState === 'PENDING'): ?>
-                <button class="btn ghost" type="submit" disabled>Friend request pending</button>
-            <?php elseif ($connectionState === 'ACCEPTED'): ?>
-                <button class="btn ghost" type="submit" disabled>Friends</button>
-            <?php else: ?>
-                <button class="btn" type="submit">Add friend</button>
+            <?php if ($isPlayer): ?>
+                <?php if ($connectionState === 'PENDING'): ?>
+                    <button class="btn ghost" type="submit" disabled>Friend request pending</button>
+                <?php elseif ($connectionState === 'ACCEPTED'): ?>
+                    <button class="btn ghost" type="submit" disabled>Friends</button>
+                <?php else: ?>
+                    <button class="btn" type="submit">Add friend</button>
+                <?php endif; ?>
             <?php endif; ?>
 
         </form>
@@ -46,6 +51,27 @@ use App\Model\User;
             <a class="btn" href="<?= e(url('profile', 'edit')) ?>">Edit profile</a>
             <a class="btn ghost" href="<?= e(url('profile', 'security')) ?>">Password &amp; security</a>
         </div>
+    <?php endif; ?>
+    <?php if (!$isSelf): ?>
+        <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
+            data-rating-widget>
+            <?= $csrfField ?? '' ?>
+            <input type="hidden" name="targetType" value="user">
+            <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
+            <?php foreach (['attitude' => 'Attitude', 'attendance' => 'Attendance'] as $ratingType => $label): ?>
+                <div class="rating-group" data-rating-group="<?= e($ratingType) ?>" data-current-rating="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>">
+                    <input type="hidden" name="<?= e($ratingType) ?>Rating" value="<?= e((string) ($userRatings[$ratingType] ?? 0)) ?>" data-rating-value>
+                    <span class="small muted"><?= e($label) ?> rating</span>
+                    <div class="rating-stars" role="group" aria-label="Rate this profile's <?= e(strtolower($label)) ?> from one to five stars">
+                        <?php for ($star = 1; $star <= 5; $star++): ?>
+                            <button class="rating-star <?= $star <= ($userRatings[$ratingType] ?? 0) ? 'is-selected' : '' ?>"
+                                type="button" data-rating-star="<?= $star ?>" aria-label="<?= $star ?> star<?= $star === 1 ? '' : 's' ?>">&#9733;</button>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <button class="btn small" type="submit" data-rating-submit>Submit ratings</button>
+        </form>
     <?php endif; ?>
 </div>
 
@@ -173,20 +199,44 @@ use App\Model\User;
                     </div>
                     <h3><?= e($review->getTitle()) ?></h3>
                     <p><?= nl2br(e($review->getComment())) ?></p>
-                    <div class="review-footer">
-                        <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
-                            <?= $csrfField ?? '' ?>
-                            <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
-                            <input type="hidden" name="targetType" value="user">
-                            <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
-                            <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
-                            <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
-                            <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
-                        </form>
-                        <time class="small muted" datetime="<?= e($review->getReviewTimestamp()->format(DATE_ATOM)) ?>">
-                            <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
-                        </time>
-                    </div>
+                    <?php if (!$review->getModerationStatus()->isRemoved()): ?>
+                        <div class="review-footer">
+                            <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
+                                <?= $csrfField ?? '' ?>
+                                <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                <input type="hidden" name="targetType" value="user">
+                                <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
+                                <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
+                                <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
+                                <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
+                            </form>
+                            <time class="small muted" datetime="<?= e($review->getReviewTimestamp()->format(DATE_ATOM)) ?>">
+                                <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
+                            </time>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($isAdmin && !$review->getModerationStatus()->isRemoved()): ?>
+                        <div class="button-row">
+                            <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                <?= $csrfField ?? '' ?>
+                                <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                <input type="hidden" name="targetType" value="user">
+                                <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
+                                <input type="hidden" name="moderationAction" value="toggle">
+                                <button class="btn ghost small" type="submit">
+                                    <?= $review->getModerationStatus()->isVisible() ? 'Mark invisible' : 'Mark visible' ?>
+                                </button>
+                            </form>
+                            <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                <?= $csrfField ?? '' ?>
+                                <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                <input type="hidden" name="targetType" value="user">
+                                <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
+                                <input type="hidden" name="moderationAction" value="remove">
+                                <button class="btn danger small" type="submit">Mark removed</button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
                 </article>
             <?php endforeach; ?>
         </div>

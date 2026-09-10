@@ -11,6 +11,7 @@ use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
 use App\Model\AuthEventMapper;
 use App\Security\Auth;
+use App\Service\ReviewService;
 
 /**
  * The administrator half of role-based access control.
@@ -27,10 +28,12 @@ use App\Security\Auth;
 final class AdminController extends Controller
 {
     private AccountServiceInterface $accounts;
+    private ReviewService $reviews;
 
-    public function __construct(?AccountServiceInterface $accounts = null)
+    public function __construct(?AccountServiceInterface $accounts = null, ?ReviewService $reviews = null)
     {
         $this->accounts = $accounts ?? new AccountServiceProxy();
+        $this->reviews = $reviews ?? new ReviewService();
     }
 
     public function accounts(): void
@@ -71,6 +74,23 @@ final class AdminController extends Controller
             'title'  => 'Security log',
             'events' => $type === null ? $log->recent(100) : $log->recentOfType($type, 100),
             'filter' => $type,
+        ]);
+    }
+
+    public function spam(): void
+    {
+        Auth::requireAdmin();
+
+        $reviews = $this->reviews->possibleSpamReviews();
+        $authors = [];
+        foreach ($reviews as $review) {
+            $authors[$review->getAuthorId()] = (new \App\Model\AccountMapper())->findAccount($review->getAuthorId());
+        }
+
+        $this->view('admin-spam', [
+            'title'        => 'Possible spam reviews',
+            'reviews'      => $reviews,
+            'reviewAuthors' => $authors,
         ]);
     }
 }

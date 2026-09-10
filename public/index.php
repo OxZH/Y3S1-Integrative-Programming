@@ -12,6 +12,7 @@ use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\ProfileController;
 use App\Controller\ReviewController;
+use App\Controller\RatingController;
 use App\Controller\FriendsController;
 use App\Core\View;
 use App\NotFoundException;
@@ -71,11 +72,15 @@ $routes = [
     ],
     'review' => [
         'class'   => ReviewController::class,
-        'actions' => ['store', 'vote'],
+        'actions' => ['store', 'vote', 'moderate'],
+    ],
+    'rating' => [
+        'class'   => RatingController::class,
+        'actions' => ['store'],
     ],
     'admin' => [
         'class'   => AdminController::class,
-        'actions' => ['accounts', 'reactivate', 'audit'],
+        'actions' => ['accounts', 'reactivate', 'audit', 'spam'],
     ],
 ];
 

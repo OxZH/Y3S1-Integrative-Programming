@@ -53,6 +53,23 @@ final class ReviewController extends Controller
         $this->redirect($this->targetUrl($targetType, $targetId));
     }
 
+    public function moderate(): void
+    {
+        $this->requirePostWithCsrf();
+        Auth::requireAdmin();
+
+        $reviewId = is_string($_POST['reviewId'] ?? null) ? $_POST['reviewId'] : '';
+        $targetType = is_string($_POST['targetType'] ?? null) ? $_POST['targetType'] : '';
+        $targetId = is_string($_POST['targetId'] ?? null) ? $_POST['targetId'] : '';
+        $remove = ($_POST['moderationAction'] ?? '') === 'remove';
+
+        if ($this->reviews->moderate($reviewId, $targetType, $targetId, $remove)) {
+            $this->flash('success', $remove ? 'The review was removed.' : 'The review visibility was toggled.');
+        }
+
+        $this->redirect($this->targetUrl($targetType, $targetId));
+    }
+
     private function targetUrl(string $targetType, string $targetId): string
     {
         return $targetType === 'facility'

@@ -11,14 +11,34 @@ use App\Security\Auth;
 /** @var array<string,\App\Model\Account|null> $reviewAuthors */
 /** @var int $reviewPage */
 /** @var int $reviewPages */
+/** @var bool $isAdmin */
 
 use App\Model\Admin;
 use App\Model\User;
 
 $owner = $facility->getOwner();
 ?>
-<h1><?= e($facility->getName()) ?></h1>
-<p class="lede"><?= e($facility->getFullAddress()) ?></p>
+<div class="page-head">
+    <div>
+        <h1><?= e($facility->getName()) ?></h1>
+        <p class="lede-flush"><?= e($facility->getFullAddress()) ?></p>
+    </div>
+    <?php if (Auth::check()): ?>
+        <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
+            data-rating-widget data-current-rating="<?= e((string) ($currentRating ?? 0)) ?>">
+            <?= $csrfField ?? '' ?>
+            <input type="hidden" name="targetType" value="facility">
+            <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+            <span class="small muted">Your rating</span>
+            <div class="rating-stars" role="group" aria-label="Rate this facility from one to five stars">
+                <?php for ($star = 1; $star <= 5; $star++): ?>
+                    <button class="rating-star <?= $star <= ($currentRating ?? 0) ? 'is-selected' : '' ?>"
+                        type="submit" name="rating" value="<?= $star ?>" aria-label="<?= $star ?> star<?= $star === 1 ? '' : 's' ?>">&#9733;</button>
+                <?php endfor; ?>
+            </div>
+        </form>
+    <?php endif; ?>
+</div>
 
 <div class="row">
     <div class="card">
@@ -155,6 +175,29 @@ $owner = $facility->getOwner();
                                 <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
                             </time>
                         </div>
+                        <?php if ($isAdmin && !$review->getModerationStatus()->isRemoved()): ?>
+                            <div class="button-row">
+                                <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                    <?= $csrfField ?? '' ?>
+                                    <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                    <input type="hidden" name="targetType" value="facility">
+                                    <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+                                    <input type="hidden" name="moderationAction" value="toggle">
+
+                                    <button class="btn ghost <?= $review->getModerationStatus()->isVisible() ? 'small' : '' ?>" type="submit">
+                                        <?= $review->getModerationStatus()->isVisible() ? 'Mark invisible' : 'Mark visible' ?>
+                                    </button>
+                                </form>
+                                <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                    <?= $csrfField ?? '' ?>
+                                    <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                    <input type="hidden" name="targetType" value="facility">
+                                    <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+                                    <input type="hidden" name="moderationAction" value="remove">
+                                    <button class="btn danger small" type="submit">Mark removed</button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
                     </article>
                 <?php endforeach; ?>
             </div>

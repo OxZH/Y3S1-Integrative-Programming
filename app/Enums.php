@@ -193,6 +193,11 @@ enum ModerationStatus: string
         return $this === self::VISIBLE;
     }
 
+    public function isRemoved(): bool
+    {
+        return $this === self::REMOVED;
+    }
+
     public function label(): string
     {
         return ucfirst(strtolower($this->value));

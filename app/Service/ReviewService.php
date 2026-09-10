@@ -9,11 +9,13 @@ use App\Model\AccountMapper;
 use App\Model\FacilityMapper;
 use App\Model\Review;
 use App\Model\ReviewMapper;
+use App\ModerationStatus;
 use App\ValidationException;
 use DateTimeImmutable;
 
 final class ReviewService
 {
+    private const REMOVED_MESSAGE = 'This review was removed by a moderator for abusive language.';
     private const REVIEWS_PER_HOUR = 5;
     private const REVIEWS_PER_PAGE = 5;
 
@@ -24,15 +26,15 @@ final class ReviewService
     ) {}
 
     /** @return array{reviews:Review[],reviewAuthors:array<string,Account|null>,reviewPages:int} */
-    public function page(string $targetType, string $targetId, int $page = 1): array
+    public function page(string $targetType, string $targetId, int $page = 1, bool $includeModerated = false): array
     {
         $page = max(1, $page);
         $reviews = $targetType === 'facility'
-            ? $this->reviews->findVisibleByFacilityId($targetId, $page, self::REVIEWS_PER_PAGE)
-            : $this->reviews->findVisibleByTargetUserId($targetId, $page, self::REVIEWS_PER_PAGE);
+            ? $this->reviews->findVisibleByFacilityId($targetId, $page, self::REVIEWS_PER_PAGE, $includeModerated)
+            : $this->reviews->findVisibleByTargetUserId($targetId, $page, self::REVIEWS_PER_PAGE, $includeModerated);
         $total = $targetType === 'facility'
-            ? $this->reviews->countVisibleByFacilityId($targetId)
-            : $this->reviews->countVisibleByTargetUserId($targetId);
+            ? $this->reviews->countByFacilityId($targetId, $includeModerated)
+            : $this->reviews->countByTargetUserId($targetId, $includeModerated);
 
         $authors = [];
         foreach ($reviews as $review) {
@@ -44,6 +46,46 @@ final class ReviewService
             'reviewAuthors' => $authors,
             'reviewPages'   => max(1, (int) ceil($total / self::REVIEWS_PER_PAGE)),
         ];
+    }
+
+    /** @return Review[] */
+    public function possibleSpamReviews(): array
+    {
+        $possibleSpamReviews = $this->reviews->findAllForSpamCheck();
+        $fingerprints = [];
+        $recentByAuthor = [];
+        $flagged = [];
+        $cutoff = new DateTimeImmutable('-1 hour');
+
+        foreach ($possibleSpamReviews as $review) {
+            $fingerprint = $review->getAuthorId() . '|' . $this->normalise($review->getTitle()) . '|' . $this->normalise($review->getComment());
+            $fingerprints[$fingerprint][] = $review;
+
+            if ($review->getReviewTimestamp() >= $cutoff) {
+                $recentByAuthor[$review->getAuthorId()][] = $review;
+            }
+        }
+
+        foreach ($fingerprints as $matchingReviews) {
+            if (count($matchingReviews) > 1) {
+                foreach ($matchingReviews as $review) {
+                    $flagged[$review->getReviewId()] = $review;
+                }
+            }
+        }
+
+        foreach ($recentByAuthor as $recentReviews) {
+            if (count($recentReviews) >= self::REVIEWS_PER_HOUR) {
+                foreach ($recentReviews as $review) {
+                    $flagged[$review->getReviewId()] = $review;
+                }
+            }
+        }
+
+        usort($flagged, static fn(Review $left, Review $right): int
+        => $right->getReviewTimestamp() <=> $left->getReviewTimestamp());
+
+        return array_values($flagged);
     }
 
     public function submit(
@@ -106,11 +148,38 @@ final class ReviewService
         return true;
     }
 
+    public function moderate(string $reviewId, string $targetType, string $targetId, bool $remove): bool
+    {
+        $review = $this->reviews->findById($reviewId);
+        if ($review === null || !$this->belongsToTarget($review, $targetType, $targetId)) {
+            return false;
+        }
+
+        if ($remove) {
+            $this->reviews->remove($reviewId, self::REMOVED_MESSAGE);
+        } else {
+            $status = $review->getModerationStatus() === ModerationStatus::VISIBLE
+                ? ModerationStatus::HIDDEN
+                : ModerationStatus::VISIBLE;
+            $this->reviews->setModerationStatus($reviewId, $status);
+        }
+
+        return true;
+    }
+
     private function belongsToTarget(Review $review, string $targetType, string $targetId): bool
     {
         return $targetType === 'facility'
             ? $review->getFacilityId() === $targetId
             : $review->getTargetUserId() === $targetId;
+    }
+
+    private function normalise(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+        return $value;
     }
 
     private function containsHttpUrl(string $value): bool

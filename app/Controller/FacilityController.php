@@ -13,16 +13,19 @@ use App\Security\Validator;
 use App\ValidationException;
 use DateTimeImmutable;
 use App\Service\ReviewService;
+use App\Service\RatingService;
 
 final class FacilityController extends Controller
 {
     private EventManagementFacade $facade;
     private ReviewService $reviews;
+    private RatingService $ratings;
 
-    public function __construct(?ReviewService $reviews = null)
+    public function __construct(?ReviewService $reviews = null, ?RatingService $ratings = null)
     {
         $this->facade = new EventManagementFacade();
         $this->reviews = $reviews ?? new ReviewService();
+        $this->ratings = $ratings ?? new RatingService();
     }
 
     public function show(): void
@@ -36,7 +39,8 @@ final class FacilityController extends Controller
         $facility = $this->facade->getFacility($facilityId);
         $date     = $this->requestedDate();
         $page     = max(1, (int) ($_GET['page'] ?? 1));
-        $reviewData = $this->reviews->page('facility', $facilityId, $page);
+        $isAdmin = Auth::user()?->isAdmin() === true;
+        $reviewData = $this->reviews->page('facility', $facilityId, $page, $isAdmin);
 
         $this->view('facility-show', [
             'title'    => $facility->getName(),
@@ -48,6 +52,8 @@ final class FacilityController extends Controller
             'reviewAuthors' => $reviewData['reviewAuthors'],
             'reviewPage'    => $page,
             'reviewPages'   => $reviewData['reviewPages'],
+            'isAdmin'       => $isAdmin,
+            'currentRating' => Auth::id() === null ? null : $this->ratings->facilityRating(Auth::id(), $facilityId),
         ]);
     }
 

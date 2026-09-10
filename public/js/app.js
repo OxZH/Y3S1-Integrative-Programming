@@ -42,7 +42,7 @@
 
     function setUpVenuePreview() {
         var select = document.getElementById('facilityId');
-        var panel  = document.getElementById('venuePreview');
+        var panel = document.getElementById('venuePreview');
 
         if (!select || !panel) {
             return;
@@ -56,8 +56,8 @@
             return;
         }
 
-        var image  = panel.querySelector('[data-field="image"]');
-        var link   = panel.querySelector('[data-field="link"]');
+        var image = panel.querySelector('[data-field="image"]');
+        var link = panel.querySelector('[data-field="link"]');
         var fields = ['name', 'address', 'rating', 'fee', 'hours'];
 
         function render() {
@@ -131,9 +131,67 @@
         render();
     }
 
+    function setUpRatingWidgets() {
+        document.querySelectorAll('[data-rating-widget]').forEach(function (widget) {
+            var stars = widget.querySelectorAll('.rating-star:not([data-rating-star])');
+            var selectableStars = widget.querySelectorAll('[data-rating-star]');
+            var current = parseInt(widget.getAttribute('data-current-rating') || '0', 10);
+
+            function paint(value, preview) {
+                stars.forEach(function (star) {
+                    var selected = parseInt(star.value, 10) <= value;
+                    star.classList.toggle('is-preview', preview && selected);
+                    star.classList.toggle('is-selected', selected);
+                });
+            }
+
+            stars.forEach(function (star) {
+                star.addEventListener('mouseenter', function () {
+                    paint(parseInt(star.value, 10), true);
+                });
+            });
+
+            if (selectableStars.length > 0) {
+                widget.querySelectorAll('[data-rating-group]').forEach(function (group) {
+                    var groupStars = group.querySelectorAll('[data-rating-star]');
+                    var valueInput = group.querySelector('[data-rating-value]');
+                    var groupCurrent = parseInt(group.getAttribute('data-current-rating') || '0', 10);
+
+                    function paintGroup(value, preview) {
+                        groupStars.forEach(function (star) {
+                            var selected = parseInt(star.getAttribute('data-rating-star'), 10) <= value;
+                            star.classList.toggle('is-preview', preview && selected);
+                            star.classList.toggle('is-selected', selected);
+                        });
+                    }
+
+                    groupStars.forEach(function (star) {
+                        star.addEventListener('mouseenter', function () {
+                            paintGroup(parseInt(star.getAttribute('data-rating-star'), 10), true);
+                        });
+                        star.addEventListener('click', function () {
+                            groupCurrent = parseInt(star.getAttribute('data-rating-star'), 10);
+                            valueInput.value = groupCurrent;
+                            paintGroup(groupCurrent, false);
+                        });
+                    });
+
+                    group.addEventListener('mouseleave', function () {
+                        paintGroup(groupCurrent, false);
+                    });
+                });
+            } else {
+                widget.addEventListener('mouseleave', function () {
+                    paint(current, false);
+                });
+            }
+        });
+    }
+
     function start() {
         setUpVenuePreview();
         setUpRoleFields();
+        setUpRatingWidgets();
     }
 
     if (document.readyState === 'loading') {

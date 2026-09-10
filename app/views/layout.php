@@ -35,14 +35,17 @@ $assetVersion = static function (string $relative) use ($assets): string {
                 <a href="<?= e(url('event')) ?>">Upcoming games</a>
                 <?php if ($currentUser !== null): ?>
                     <a href="<?= e(url('event', 'mine')) ?>">My events</a>
-                    <a href="<?= e(url('friends', 'mine')) ?>">My friends</a>
-                    <a href="<?= e(url('profile', 'discover')) ?>">Discover users</a>
+                    <?php if ($currentUser->isPlayer()): ?>
+                        <a href="<?= e(url('friends', 'mine')) ?>">My friends</a>
+                        <a href="<?= e(url('profile', 'discover')) ?>">Discover users</a>
+                    <?php endif; ?>
                     <?php if ($currentUser->isFacilityOwner()): ?>
                         <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>
                     <?php endif; ?>
                     <a href="<?= e(url('profile')) ?>">My profile</a>
                     <?php if ($currentUser->isAdmin()): ?>
                         <a href="<?= e(url('admin', 'accounts')) ?>">Accounts</a>
+                        <a href="<?= e(url('admin', 'spam')) ?>">Possible spam</a>
                     <?php endif; ?>
                 <?php endif; ?>
             </nav>

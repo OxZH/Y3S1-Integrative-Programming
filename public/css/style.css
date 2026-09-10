@@ -293,10 +293,43 @@ h2 {
     margin-bottom: 14px;
 }
 
+.rating-widget {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.rating-stars {
+    display: flex;
+    gap: 2px;
+}
+
+.rating-star {
+    border: 0;
+    padding: 0 2px;
+    background: transparent;
+    color: var(--line);
+    cursor: pointer;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.rating-star.is-selected,
+.rating-star.is-preview,
+.rating-star:hover,
+.rating-star:focus-visible {
+    color: #f2b134;
+}
+
 .review-author {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.review-target-link {
+    margin-left: auto;
 }
 
 .review-avatar {
