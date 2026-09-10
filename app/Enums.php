@@ -1,8 +1,6 @@
 <?php
 // Value lists matching the ENUM columns in schema.sql. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App;
 
 // ---------------------------------------------------------------------------
@@ -161,5 +159,30 @@ enum Competitiveness: string
     public function label(): string
     {
         return ucfirst(strtolower($this->value));
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Module 5 - Discovery & Event Matchmaking (js)
+// ---------------------------------------------------------------------------
+
+// js part - Discovery & Event Matchmaking.
+enum RegistrationStatus: string
+{
+    case PENDING   = 'PENDING';
+    case CONFIRMED = 'CONFIRMED';
+    case CANCELLED = 'CANCELLED';
+    case ATTENDED  = 'ATTENDED';
+    case NO_SHOW   = 'NO_SHOW';
+
+    // Counts toward an event's headcount and toward participation history.
+    public function isActive(): bool
+    {
+        return $this === self::CONFIRMED || $this === self::ATTENDED;
+    }
+
+    public function label(): string
+    {
+        return $this === self::NO_SHOW ? 'No show' : ucfirst(strtolower($this->value));
     }
 }

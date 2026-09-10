@@ -1,0 +1,5 @@
+# Uploaded files are data, never code. Even if something manages to get a .php
+# file in here, Apache must serve it as plain text rather than run it.
+php_flag engine off
+RemoveHandler .php .phar .phtml .php3 .php4 .php5 .php7 .phps
+AddType text/plain .php .phar .phtml .php3 .php4 .php5 .php7 .phps

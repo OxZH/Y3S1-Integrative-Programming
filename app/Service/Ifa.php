@@ -1,21 +1,17 @@
 <?php
 // Interface Agreement envelope. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Service;
 
 use DateTimeImmutable;
 
-/**
- * The request and response format agreed between modules. Requests carry a
- * requestId and a timeStamp so a call can be traced across two modules' logs.
- * Responses carry a status and a timeStamp.
- *
- * S, F and E mean different things to a caller. S worked. F was understood and
- * refused, so retrying will not help - the booking really is unpaid. E means the
- * serving side broke and the answer is unknown.
- */
+// The request and response format agreed between modules. Requests carry a
+// requestId and a timeStamp so a call can be traced across two modules' logs.
+// Responses carry a status and a timeStamp.
+//
+// S, F and E mean different things to a caller. S worked. F was understood and
+// refused, so retrying will not help - the booking really is unpaid. E means the
+// serving side broke and the answer is unknown.
 final class Ifa
 {
     public const STATUS_SUCCESS = 'S';
@@ -33,7 +29,6 @@ final class Ifa
         return (new DateTimeImmutable())->format(self::TIMESTAMP_FORMAT);
     }
 
-    /** @param array<string,mixed> $params */
     public static function buildRequest(string $function, array $params = []): array
     {
         return array_merge($params, [
@@ -44,7 +39,7 @@ final class Ifa
         ]);
     }
 
-    /** Read a request from a JSON body, or from query and form fields. */
+    // Read a request from a JSON body, or from query and form fields.
     public static function readRequest(): array
     {
         $raw = file_get_contents('php://input');
@@ -60,10 +55,6 @@ final class Ifa
         return array_merge($_GET, $_POST);
     }
 
-    /**
-     * @param array<string,mixed> $request
-     * @return string|null the reason it is invalid, or null when it is fine
-     */
     public static function validateRequest(array $request): ?string
     {
         $requestId = $request['requestId'] ?? null;
@@ -88,7 +79,6 @@ final class Ifa
         return $parsed !== false && $parsed->format(self::TIMESTAMP_FORMAT) === $value;
     }
 
-    /** @param array<string,mixed> $data */
     public static function success(string $requestId, array $data, string $message = 'OK'): array
     {
         return [
@@ -124,7 +114,6 @@ final class Ifa
         ];
     }
 
-    /** @param array<string,mixed> $envelope */
     public static function respond(array $envelope, int $httpStatus = 200): never
     {
         if (!headers_sent()) {

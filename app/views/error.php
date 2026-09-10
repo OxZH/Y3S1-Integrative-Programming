@@ -1,10 +1,6 @@
 <?php
 // Error page. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
-
-/** @var int $status */
-/** @var string $heading */
-/** @var string $message */
-/** @var string|null $detail */
+// Receives: $status, $heading, $message, $detail
 ?>
 <div class="card message-card">
     <div class="pill dead"><?= e((string) $status) ?></div>

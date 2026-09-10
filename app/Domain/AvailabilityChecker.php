@@ -1,8 +1,6 @@
 <?php
 // Whether a venue is free for a requested slot. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
 use App\Model\EventMapper;
@@ -10,19 +8,16 @@ use App\Model\Facility;
 use DateTimeImmutable;
 use DomainException;
 
-/**
- * Two questions have to agree: is the venue open then (the Facility knows, since
- * opening hours are its own property), and is anything already booked into that
- * slot (the Event table knows). Keeping both here means the web form, the REST
- * endpoint and any admin tool reach the same answer.
- */
+// Two questions have to agree: is the venue open then (the Facility knows, since
+// opening hours are its own property), and is anything already booked into that
+// slot (the Event table knows). Keeping both here means the web form, the REST
+// endpoint and any admin tool reach the same answer.
 final class AvailabilityChecker
 {
-    public function __construct(private readonly EventMapper $events)
+    public function __construct(private EventMapper $events)
     {
     }
 
-    /** @return string|null the reason it cannot be used, or null when it is free */
     public function check(
         Facility $facility,
         DateTimeImmutable $date,
@@ -68,7 +63,6 @@ final class AvailabilityChecker
         return null;
     }
 
-    /** @throws DomainException */
     public function assertAvailable(
         Facility $facility,
         DateTimeImmutable $date,
@@ -83,12 +77,8 @@ final class AvailabilityChecker
         }
     }
 
-    /**
-     * Free slots on one day, so an organiser is offered times that will work
-     * instead of guessing and being rejected.
-     *
-     * @return array<int,array{start:string,end:string}>
-     */
+    // Free slots on one day, so an organiser is offered times that will work
+    // instead of guessing and being rejected.
     public function openSlots(Facility $facility, DateTimeImmutable $date, int $slotHours = 1): array
     {
         $busy = [];
@@ -99,27 +89,40 @@ final class AvailabilityChecker
             }
         }
 
-        $slots  = [];
-        $cursor = (int) substr($facility->getOperationalHrsStart(), 0, 2);
-        $close  = (int) substr($facility->getOperationalHrsEnd(), 0, 2);
+        $open  = (int) substr($facility->getOperationalHrsStart(), 0, 2);
+        $close = (int) substr($facility->getOperationalHrsEnd(), 0, 2);
 
-        while ($cursor + $slotHours <= $close) {
-            $start = sprintf('%02d:00:00', $cursor);
-            $end   = sprintf('%02d:00:00', $cursor + $slotHours);
-            $free  = true;
+        // The hours to walk through. A venue that closes after midnight gets two
+        // stretches: the evening, then the early hours of the next day.
+        if ($open <= $close) {
+            $stretches = [[$open, $close]];
+        } else {
+            $stretches = [[$open, 24], [0, $close]];
+        }
 
-            foreach ($busy as [$busyStart, $busyEnd]) {
-                if ($start < $busyEnd && $end > $busyStart) {
-                    $free = false;
-                    break;
+        $slots = [];
+
+        foreach ($stretches as [$from, $to]) {
+            // An event has to finish on the day it starts, so a slot is never
+            // offered that would run up to midnight.
+            $last = min($to, 23);
+
+            for ($cursor = $from; $cursor + $slotHours <= $last; $cursor += $slotHours) {
+                $start = sprintf('%02d:00:00', $cursor);
+                $end   = sprintf('%02d:00:00', $cursor + $slotHours);
+                $free  = true;
+
+                foreach ($busy as [$busyStart, $busyEnd]) {
+                    if ($start < $busyEnd && $end > $busyStart) {
+                        $free = false;
+                        break;
+                    }
+                }
+
+                if ($free) {
+                    $slots[] = ['start' => $start, 'end' => $end];
                 }
             }
-
-            if ($free) {
-                $slots[] = ['start' => $start, 'end' => $end];
-            }
-
-            $cursor += $slotHours;
         }
 
         return $slots;

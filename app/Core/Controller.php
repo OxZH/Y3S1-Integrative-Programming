@@ -1,8 +1,6 @@
 <?php
 // Base controller. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Core;
 
 use App\Security\Csrf;
@@ -28,7 +26,6 @@ abstract class Controller
         Csrf::check($_POST);
     }
 
-    /** @param array<string,mixed> $data */
     protected function view(string $template, array $data = []): void
     {
         echo View::render($template, $data + [
@@ -51,7 +48,6 @@ abstract class Controller
         $_SESSION['_flash'][] = ['type' => $type, 'message' => $message];
     }
 
-    /** @return array<int,array{type:string,message:string}> */
     protected function takeFlash(): array
     {
         $messages = $_SESSION['_flash'] ?? [];

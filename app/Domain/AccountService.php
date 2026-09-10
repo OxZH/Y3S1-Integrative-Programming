@@ -426,7 +426,7 @@ final class AccountService implements AccountServiceInterface
             );
         }
 
-        return new User(
+        $user = new User(
             $id,
             $email,
             $username,
@@ -435,6 +435,37 @@ final class AccountService implements AccountServiceInterface
             location: $this->nullable($validated['location'] ?? null),
             birthDate: ($validated['birthDate'] ?? null) instanceof DateTimeImmutable ? $validated['birthDate'] : null
         );
+
+        // Turn the address into coordinates, so the discovery module can sort
+        // events by distance and recommend nearby ones.
+        $this->applyGeocodedCoordinates($user);
+
+        return $user;
+    }
+
+    /**
+     * Best effort address lookup. A player types where they live, the discovery
+     * module needs that as a point on a map; AddressGeocoder asks OpenStreetMap
+     * and falls back to a fixed city table.
+     *
+     * Failure is silent on purpose: an account must still be created, and a
+     * profile must still save, when the lookup finds nothing or OpenStreetMap
+     * is unreachable. The player can always type the coordinates on the profile
+     * form instead.
+     */
+    private function applyGeocodedCoordinates(User $user): void
+    {
+        $location = $user->getLocation();
+
+        if ($location === null || trim($location) === '') {
+            return;
+        }
+
+        $coordinates = (new AddressGeocoder())->locate($location);
+
+        if ($coordinates !== null) {
+            $user->setCoordinates($coordinates[0], $coordinates[1]);
+        }
     }
 
     /** @param array<string,mixed> $validated */
@@ -450,6 +481,12 @@ final class AccountService implements AccountServiceInterface
 
             if (array_key_exists('location', $validated)) {
                 $account->setLocation($this->nullable($validated['location']));
+
+                // A new address means the old coordinates are stale. Skipped when
+                // the form sent coordinates of its own, handled below.
+                if (!array_key_exists('latitude', $validated) && !array_key_exists('longitude', $validated)) {
+                    $this->applyGeocodedCoordinates($account);
+                }
             }
 
             if (array_key_exists('profilePicURL', $validated)) {

@@ -1,23 +1,19 @@
 <?php
 // The four web services this module consumes. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Service;
 
 use App\Model\Account;
 use App\ServiceUnavailableException;
 
-/**
- * Every outbound call this module makes, in one place.
- *
- *   getUserContactInfo  User Authentication      owner details at onboarding
- *   getBookingStatus    Venue Booking & Payment  gates event publication
- *   getFacilityRatings  Social Networking        star ratings in search
- *   areFriends          Social Networking        friends-only visibility
- *
- * Each is bidirectional with a module that also consumes one of ours.
- */
+// Every outbound call this module makes, in one place.
+//
+//   getUserContactInfo  User Authentication      owner details at onboarding
+//   getBookingStatus    Venue Booking & Payment  gates event publication
+//   getFacilityRatings  Social Networking        star ratings in search
+//   areFriends          Social Networking        friends-only visibility
+//
+// Each is bidirectional with a module that also consumes one of ours.
 final class RemoteServices
 {
     private ServiceClient $client;
@@ -27,13 +23,9 @@ final class RemoteServices
         $this->client = $client ?? new ServiceClient();
     }
 
-    /**
-     * Contact details for a venue owner, falling back to the copy we already
-     * hold. These are convenience data, not a security decision, so an owner
-     * filling in a form is not blocked because another module is restarting.
-     *
-     * @return array{username:string,email:string,contactNumber:string}
-     */
+    // Contact details for a venue owner, falling back to the copy we already
+    // hold. These are convenience data, not a security decision, so an owner
+    // filling in a form is not blocked because another module is restarting.
     public function contactFor(Account $owner): array
     {
         $local = [
@@ -63,7 +55,6 @@ final class RemoteServices
         return $local;
     }
 
-    /** @throws ServiceUnavailableException */
     public function bookingStatus(string $eventId): BookingStatus
     {
         $data = $this->client->call('booking', 'getBookingStatus', ['eventId' => $eventId]);
@@ -72,14 +63,9 @@ final class RemoteServices
         return $this->client->refused($data) ? BookingStatus::missing() : BookingStatus::fromArray($data);
     }
 
-    /**
-     * One call carrying every id on the page, not one call per row.
-     * Ratings are decoration, so a failure here degrades to an empty column
-     * rather than breaking the search page.
-     *
-     * @param string[] $facilityIds
-     * @return array<string,float>
-     */
+    // One call carrying every id on the page, not one call per row.
+    // Ratings are decoration, so a failure here degrades to an empty column
+    // rather than breaking the search page.
     public function facilityRatings(array $facilityIds): array
     {
         if ($facilityIds === []) {
@@ -111,12 +97,8 @@ final class RemoteServices
         return $ratings;
     }
 
-    /**
-     * Unlike ratings there is no swallowing wrapper here: this answer is a
-     * security decision, so the caller must handle the failure and fail closed.
-     *
-     * @throws ServiceUnavailableException
-     */
+    // Unlike ratings there is no swallowing wrapper here: this answer is a
+    // security decision, so the caller must handle the failure and fail closed.
     public function areFriends(string $userA, string $userB): bool
     {
         $data = $this->client->call('friend', 'areFriends', [

@@ -1,8 +1,6 @@
 <?php
 // Event creation, publication and invite links. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Controller;
 
 use App\Competitiveness;
@@ -11,6 +9,7 @@ use App\Domain\EventManagementFacade;
 use App\EventVisibility;
 use App\FitnessRequirement;
 use App\Security\Auth;
+use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
 use App\ServiceUnavailableException;
 use App\SkillLevel;
@@ -18,14 +17,16 @@ use App\ValidationException;
 use DateTimeImmutable;
 use DomainException;
 
-/**
- * Creating an event is one form: the game details plus the venue picked from a
- * dropdown. Saving it writes the event as DRAFT and hands over to the Venue
- * Booking & Payment module, which returns to finalise() once the venue is paid
- * for. Only then does the event become visible to anyone else.
- */
+// Creating an event is one form: the game details plus the venue picked from a
+// dropdown. Saving it writes the event as DRAFT and hands over to the Venue
+// Booking & Payment module, which returns to finalise() once the venue is paid
+// for. Only then does the event become visible to anyone else.
 final class EventController extends Controller
 {
+    // How far ahead an event may be scheduled. The form and the validator both
+    // read this, so the date the browser offers is the date the server accepts.
+    const BOOKING_WINDOW = '+3 months';
+
     private EventManagementFacade $facade;
 
     public function __construct()
@@ -48,7 +49,7 @@ final class EventController extends Controller
 
     public function mine(): void
     {
-        Auth::requireLogin();
+        EventFacilitySecurity::assertCanHostEvents();
 
         $this->view('event-mine', [
             'title'  => 'My events',
@@ -73,6 +74,7 @@ final class EventController extends Controller
             'participants' => $this->facade->countParticipants($eventId),
             'isHost'       => $isHost,
             'blocker'      => $isHost ? $this->facade->explainPublicationBlockers($eventId) : null,
+            'canDelete'    => $isHost && $this->facade->canHardDelete($eventId),
         ]);
     }
 
@@ -94,7 +96,7 @@ final class EventController extends Controller
 
     public function create(): void
     {
-        Auth::requireLogin();
+        EventFacilitySecurity::assertCanHostEvents();
 
         // facilityId in the query pre-selects the venue, for arriving from a
         // venue page rather than picking from the dropdown.
@@ -104,7 +106,7 @@ final class EventController extends Controller
     public function store(): void
     {
         $this->requirePostWithCsrf();
-        Auth::requireLogin();
+        EventFacilitySecurity::assertCanHostEvents();
 
         try {
             $clean      = $this->validated($_POST);
@@ -135,12 +137,13 @@ final class EventController extends Controller
             $this->redirect(url('event', 'mine'));
         }
 
-        Auth::requireLogin();
+        EventFacilitySecurity::assertCanHostEvents();
 
         $this->view('event-finalise', [
             'title'   => 'Confirm your event',
-            'event'   => $this->facade->viewEvent($eventId),
-            'blocker' => $this->facade->explainPublicationBlockers($eventId),
+            'event'     => $this->facade->viewEvent($eventId),
+            'blocker'   => $this->facade->explainPublicationBlockers($eventId),
+            'canDelete' => $this->facade->canHardDelete($eventId),
         ]);
     }
 
@@ -191,9 +194,15 @@ final class EventController extends Controller
             $this->redirect(url('event', 'show', ['id' => $eventId]));
         }
 
-        $this->flash('success', $outcome === 'DELETED'
-            ? 'The event has been deleted.'
-            : 'People had already booked or joined this event, so it has been cancelled rather than deleted.');
+        if ($outcome === 'DELETED') {
+            $this->flash('success', 'The event has been deleted.');
+        } else if ($outcome === 'CANCELLED_JOINED') {
+            $this->flash('success', 'Other players had already joined, so the event has been cancelled '
+                                  . 'rather than deleted and they can see that it is off.');
+        } else {
+            $this->flash('success', 'The venue for this event has been paid for, so the record is kept '
+                                  . 'for the payment history. The event has been cancelled instead.');
+        }
 
         $this->redirect(url('event', 'mine'));
     }
@@ -248,10 +257,6 @@ final class EventController extends Controller
 
     // -----------------------------------------------------------------------
 
-    /**
-     * @param array<string,mixed> $input
-     * @param array<string,string> $errors
-     */
     private function renderForm(array $input, array $errors): void
     {
         $venues = $this->facade->listBookableFacilities();
@@ -262,23 +267,26 @@ final class EventController extends Controller
             'errors'  => $errors,
             'venues'  => $venues,
             'ratings' => $this->facade->ratingsFor($venues),
+            'maxDate' => (new DateTimeImmutable('today ' . self::BOOKING_WINDOW))->format('Y-m-d'),
+            'sports'  => $this->facade->listSports(),
         ]);
     }
 
-    /**
-     * @param array<string,mixed> $input
-     * @return array<string,mixed>
-     */
     private function validated(array $input): array
     {
-        return (new Validator($input))
+        $clean = (new Validator($input))
             ->required('facilityId', 'Venue')->identifier('facilityId', 'Venue')
             ->required('name', 'Event name')->text('name', 'Event name', 3, 150)
             ->required('sport', 'Sport')->text('sport', 'Sport', 2, 50)
-            ->required('eventDate', 'Date')->date('eventDate', 'Date', true)
+
+            // Far-future dates are almost always a typo, and a venue cannot
+            // sensibly be held for years, so bookings stop three months out.
+            ->required('eventDate', 'Date')->date('eventDate', 'Date', true, self::BOOKING_WINDOW)
+
             ->required('startTime', 'Start time')->time('startTime', 'Start time')
-            ->required('endTime', 'End time')->time('endTime', 'End time')
+            ->required('endTime', 'End time')->time('endTime', 'End time', false)
             ->timeAfter('startTime', 'endTime', 'End time')
+            ->notInThePast('eventDate', 'startTime', 'That start time')
             ->required('minParticipants', 'Minimum players')->integer('minParticipants', 'Minimum players', 1, 200)
             ->required('maxParticipants', 'Maximum players')->integer('maxParticipants', 'Maximum players', 1, 200)
             ->atLeast('minParticipants', 'maxParticipants', 'Maximum players')
@@ -288,5 +296,13 @@ final class EventController extends Controller
             ->required('visibility', 'Visibility')->enum('visibility', 'Visibility', EventVisibility::class)
             ->decimal('feePerParticipant', 'Fee per player', 0, 9999.99)
             ->validate();
+
+        // One casing for one sport, so "BADMINTON", "badminton" and "Badminton"
+        // do not end up as three different sports when events are grouped.
+        if (isset($clean['sport'])) {
+            $clean['sport'] = ucwords(strtolower($clean['sport']));
+        }
+
+        return $clean;
     }
 }

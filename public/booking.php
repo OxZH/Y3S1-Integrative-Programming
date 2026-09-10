@@ -1,18 +1,10 @@
 <?php
-/**
- * Stand-in for the Venue Booking & Payment module's booking screen.
- * Author: Goh Jian Yu
- *
- * DELETE THIS FILE once that module is ready, and point
- * EventController::store() at their screen instead. It exists only so the
- * event creation flow can be walked end to end before their part lands.
- *
- * It writes the Booking and Payment rows that this module then reads back over
- * the web service, and returns to event&a=finalise. It has no reservation
- * calendar, no Stripe, no refunds - all of that is theirs.
- */
-
-declare(strict_types=1);
+/*
+Stand-in for the Venue Booking & Payment module's booking screen. Author: Goh Jian Yu
+Delete this file once that module is ready, and point EventController::store() at
+their screen instead. It writes the Booking and Payment rows this module reads
+back over the web service, then returns to event&a=finalise.
+*/
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
@@ -25,12 +17,10 @@ use App\Security\Auth;
 use App\Security\Csrf;
 use App\Security\EventFacilitySecurity;
 
-/**
- * This is an entry point of its own, so it needs the same error handling the
- * front controller has. Without it an ownership failure escapes as an uncaught
- * exception, which answers 200 and prints the stack trace - file paths, class
- * names and all - straight to the browser.
- */
+// This is an entry point of its own, so it needs the same error handling the
+// front controller has. Without it an ownership failure escapes as an uncaught
+// exception, which answers 200 and prints the stack trace - file paths, class
+// names and all - straight to the browser.
 function bookingError(int $status, string $heading, string $message): never
 {
     if (!headers_sent()) {

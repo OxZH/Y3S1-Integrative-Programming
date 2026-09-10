@@ -1,8 +1,6 @@
 <?php
 // Template rendering. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Core;
 
 use RuntimeException;
@@ -14,7 +12,6 @@ final class View
     {
     }
 
-    /** @param array<string,mixed> $data */
     public static function render(string $template, array $data = [], ?string $layout = 'layout'): string
     {
         $content = self::capture($template, $data);
@@ -26,7 +23,6 @@ final class View
         return self::capture($layout, $data + ['content' => $content]);
     }
 
-    /** @param array<string,mixed> $data */
     private static function capture(string $template, array $data): string
     {
         if (preg_match('#^[A-Za-z0-9_-]+$#', $template) !== 1) {

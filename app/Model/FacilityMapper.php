@@ -1,8 +1,6 @@
 <?php
 // Facility persistence and search. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Core\DataMapper;
@@ -14,7 +12,7 @@ use InvalidArgumentException;
 
 final class FacilityMapper extends DataMapper
 {
-    private ?AccountMapper $accounts = null;
+    private $accounts = null;
 
     protected function table(): string
     {
@@ -56,7 +54,7 @@ final class FacilityMapper extends DataMapper
 
         $ownerId = (string) $row['ownerId'];
 
-        $facility->setLoader('owner', fn () => $this->accounts()->findAccount($ownerId));
+        $facility->setLoader('owner', function () use ($ownerId) { return $this->accounts()->findAccount($ownerId); });
 
         return $facility;
     }
@@ -92,22 +90,16 @@ final class FacilityMapper extends DataMapper
         ];
     }
 
-    /** @return Facility[] */
     public function findByOwner(string $ownerId): array
     {
-        /** @var Facility[] $facilities */
         $facilities = $this->findBy(['ownerId' => $ownerId], 'createdAt', 'DESC');
 
         return $facilities;
     }
 
-    /**
-     * The only string built into this query is the ORDER BY expression, and it
-     * comes from SearchCriteria::SORTS - a fixed array. A ?sort= value the user
-     * invents is dropped before it gets here.
-     *
-     * @return Facility[]
-     */
+    // The only string built into this query is the ORDER BY expression, and it
+    // comes from SearchCriteria::SORTS - a fixed array. A ?sort= value the user
+    // invents is dropped before it gets here.
     public function search(SearchCriteria $criteria): array
     {
         $select = 'f.*';
@@ -183,17 +175,14 @@ final class FacilityMapper extends DataMapper
             $criteria->limit
         );
 
-        /** @var Facility[] $facilities */
         $facilities = $this->hydrateAll($this->select($sql, $params));
 
         return $facilities;
     }
 
-    /**
-     * Rows that would be lost with the venue. Events use ON DELETE RESTRICT so
-     * the database refuses anyway; reviews and ratings would cascade away
-     * silently, which is exactly why they count as history worth keeping.
-     */
+    // Rows that would be lost with the venue. Events use ON DELETE RESTRICT so
+    // the database refuses anyway; reviews and ratings would cascade away
+    // silently, which is exactly why they count as history worth keeping.
     public function countDependents(string $facilityId): int
     {
         $row = $this->selectOne(
@@ -206,19 +195,16 @@ final class FacilityMapper extends DataMapper
         return (int) ($row['total'] ?? 0);
     }
 
-    /** @return string[] */
     public function listCities(): array
     {
         return $this->distinct('city');
     }
 
-    /** @return string[] */
     public function listTypes(): array
     {
         return $this->distinct('type');
     }
 
-    /** @return string[] */
     private function distinct(string $column): array
     {
         $this->assertColumn($column);
@@ -228,7 +214,7 @@ final class FacilityMapper extends DataMapper
             [':s' => FacilityStatus::ACTIVE->value]
         );
 
-        return array_map(static fn (array $r): string => (string) $r['v'], $rows);
+        return array_map(function ($r) { return $r['v']; }, $rows);
     }
 
     private function accounts(): AccountMapper

@@ -1,13 +1,12 @@
 <?php
 // Front controller. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 use App\AuthorizationException;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
+use App\Controller\DiscoveryController;
 use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\ProfileController;
@@ -45,6 +44,11 @@ $routes = [
         'class'   => AdminController::class,
         'actions' => ['accounts', 'reactivate', 'audit'],
     ],
+    // MODULE 5 - Discovery & Event Matchmaking (js)
+    'discovery' => [
+        'class'   => DiscoveryController::class,
+        'actions' => ['index', 'map', 'recommended', 'join', 'leave', 'mine'],
+    ],
 ];
 
 // The demo account picker this module replaced. Anything still pointing at
@@ -62,14 +66,31 @@ function renderError(int $status, string $heading, string $message, ?string $det
         http_response_code($status);
     }
 
-    echo View::render('error', [
-        'title'   => $heading,
-        'status'  => $status,
-        'heading' => $heading,
-        'message' => $message,
-        'detail'  => $detail,
-        'flash'   => [],
-    ]);
+    // The normal error page is a normal page: it draws the layout, and the
+    // layout asks Auth::user() who is signed in, which reads the database. So
+    // when the thing that failed IS the database, rendering the error page
+    // fails too - and that second failure has nothing left to catch it, so the
+    // browser gets a stack trace instead of the tidy page we meant to send.
+    //
+    // Hence the fallback: if the page cannot be drawn, answer with plain HTML
+    // that needs nothing at all. The handler always manages to say something.
+    try {
+        echo View::render('error', [
+            'title'   => $heading,
+            'status'  => $status,
+            'heading' => $heading,
+            'message' => $message,
+            'detail'  => $detail,
+            'flash'   => [],
+        ]);
+    } catch (Throwable $e) {
+        error_log('Error page itself failed: ' . $e->getMessage());
+
+        echo '<!doctype html><meta charset="utf-8">'
+           . '<title>' . htmlspecialchars($heading, ENT_QUOTES) . '</title>'
+           . '<h1>' . htmlspecialchars($heading, ENT_QUOTES) . '</h1>'
+           . '<p>' . htmlspecialchars($message, ENT_QUOTES) . '</p>';
+    }
 
     exit;
 }
@@ -88,6 +109,14 @@ try {
     renderError(404, 'Not found', $e->getMessage());
 } catch (ServiceUnavailableException $e) {
     renderError(503, 'Temporarily unavailable', $e->getMessage());
+} catch (PDOException $e) {
+    // Caught separately and never shown, not even while debugging. A database
+    // message names our tables, columns and constraints, which is a free map of
+    // the schema for anyone probing the site. It goes to the error log, where
+    // only we can read it.
+    error_log(sprintf('Database error: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+
+    renderError(500, 'Something went wrong', 'We could not save that. Please try again.');
 } catch (Throwable $e) {
     error_log(sprintf('Unhandled %s: %s in %s:%d', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
 

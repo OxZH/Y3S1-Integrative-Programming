@@ -171,16 +171,19 @@ CREATE TABLE `Facility` (
     CONSTRAINT `fk_Facility_owner`
         FOREIGN KEY (`ownerId`) REFERENCES `FacilityOwner`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Facility_fee`   CHECK (`bookingFee` >= 0),
-    CONSTRAINT `chk_Facility_hours` CHECK (`operationalHrsEnd` > `operationalHrsStart`),
     CONSTRAINT `chk_Facility_lat`   CHECK (`latitude`  BETWEEN  -90 AND  90),
     CONSTRAINT `chk_Facility_lng`   CHECK (`longitude` BETWEEN -180 AND 180),
     KEY `idx_Facility_owner`  (`ownerId`),
     KEY `idx_Facility_geo`    (`latitude`, `longitude`),            -- bounding-box prefilter before Haversine
     KEY `idx_Facility_search` (`status`, `city`, `type`, `bookingFee`)
 ) ENGINE=InnoDB;
--- NOTE: chk_Facility_hours rejects venues open past midnight (e.g. 18:00-02:00).
---       Acceptable for now. If overnight venues are needed later, drop this CHECK
---       and treat operationalHrsEnd <= operationalHrsStart as "crosses midnight".
+-- NOTE: operationalHrsEnd is deliberately allowed to be earlier than
+--       operationalHrsStart. Plenty of venues open past midnight, e.g. 22:00 to
+--       02:00, and that reads as closing on the next day. Facility::
+--       isWithinOperatingHours() checks the two halves separately.
+--       Event.startTime/endTime is different: chk_Event_time below still
+--       requires endTime > startTime, because an event has to finish on the
+--       day it starts.
 
 CREATE TABLE `Event` (
     `eventId`            VARCHAR(36)  NOT NULL,   -- [D]

@@ -1,8 +1,6 @@
 <?php
 // Invite link management. Author: Goh Jian Yu
-
-/** @var \App\Model\Event $event */
-/** @var \App\Model\EventInvite[] $invites */
+// Receives: $event, $invites
 ?>
 <h1>Invite links</h1>
 <p class="lede">
@@ -54,13 +52,13 @@
             <?php foreach ($invites as $invite): ?>
                 <?php
                 if ($invite->isRevoked()) {
-                    [$state, $pill] = ['Revoked', 'dead'];
+                    [$state, $stateClass] = ['Revoked', 'dead'];
                 } elseif ($invite->hasExpired()) {
-                    [$state, $pill] = ['Expired', 'dead'];
+                    [$state, $stateClass] = ['Expired', 'dead'];
                 } elseif ($invite->isExhausted()) {
-                    [$state, $pill] = ['Used up', 'dead'];
+                    [$state, $stateClass] = ['Used up', 'dead'];
                 } else {
-                    [$state, $pill] = ['Working', 'live'];
+                    [$state, $stateClass] = ['Working', 'live'];
                 }
                 ?>
                 <tr>
@@ -73,7 +71,7 @@
                             ? e($invite->getExpiresAt()->format('d M Y, H:i'))
                             : '<span class="muted">Never</span>' ?>
                     </td>
-                    <td><span class="pill <?= e($pill) ?>"><?= e($state) ?></span></td>
+                    <td><span class="pill <?= e($stateClass) ?>"><?= e($state) ?></span></td>
                     <td>
                         <?php if (!$invite->isRevoked()): ?>
                             <form method="post" action="<?= e(url('event', 'revokeInvite')) ?>" class="inline-form">
