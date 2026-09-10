@@ -1,6 +1,6 @@
 <?php
 /*
-  Facility web service (provider). Author: Goh Jian Yu
+Facility web service (provider). Author: Goh Jian Yu
 */
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';

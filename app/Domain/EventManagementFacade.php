@@ -189,9 +189,9 @@ final class EventManagementFacade
         return $this->facilities->listTypes();
     }
 
-    public function listSports(): array
+    public function busySlots(string $windowEnd): array
     {
-        return $this->events->listSports();
+        return $this->events->busyIntervals($windowEnd);
     }
 
     public function findOpenSlots(string $facilityId, DateTimeImmutable $date, int $slotHours = 1): array
@@ -214,6 +214,11 @@ final class EventManagementFacade
             (string) $validated['startTime'],
             (string) $validated['endTime']
         );
+
+        // The sport comes from the venue and never from the request. A badminton
+        // hall only hosts badminton, so there is nothing for the organiser to
+        // choose and nothing for anyone to tamper with.
+        $validated['sport'] = $facility->getType();
 
         $event = $this->factory->newEvent($validated, $host, $facility);
 

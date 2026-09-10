@@ -181,6 +181,14 @@ class Facility extends Entity
             || $endTime <= $this->operationalHrsEnd;
     }
 
+    // The venue is registered for one sport, held in type, and only that sport
+    // can be played here. An event never asks the user for its sport - it takes
+    // it from the venue - so this is a safety net rather than a form check.
+    public function supportsSport($sport)
+    {
+        return $sport === $this->type;
+    }
+
     // True when the venue closes on the day after it opens.
     public function closesAfterMidnight()
     {

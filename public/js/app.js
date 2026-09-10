@@ -58,6 +58,7 @@
 
         var image  = panel.querySelector('[data-field="image"]');
         var link   = panel.querySelector('[data-field="link"]');
+        var sport  = document.getElementById('sportShown');
         var fields = ['name', 'address', 'rating', 'fee', 'hours'];
 
         function render() {
@@ -65,7 +66,18 @@
 
             if (!venue) {
                 panel.hidden = true;
+
+                // The sport belongs to the venue, so with no venue there is
+                // nothing to show.
+                if (sport) {
+                    sport.value = '';
+                }
+
                 return;
+            }
+
+            if (sport) {
+                sport.value = venue.sport || '';
             }
 
             fields.forEach(function (field) {
@@ -128,113 +140,14 @@
     }
 
     /* ----------------------------------------------------------------------
-       Suggestions under a text box, for the sport and the venue type.
+       Role fields on the registration form.  (Module 2 - Ivan)
 
-       The whole list arrives with the page in a data-suggest attribute, the
-       same way the venue preview gets its venues, so typing does not send a
-       request per letter. It can be done that way because the list is short: it
-       is one entry per sport, not one per event, so it stays about the same size
-       however many events the site ends up with.
-
-       Anything can still be typed in. If what is typed is not in the list, the
-       last chip offers to add it, which is only there to make that obvious -
-       the value in the box is what gets submitted either way.
+       A player and a facility owner need different questions, so only the block
+       matching the chosen account type is shown. This is convenience only: the
+       server decides which fields it will accept from the submitted userType,
+       so hiding a block here is not what keeps a player from sending bank
+       details, and unhiding one in the browser achieves nothing.
        ---------------------------------------------------------------------- */
-
-    function setUpSuggestions(box) {
-        var list;
-
-        try {
-            list = JSON.parse(box.getAttribute('data-suggest') || '[]');
-        } catch (error) {
-            return;
-        }
-
-        var panel = document.getElementById(box.id + 'Suggest');
-
-        if (!panel) {
-            return;
-        }
-
-        function choose(value) {
-            box.value = value;
-            panel.hidden = true;
-            box.focus();
-        }
-
-        function render() {
-            var typed = box.value.trim().toLowerCase();
-            var shown = 0;
-            var exact = false;
-
-            panel.innerHTML = '';
-
-            for (var i = 0; i < list.length; i++) {
-                var name = list[i];
-
-                if (name.toLowerCase() === typed) {
-                    exact = true;
-                }
-
-                if (typed !== '' && name.toLowerCase().indexOf(typed) === -1) {
-                    continue;
-                }
-
-                if (shown >= 8) {
-                    continue;
-                }
-
-                var chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'btn ghost small';
-                // textContent, not innerHTML: these came from what other people
-                // typed into their own events.
-                chip.textContent = name;
-                chip.addEventListener('click', pick(name));
-                panel.appendChild(chip);
-                shown++;
-            }
-
-            if (typed !== '' && !exact) {
-                var add = document.createElement('button');
-                add.type = 'button';
-                add.className = 'btn ghost small';
-                add.textContent = 'Add "' + box.value.trim() + '"';
-                add.addEventListener('click', pick(box.value.trim()));
-                panel.appendChild(add);
-                shown++;
-            }
-
-            panel.hidden = shown === 0;
-        }
-
-        // A separate function so the loop variable is not shared by every chip.
-        function pick(value) {
-            return function () {
-                choose(value);
-            };
-        }
-
-        box.addEventListener('input', render);
-        box.addEventListener('focus', render);
-
-        // Hiding on blur would fire before the click on a chip lands, so the
-        // panel closes only once the focus has gone somewhere outside it.
-        document.addEventListener('click', function (event) {
-            if (event.target !== box && !panel.contains(event.target)) {
-                panel.hidden = true;
-            }
-        });
-    }
-    
-    //    Role fields on the registration form.  (Module 2 - Ivan)
-
-    //    A player and a facility owner need different questions, so only the block
-    //    matching the chosen account type is shown. This is convenience only: the
-    //    server decides which fields it will accept from the submitted userType,
-    //    so hiding a block here is not what keeps a player from sending bank
-    //    details, and unhiding one in the browser achieves nothing.
-    //    ---------------------------------------------------------------------- */
 
     function setUpRoleFields() {
         var select = document.querySelector('[data-role-toggle]');
@@ -257,56 +170,171 @@
     }
 
     /* ----------------------------------------------------------------------
-       Keep the start time ahead of now.
+       Grey out the times that cannot be booked.
 
-       The date box already refuses any day before today, because the view
-       gives it a min. What it cannot do is notice that 09:00 is in the past
-       when it is already 21:00 today, so when today is the chosen day the
-       start time gets a min of the current time, and no min on any later day.
+       Which half hours are free depends on the venue and the date together, so
+       it cannot be worked out until both have been chosen. Rather than asking
+       the server on every change, the page arrives with the venue opening hours
+       and the slots already taken, and the work happens here. Those lists stay
+       small, because there is one entry per booking rather than per half hour.
 
-       The server checks the same thing in Validator::notInThePast(). This is
-       only so the box says no before the form is sent.
+       All of this is convenience. AvailabilityChecker and Validator check the
+       opening hours, the clashes and the past again on the server, so a
+       tampered dropdown gains nothing.
        ---------------------------------------------------------------------- */
 
-    function setUpPastTimeGuard() {
-        var date  = document.getElementById('eventDate');
-        var start = document.getElementById('startTime');
+    function setUpSlotGuard() {
+        var venueSelect = document.getElementById('facilityId');
+        var dateInput   = document.getElementById('eventDate');
+        var startSelect = document.getElementById('startTime');
+        var endSelect   = document.getElementById('endTime');
 
-        if (!date || !start) {
+        if (!venueSelect || !dateInput || !startSelect || !endSelect) {
             return;
         }
 
-        function pad(n) {
-            return (n < 10 ? '0' : '') + n;
+        var venues = {};
+        var busy   = [];
+
+        try {
+            venues = JSON.parse(venueSelect.getAttribute('data-venues') || '{}');
+            busy   = JSON.parse(startSelect.getAttribute('data-busy') || '[]');
+        } catch (error) {
+            return;
         }
 
-        function sync() {
-            var now   = new Date();
-            var today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+        // "14:30" or "14:30:00" as minutes since midnight, so every comparison
+        // below is plain arithmetic.
+        function toMinutes(text) {
+            var parts = String(text).split(':');
 
-            if (date.value === today) {
-                start.min = pad(now.getHours()) + ':' + pad(now.getMinutes());
-            } else {
-                start.removeAttribute('min');
+            return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+        }
+
+        function openWindows() {
+            var venue = venues[venueSelect.value];
+
+            if (!venue || !venue.opens || !venue.closes) {
+                return [];
+            }
+
+            var opens  = toMinutes(venue.opens);
+            var closes = toMinutes(venue.closes);
+
+            // A venue closing after midnight runs in two stretches. An event
+            // never crosses midnight, so it has to fit inside one of them.
+            if (closes > opens) {
+                return [[opens, closes]];
+            }
+
+            return [[opens, 24 * 60], [0, closes]];
+        }
+
+        function insideOpeningHours(from, to) {
+            var windows = openWindows();
+
+            for (var i = 0; i < windows.length; i++) {
+                if (from >= windows[i][0] && to <= windows[i][1]) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function clashes(from, to) {
+            for (var i = 0; i < busy.length; i++) {
+                var taken = busy[i];
+
+                if (taken.facilityId !== venueSelect.value) {
+                    continue;
+                }
+
+                if (String(taken.eventDate).slice(0, 10) !== dateInput.value) {
+                    continue;
+                }
+
+                // Two slots overlap when each starts before the other ends, so
+                // a court handed over exactly on the hour is not a clash.
+                if (from < toMinutes(taken.endTime) && to > toMinutes(taken.startTime)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Nothing earlier than now, but only when the chosen day is today.
+        function earliestAllowed() {
+            var now   = new Date();
+            var today = now.getFullYear() + '-'
+                      + ('0' + (now.getMonth() + 1)).slice(-2) + '-'
+                      + ('0' + now.getDate()).slice(-2);
+
+            if (dateInput.value !== today) {
+                return 0;
+            }
+
+            return (now.getHours() * 60) + now.getMinutes();
+        }
+
+        function refresh() {
+            var ready  = venueSelect.value !== '' && dateInput.value !== '';
+            var floor  = earliestAllowed();
+            var chosen = startSelect.value === '' ? null : toMinutes(startSelect.value);
+
+            Array.prototype.forEach.call(startSelect.options, function (option) {
+                if (option.value === '') {
+                    return;
+                }
+
+                var from = toMinutes(option.value);
+
+                // A start is offered only when at least one half hour is free
+                // from it, because nothing shorter can be booked.
+                option.disabled = !ready
+                    || from < floor
+                    || !insideOpeningHours(from, from + 30)
+                    || clashes(from, from + 30);
+            });
+
+            Array.prototype.forEach.call(endSelect.options, function (option) {
+                if (option.value === '') {
+                    return;
+                }
+
+                var to = toMinutes(option.value);
+
+                option.disabled = !ready
+                    || chosen === null
+                    || to <= chosen
+                    || !insideOpeningHours(chosen, to)
+                    || clashes(chosen, to);
+            });
+
+            // A time chosen before the venue or the date changed may no longer
+            // be on offer, so it is cleared instead of left sitting there.
+            if (startSelect.selectedIndex > -1 && startSelect.options[startSelect.selectedIndex].disabled) {
+                startSelect.value = '';
+            }
+
+            if (endSelect.selectedIndex > -1 && endSelect.options[endSelect.selectedIndex].disabled) {
+                endSelect.value = '';
             }
         }
 
-        date.addEventListener('change', sync);
+        venueSelect.addEventListener('change', refresh);
+        dateInput.addEventListener('change', refresh);
+        startSelect.addEventListener('change', refresh);
 
-        // A date may already be filled in, either from a failed save or from
-        // the browser restoring the form.
-        sync();
+        refresh();
     }
 
     function start() {
         setUpVenuePreview();
         setUpPickers();
         setUpRoleFields();
-        setUpPastTimeGuard();
-
-        var boxes = document.querySelectorAll('[data-suggest]');
-
-        Array.prototype.forEach.call(boxes, setUpSuggestions);
+        setUpSlotGuard();
     }
 
     if (document.readyState === 'loading') {

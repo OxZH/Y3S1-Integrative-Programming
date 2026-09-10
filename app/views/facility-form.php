@@ -1,6 +1,6 @@
 <?php
 // Venue registration and edit form. Author: Goh Jian Yu
-// Receives: $facility, $input, $errors, $types, $states
+// Receives: $facility, $input, $errors, $sports, $states
 
 $isEdit = $facility !== null;
 
@@ -40,13 +40,20 @@ $err = static function (string $field) use ($errors): string {
            value="<?= $value('name', $facility?->getName()) ?>" required>
     <?= $err('name') ?>
 
-    <label for="type">Venue type</label>
-    <input class="<?= e($bad('type')) ?>" type="text" id="type" name="type" maxlength="50"
-           placeholder="Badminton Hall, Futsal Court" value="<?= $value('type', $facility?->getType()) ?>"
-           required autocomplete="off"
-           data-suggest="<?= e(json_encode($types, JSON_UNESCAPED_UNICODE)) ?>">
-    <div class="chip-list suggest" id="typeSuggest" hidden></div>
-    <p class="small muted">Pick a type already in use, or type a new one.</p>
+    <label for="type">Sport played here</label>
+    <?php $chosenSport = $value('type', $facility?->getType()); ?>
+    <select class="<?= e($bad('type')) ?>" id="type" name="type" required>
+        <option value="">Choose a sport&hellip;</option>
+        <?php foreach ($sports as $sportName): ?>
+            <option value="<?= e($sportName) ?>" <?= $chosenSport === $sportName ? 'selected' : '' ?>>
+                <?= e($sportName) ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <p class="small muted">
+        Every game booked here plays this sport. A venue used for more than one sport
+        should be registered once per sport.
+    </p>
     <?= $err('type') ?>
 
     <label for="addressLine">Street address</label>

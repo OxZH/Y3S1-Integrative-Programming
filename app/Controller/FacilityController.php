@@ -7,6 +7,7 @@ use App\Core\Controller;
 use App\Domain\EventManagementFacade;
 use App\Domain\FacilityImage;
 use App\Domain\Geocoder;
+use App\Domain\Sports;
 use App\Security\Auth;
 use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
@@ -79,7 +80,7 @@ final class FacilityController extends Controller
             'facility' => null,
             'input'    => [],
             'errors'   => [],
-            'types'    => $this->facade->listTypes(),
+            'sports'   => Sports::ALL,
             'states'   => Geocoder::STATES,
         ]);
     }
@@ -104,7 +105,7 @@ final class FacilityController extends Controller
                 'facility' => null,
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
-                'types'    => $this->facade->listTypes(),
+                'sports'   => Sports::ALL,
                 'states'   => Geocoder::STATES,
             ]);
         }
@@ -127,7 +128,7 @@ final class FacilityController extends Controller
             'facility' => $facility,
             'input'    => [],
             'errors'   => [],
-            'types'    => $this->facade->listTypes(),
+            'sports'   => Sports::ALL,
             'states'   => Geocoder::STATES,
         ]);
     }
@@ -168,7 +169,7 @@ final class FacilityController extends Controller
                 'facility' => $this->facade->getFacility($facilityId),
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
-                'types'    => $this->facade->listTypes(),
+                'sports'   => Sports::ALL,
                 'states'   => Geocoder::STATES,
             ]);
         }
@@ -226,7 +227,9 @@ final class FacilityController extends Controller
             // The form shows these as a dropdown, but the list is checked again
             // here because a POST does not have to come from our form.
             ->required('state', 'State')->inList('state', 'State', Geocoder::STATES)
-            ->required('type', 'Venue type')->text('type', 'Venue type', 2, 50)
+            // The venue's sport. Chosen from a list rather than typed, because every
+            // event held here takes its sport from this field.
+            ->required('type', 'Sport')->inList('type', 'Sport', Sports::ALL)
             ->required('bookingFee', 'Booking fee')->decimal('bookingFee', 'Booking fee', 0, 99999.99)
             // No check that closing is after opening. Plenty of venues run past
             // midnight, eg open 22:00 and close 02:00, so both orders are valid.
@@ -239,13 +242,6 @@ final class FacilityController extends Controller
             ->latitude('latitude', 'Latitude')
             ->longitude('longitude', 'Longitude')
             ->validate();
-
-        // Same reason as the sport on the event form: one casing per name, so
-        // "futsal court" and "Futsal Court" do not both end up in the list of
-        // types the suggestions are built from.
-        if (isset($clean['type'])) {
-            $clean['type'] = ucwords(strtolower($clean['type']));
-        }
 
         if (!isset($clean['latitude']) || !isset($clean['longitude'])) {
             [$clean['latitude'], $clean['longitude']] = Geocoder::locate($clean['city'], $clean['state']);

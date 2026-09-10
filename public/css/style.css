@@ -682,14 +682,13 @@ td.actions {
     color: var(--muted);
 }
 
-/* Suggestions under the sport and venue type boxes. */
+/* A field that reports something rather than collecting it. The sport on the
+   event form is decided by the venue, so it is shown but never typed into. */
 
-.suggest {
-    margin: 6px 0 4px;
-}
-
-.suggest[hidden] {
-    display: none;
+.readonly-field {
+    background: var(--bg);
+    color: var(--muted);
+    cursor: default;
 }
 
 /* Buttons standing in for another module's screen. Deliberately loud so they

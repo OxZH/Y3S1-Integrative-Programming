@@ -223,8 +223,12 @@ final class Validator
     // Pass false for $allowMidnight on an end time. 00:00 reads as "the start of
     // this day", so an event ending at midnight would finish before it began and
     // every duration calculated from it comes out negative.
-    public function time(string $field, string $label, bool $allowMidnight = true): self
-    {
+    public function time(
+        string $field,
+        string $label,
+        bool $allowMidnight = true,
+        bool $halfHoursOnly = false
+    ): self {
         $value = $this->raw($field);
 
         if ($value === null || $value === '') {
@@ -233,6 +237,14 @@ final class Validator
 
         if (preg_match('/^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/', $value, $m) !== 1) {
             return $this->fail($field, $label . ' must be a valid time.');
+        }
+
+        // Bookings are taken on the hour or the half hour and nothing finer,
+        // which stops a court being left with a useless seven minute gap
+        // between two games. The form only offers those, so reaching this
+        // means the value did not come from the form.
+        if ($halfHoursOnly && $m[2] !== '00' && $m[2] !== '30') {
+            return $this->fail($field, $label . ' must be on the hour or the half hour.');
         }
 
         if (!$allowMidnight && $m[1] === '00' && $m[2] === '00') {
