@@ -7,6 +7,8 @@ use App\Core\Controller;
 use App\Domain\EventManagementFacade;
 use App\Domain\FacilityImage;
 use App\Domain\Geocoder;
+use App\Domain\Postcodes;
+use App\Domain\SearchCriteria;
 use App\Domain\Sports;
 use App\Security\Auth;
 use App\Security\EventFacilitySecurity;
@@ -48,6 +50,25 @@ final class FacilityController extends Controller
         ]);
     }
 
+    // Venue search for organisers. The filtering and sorting already existed for
+    // the web service the Discovery module calls; this is the same search with a
+    // page in front of it.
+    public function search(): void
+    {
+        $criteria   = SearchCriteria::fromArray($_GET);
+        $facilities = $this->facade->searchFacilities($criteria);
+
+        $this->view('facility-search', [
+            'title'      => 'Find a venue',
+            'facilities' => $facilities,
+            'ratings'    => $this->facade->ratingsFor($facilities),
+            'criteria'   => $criteria,
+            'cities'     => $this->facade->listCities(),
+            'sports'     => $this->facade->listTypes(),
+            'input'      => $_GET,
+        ]);
+    }
+
     public function mine(): void
     {
         Auth::requireFacilityOwner();
@@ -81,7 +102,6 @@ final class FacilityController extends Controller
             'input'    => [],
             'errors'   => [],
             'sports'   => Sports::ALL,
-            'states'   => Geocoder::STATES,
         ]);
     }
 
@@ -106,8 +126,7 @@ final class FacilityController extends Controller
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
                 'sports'   => Sports::ALL,
-                'states'   => Geocoder::STATES,
-            ]);
+                ]);
         }
     }
 
@@ -129,7 +148,6 @@ final class FacilityController extends Controller
             'input'    => [],
             'errors'   => [],
             'sports'   => Sports::ALL,
-            'states'   => Geocoder::STATES,
         ]);
     }
 
@@ -170,8 +188,7 @@ final class FacilityController extends Controller
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
                 'sports'   => Sports::ALL,
-                'states'   => Geocoder::STATES,
-            ]);
+                ]);
         }
     }
 
@@ -221,12 +238,9 @@ final class FacilityController extends Controller
             ->required('name', 'Venue name')->text('name', 'Venue name', 2, 150)
             ->required('addressLine', 'Address')->text('addressLine', 'Address', 5, 255)
                 ->address('addressLine', 'Address')
+            ->required('postcode', 'Postcode')->postcode('postcode', 'Postcode')
             ->required('city', 'City')->text('city', 'City', 2, 100)
                 ->placeName('city', 'City')
-
-            // The form shows these as a dropdown, but the list is checked again
-            // here because a POST does not have to come from our form.
-            ->required('state', 'State')->inList('state', 'State', Geocoder::STATES)
             // The venue's sport. Chosen from a list rather than typed, because every
             // event held here takes its sport from this field.
             ->required('type', 'Sport')->inList('type', 'Sport', Sports::ALL)
@@ -242,6 +256,24 @@ final class FacilityController extends Controller
             ->latitude('latitude', 'Latitude')
             ->longitude('longitude', 'Longitude')
             ->validate();
+
+        // The state is never asked for. Pos Malaysia allocates postcodes by
+        // state, so the postcode the owner already gave says which state this
+        // is. Deriving it means a Kedah address can no longer be filed under
+        // Terengganu, and it checks the postcode at the same time, because five
+        // digits outside every range are not a Malaysian postcode.
+        if (isset($clean['postcode'])) {
+            $state = Postcodes::stateFor($clean['postcode']);
+
+            if ($state === null) {
+                throw new ValidationException([
+                    'postcode' => 'That postcode does not belong to any Malaysian state. '
+                                . 'Please check it.',
+                ]);
+            }
+
+            $clean['state'] = $state;
+        }
 
         if (!isset($clean['latitude']) || !isset($clean['longitude'])) {
             [$clean['latitude'], $clean['longitude']] = Geocoder::locate($clean['city'], $clean['state']);

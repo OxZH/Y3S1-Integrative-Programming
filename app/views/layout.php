@@ -36,6 +36,9 @@ $assetVersion = static function (string $relative) use ($assets): string {
             <a href="<?= e(url('discovery')) ?>">Find a game</a>
             <a href="<?= e(url('discovery', 'map')) ?>">Map</a>
             <!-- /js part -->
+            <?php // Venue search. Open to anyone, since a player may want to see
+                  // where games can be held before organising one. ?>
+            <a href="<?= e(url('facility', 'search')) ?>">Find a venue</a>
             <?php if ($currentUser !== null): ?>
                 <?php if ($currentUser->isFacilityOwner()): ?>
                     <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>

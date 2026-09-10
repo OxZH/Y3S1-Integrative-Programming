@@ -22,6 +22,7 @@ class Facility extends Entity
     private $facilityId;
     private $name;
     private $addressLine;
+    private $postcode;
     private $city;
     private $state;
     private $type;
@@ -41,6 +42,7 @@ class Facility extends Entity
         $facilityId,
         $name,
         $addressLine,
+        $postcode,
         $city,
         $state,
         $type,
@@ -56,6 +58,7 @@ class Facility extends Entity
         $this->facilityId = $facilityId;
         $this->name = $name;
         $this->addressLine = $addressLine;
+        $this->postcode = $postcode;
         $this->city = $city;
         $this->state = $state;
         $this->type = $type;
@@ -87,6 +90,11 @@ class Facility extends Entity
     public function getAddressLine()
     {
         return $this->addressLine;
+    }
+
+    public function getPostcode()
+    {
+        return $this->postcode;
     }
 
     public function getCity()
@@ -155,9 +163,11 @@ class Facility extends Entity
         $this->owner = $owner;
     }
 
+    // Written the way an address is written here, with the postcode in front of
+    // the town rather than after it.
     public function getFullAddress()
     {
-        return $this->addressLine . ', ' . $this->city . ', ' . $this->state;
+        return $this->addressLine . ', ' . $this->postcode . ' ' . $this->city . ', ' . $this->state;
     }
 
     public function isBookable()
@@ -223,6 +233,7 @@ class Facility extends Entity
     {
         $this->name = isset($changes['name']) ? $changes['name'] : $this->name;
         $this->addressLine = isset($changes['addressLine']) ? $changes['addressLine'] : $this->addressLine;
+        $this->postcode = isset($changes['postcode']) ? $changes['postcode'] : $this->postcode;
         $this->city = isset($changes['city']) ? $changes['city'] : $this->city;
         $this->state = isset($changes['state']) ? $changes['state'] : $this->state;
         $this->type = isset($changes['type']) ? $changes['type'] : $this->type;

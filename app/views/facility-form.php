@@ -1,6 +1,6 @@
 <?php
 // Venue registration and edit form. Author: Goh Jian Yu
-// Receives: $facility, $input, $errors, $sports, $states
+// Receives: $facility, $input, $errors, $sports
 
 $isEdit = $facility !== null;
 
@@ -58,12 +58,20 @@ $err = static function (string $field) use ($errors): string {
 
     <label for="addressLine">Street address</label>
     <input class="<?= e($bad('addressLine')) ?>" type="text" id="addressLine" name="addressLine" maxlength="255"
-           placeholder="1-2-2, Taman Setiawangsa, Jalan Genting Klang, 53300"
+           placeholder="1-2-2, Taman Setiawangsa, Jalan Genting Klang"
            value="<?= $value('addressLine', $facility?->getAddressLine()) ?>" required>
-    <p class="small muted">Unit, area, street, postcode - separated by commas. The street can be left out.</p>
+    <p class="small muted">Unit, area and street, separated by commas. The street can be left out.</p>
     <?= $err('addressLine') ?>
 
-    <div class="row">
+    <div class="row-3">
+        <div>
+            <label for="postcode">Postcode</label>
+            <input class="<?= e($bad('postcode')) ?>" type="text" id="postcode" name="postcode"
+                   inputmode="numeric" maxlength="5" pattern="\d{5}" placeholder="53300"
+                   value="<?= $value('postcode', $facility?->getPostcode()) ?>" required
+                   data-postcode-states="<?= e(json_encode(App\Domain\Postcodes::RANGES, JSON_UNESCAPED_UNICODE)) ?>">
+            <?= $err('postcode') ?>
+        </div>
         <div>
             <label for="city">City</label>
             <input class="<?= e($bad('city')) ?>" type="text" id="city" name="city" maxlength="100"
@@ -71,17 +79,16 @@ $err = static function (string $field) use ($errors): string {
             <?= $err('city') ?>
         </div>
         <div>
-            <label for="state">State</label>
-            <?php $chosenState = $value('state', $facility?->getState()); ?>
-            <select class="<?= e($bad('state')) ?>" id="state" name="state" required>
-                <option value="">Choose a state&hellip;</option>
-                <?php foreach ($states as $stateName): ?>
-                    <option value="<?= e($stateName) ?>" <?= $chosenState === $stateName ? 'selected' : '' ?>>
-                        <?= e($stateName) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <?= $err('state') ?>
+            <label for="stateShown">State</label>
+            <?php
+            // Not an input. Pos Malaysia allocates postcodes by state, so the
+            // postcode beside it already decides this. Nothing is submitted,
+            // because the server derives it again from the postcode.
+            ?>
+            <input class="readonly-field" type="text" id="stateShown" readonly
+                   value="<?= e($value('state', $facility?->getState())) ?>"
+                   placeholder="From the postcode">
+            <p class="small muted">Set by the postcode.</p>
         </div>
     </div>
 

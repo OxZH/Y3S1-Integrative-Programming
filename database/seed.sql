@@ -75,16 +75,16 @@ INSERT INTO `UserFavoriteSport` (`baseUserId`, `sport`) VALUES
 --  fac-005 closes after it opens (22:00 to 02:00), which is allowed: the CHECK
 --  that used to forbid it has been dropped, because plenty of courts run late.
 --  fac-002 has no street name in its address, which is also allowed - only the
---  unit, the area and the postcode are required.
+--  unit and the area are required. The postcode is a field of its own.
 -- ---------------------------------------------------------------------------
 INSERT INTO `Facility`
-    (`facilityId`, `ownerId`, `name`, `imageUrl`, `addressLine`, `city`, `state`, `type`,
+    (`facilityId`, `ownerId`, `name`, `imageUrl`, `addressLine`, `postcode`, `city`, `state`, `type`,
      `bookingFee`, `operationalHrsStart`, `operationalHrsEnd`, `latitude`, `longitude`, `status`, `createdAt`) VALUES
-('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang, 53100', 'Setapak', 'Kuala Lumpur', 'Badminton Hall',  35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
-('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati, 53100', 'Setapak', 'Kuala Lumpur', 'Basketball Court',50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
-('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor',     'Futsal Court',    80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
-('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru, 41050','Klang',      'Selangor',     'Badminton Hall',  40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
-('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor', 'Futsal Court', 60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
+('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang', '53100', 'Setapak', 'Kuala Lumpur', 'Badminton',      35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
+('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati', '53100', 'Setapak', 'Kuala Lumpur', 'Basketball',     50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
+('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru', '41050', 'Klang', 'Selangor',     'Futsal',          80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
+('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru', '41050','Klang',      'Selangor',     'Badminton',      40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
+('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru', '41050', 'Klang', 'Selangor', 'Futsal',       60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
 
 -- ---------------------------------------------------------------------------
 --  Events   (MODULE 1 - mine)

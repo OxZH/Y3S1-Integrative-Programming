@@ -23,7 +23,7 @@ use App\ServiceUnavailableException;
 $routes = [
     'facility' => [
         'class'   => FacilityController::class,
-        'actions' => ['show', 'mine', 'create', 'store', 'edit', 'update', 'suspend', 'reactivate', 'delete'],
+        'actions' => ['search', 'show', 'mine', 'create', 'store', 'edit', 'update', 'suspend', 'reactivate', 'delete'],
     ],
     'event' => [
         'class'   => EventController::class,

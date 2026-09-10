@@ -276,8 +276,11 @@ final class EventController extends Controller
             'errors'  => $errors,
             'venues'  => $venues,
             'ratings' => $this->facade->ratingsFor($venues),
-            'maxDate' => (new DateTimeImmutable('today ' . self::BOOKING_WINDOW))->format('Y-m-d'),
-            'sports'  => $this->facade->listSports(),
+            'maxDate' => $windowEnd,
+
+            // Slots already taken, so the time dropdowns can grey them out
+            // without asking the server again every time the date changes.
+            'busy'    => $this->facade->busySlots($windowEnd),
         ]);
     }
 
@@ -286,14 +289,13 @@ final class EventController extends Controller
         $clean = (new Validator($input))
             ->required('facilityId', 'Venue')->identifier('facilityId', 'Venue')
             ->required('name', 'Event name')->text('name', 'Event name', 3, 150)
-            ->required('sport', 'Sport')->text('sport', 'Sport', 2, 50)
 
             // Far-future dates are almost always a typo, and a venue cannot
             // sensibly be held for years, so bookings stop three months out.
             ->required('eventDate', 'Date')->date('eventDate', 'Date', true, self::BOOKING_WINDOW)
 
-            ->required('startTime', 'Start time')->time('startTime', 'Start time')
-            ->required('endTime', 'End time')->time('endTime', 'End time', false)
+            ->required('startTime', 'Start time')->time('startTime', 'Start time', true, true)
+            ->required('endTime', 'End time')->time('endTime', 'End time', false, true)
             ->timeAfter('startTime', 'endTime', 'End time')
             ->notInThePast('eventDate', 'startTime', 'That start time')
             ->required('minParticipants', 'Minimum players')->integer('minParticipants', 'Minimum players', 1, 200)
@@ -306,11 +308,10 @@ final class EventController extends Controller
             ->decimal('feePerParticipant', 'Fee per player', 0, 9999.99)
             ->validate();
 
-        // One casing for one sport, so "BADMINTON", "badminton" and "Badminton"
-        // do not end up as three different sports when events are grouped.
-        if (isset($clean['sport'])) {
-            $clean['sport'] = ucwords(strtolower($clean['sport']));
-        }
+        // The sport is deliberately absent from the rules above. It is not asked
+        // for and not read from the request, because it belongs to the venue.
+        // createEvent() fills it in from the chosen facility, which means a
+        // tampered sport field has nothing to tamper with.
 
         return $clean;
     }

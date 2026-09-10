@@ -169,9 +169,10 @@ CREATE TABLE `Facility` (
     `ownerId`             VARCHAR(36)   NOT NULL,   -- [+] GAP 3: diagram only draws FacilityOwner -> List<Facility>; the reverse reference is needed by facility search
     `name`                VARCHAR(150)  NOT NULL,   -- [D]
     `imageUrl`            VARCHAR(500)  NULL,       -- [D]
-    `addressLine`         VARCHAR(255)  NOT NULL,   -- [D]
+    `addressLine`         VARCHAR(255)  NOT NULL,   -- [D] unit, area and street only
+    `postcode`            CHAR(5)       NOT NULL,   -- [+] its own field, not buried in addressLine: it decides the state, so it is asked for on its own and stored on its own
     `city`                VARCHAR(100)  NOT NULL,   -- [D]
-    `state`               VARCHAR(100)  NOT NULL,   -- [D]
+    `state`               VARCHAR(100)  NOT NULL,   -- [D] derived from postcode, never typed
     `type`                VARCHAR(50)   NOT NULL,   -- [D] e.g. Badminton Hall, Futsal Court
     `bookingFee`          DECIMAL(10,2) NOT NULL,   -- [D] diagram says double; money MUST be DECIMAL (binary floats cannot hold 0.10 exactly)
     `operationalHrsStart` TIME          NOT NULL,   -- [D]
@@ -185,6 +186,7 @@ CREATE TABLE `Facility` (
     CONSTRAINT `fk_Facility_owner`
         FOREIGN KEY (`ownerId`) REFERENCES `FacilityOwner`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Facility_fee`   CHECK (`bookingFee` >= 0),
+    CONSTRAINT `chk_Facility_postcode` CHECK (`postcode` REGEXP '^[0-9]{5}$'),
     CONSTRAINT `chk_Facility_lat`   CHECK (`latitude`  BETWEEN  -90 AND  90),
     CONSTRAINT `chk_Facility_lng`   CHECK (`longitude` BETWEEN -180 AND 180),
     KEY `idx_Facility_owner`  (`ownerId`),

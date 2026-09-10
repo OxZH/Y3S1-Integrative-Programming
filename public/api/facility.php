@@ -42,6 +42,7 @@ function facilityToArray(Facility $facility, ?float $originLat = null, ?float $o
         'name'                => $facility->getName(),
         'type'                => $facility->getType(),
         'addressLine'         => $facility->getAddressLine(),
+        'postcode'            => $facility->getPostcode(),
         'city'                => $facility->getCity(),
         'state'               => $facility->getState(),
         'fullAddress'         => $facility->getFullAddress(),

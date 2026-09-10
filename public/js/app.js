@@ -330,20 +330,370 @@
         refresh();
     }
 
+    /* ----------------------------------------------------------------------
+       Show the state that the postcode implies.
+
+       Pos Malaysia hands out postcodes by state, so the postcode already says
+       which state a venue is in and the owner is never asked. This fills the
+       read-only box as they type, purely so they can see it is right before
+       submitting.
+
+       FacilityController works the same thing out again from the postcode, so
+       nothing here is trusted. The ranges travel in a data attribute, the same
+       way the venue list does, to keep PHP out of this file.
+       ---------------------------------------------------------------------- */
+
+    function setUpStateFromPostcode() {
+        var postcode = document.getElementById('postcode');
+        var shown    = document.getElementById('stateShown');
+
+        if (!postcode || !shown) {
+            return;
+        }
+
+        var ranges;
+
+        try {
+            ranges = JSON.parse(postcode.getAttribute('data-postcode-states') || '{}');
+        } catch (error) {
+            return;
+        }
+
+        function stateFor(digits) {
+            var number = parseInt(digits, 10);
+
+            for (var state in ranges) {
+                if (!Object.prototype.hasOwnProperty.call(ranges, state)) {
+                    continue;
+                }
+
+                var blocks = ranges[state];
+
+                for (var i = 0; i < blocks.length; i++) {
+                    if (number >= blocks[i][0] && number <= blocks[i][1]) {
+                        return state;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function refresh() {
+            var typed = String(postcode.value).replace(/\D/g, '');
+
+            // Nothing to say until all five digits are in, or the box would
+            // read "not a postcode" while somebody is still typing one.
+            if (typed.length < 5) {
+                shown.value = '';
+                return;
+            }
+
+            shown.value = stateFor(typed) || 'Not a Malaysian postcode';
+        }
+
+        postcode.addEventListener('input', refresh);
+
+        // A postcode may already be filled in, on the edit form or after a
+        // save that failed.
+        refresh();
+    }
+
+    /* ----------------------------------------------------------------------
+       Stop a password being copied out of the box.  (Module 2 - Ivan)
+
+       The confirm box exists so a typo in the password is caught before the
+       account is created. Copying the first box into the second defeats that -
+       the two match, and both are wrong. Blocking copy, cut and drag means the
+       confirmation is actually typed.
+
+       Worth being honest about what this is: a nudge, not a security control.
+       Anyone determined can read the value from the developer tools. It is on
+       the sign-up form only, never on sign-in, where blocking paste would just
+       break password managers for no benefit.
+       ---------------------------------------------------------------------- */
+
+    function setUpNoCopyFields() {
+        var fields = document.querySelectorAll('[data-no-copy]');
+
+        Array.prototype.forEach.call(fields, function (field) {
+            ['copy', 'cut', 'dragstart'].forEach(function (event) {
+                field.addEventListener(event, function (e) {
+                    e.preventDefault();
+                });
+            });
+        });
+    }
+
+
+    /* ----------------------------------------------------------------------
+       Drag a picture onto the box, or click it to pick one.  (Module 2 - Ivan)
+
+       The file input inside is the real control and is what gets submitted -
+       dropping a file just assigns it to that input. So with JavaScript off
+       the box is still a working file picker, and the server sees exactly the
+       same request either way.
+
+       Nothing here validates the file. The browser cannot be trusted about
+       what a file contains, so the type and size checks live in
+       App\Domain\ProfileImage, which reads the image header itself. The
+       preview below is only a courtesy.
+       ---------------------------------------------------------------------- */
+
+    function setUpDropzones() {
+        var zones = document.querySelectorAll('[data-dropzone]');
+
+        Array.prototype.forEach.call(zones, function (zone) {
+            var input = document.getElementById(zone.getAttribute('data-dropzone'));
+
+            if (!input) {
+                return;
+            }
+
+            var preview = document.getElementById(input.id + 'Preview');
+            var hint    = document.getElementById(input.id + 'Hint');
+
+            function showChosen(file) {
+                if (hint && file) {
+                    hint.textContent = file.name;
+                }
+
+                if (preview && file && window.FileReader) {
+                    var reader = new FileReader();
+
+                    reader.onload = function (event) {
+                        preview.src = event.target.result;
+                        preview.classList.remove('is-hidden');
+                    };
+
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            // Clicking anywhere on the box opens the picker - except when the
+            // click was already on the input itself, which would loop.
+            zone.addEventListener('click', function (event) {
+                if (event.target !== input) {
+                    input.click();
+                }
+            });
+
+            input.addEventListener('change', function () {
+                showChosen(input.files && input.files[0]);
+            });
+
+            // Without preventDefault on both, the browser navigates away to
+            // open the dropped file instead of letting the page have it.
+            ['dragenter', 'dragover'].forEach(function (name) {
+                zone.addEventListener(name, function (event) {
+                    event.preventDefault();
+                    zone.classList.add('is-dragging');
+                });
+            });
+
+            ['dragleave', 'dragend'].forEach(function (name) {
+                zone.addEventListener(name, function () {
+                    zone.classList.remove('is-dragging');
+                });
+            });
+
+            zone.addEventListener('drop', function (event) {
+                event.preventDefault();
+                zone.classList.remove('is-dragging');
+
+                var dropped = event.dataTransfer && event.dataTransfer.files;
+
+                if (!dropped || dropped.length === 0) {
+                    return;
+                }
+
+                // DataTransfer is how a dropped file is handed to a file
+                // input; older browsers without it still have the click path.
+                if (typeof DataTransfer === 'function') {
+                    var carrier = new DataTransfer();
+                    carrier.items.add(dropped[0]);
+                    input.files = carrier.files;
+                }
+
+                showChosen(dropped[0]);
+            });
+        });
+    }
+
+
+    /* ----------------------------------------------------------------------
+       Hold to show a password.  (Module 2 - Ivan)
+
+       A password box hides what is typed, which is what stops someone reading
+       it over your shoulder, but it also means a typo is invisible until the
+       form comes back rejected. Holding this button shows the characters for
+       exactly as long as the button is held, and hiding again is not something
+       the user has to remember to do.
+
+       Held, not toggled, on purpose: a toggle can be left on, and then the
+       password sits in plain view on an unattended screen.
+
+       The button is type="button" so it never submits the form, and it works
+       from the keyboard as well - hold Space or Enter - so it is not
+       mouse-only. It is also hidden again if the tab is switched away from or
+       the form is submitted, in case a finger stays down.
+       ---------------------------------------------------------------------- */
+
+    function setUpPasswordReveal() {
+        var buttons = document.querySelectorAll('[data-reveal-password]');
+
+        Array.prototype.forEach.call(buttons, function (button) {
+            var field = document.getElementById(button.getAttribute('data-reveal-password'));
+
+            if (!field) {
+                return;
+            }
+
+            function show() {
+                field.type = 'text';
+                button.setAttribute('aria-pressed', 'true');
+            }
+
+            function hide() {
+                field.type = 'password';
+                button.setAttribute('aria-pressed', 'false');
+            }
+
+            button.addEventListener('mousedown', show);
+
+            button.addEventListener('touchstart', function (event) {
+                // Stops the browser also firing a mouse event and a long-press
+                // menu on top of this one.
+                event.preventDefault();
+                show();
+            });
+
+            ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'blur'].forEach(function (name) {
+                button.addEventListener(name, hide);
+            });
+
+            button.addEventListener('keydown', function (event) {
+                if (event.key === ' ' || event.key === 'Enter') {
+                    event.preventDefault();
+                    show();
+                }
+            });
+
+            button.addEventListener('keyup', function (event) {
+                if (event.key === ' ' || event.key === 'Enter') {
+                    event.preventDefault();
+                    hide();
+                }
+            });
+
+            if (field.form) {
+                field.form.addEventListener('submit', hide);
+            }
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) {
+                    hide();
+                }
+            });
+        });
+    }
+
+
+    /* ----------------------------------------------------------------------
+       Confirm the address before it is saved.  (Module 2 - Ivan)
+
+       The player types where they play; the server looks it up with the
+       Discovery module's AddressGeocoder and answers with the place it
+       matched. Showing that back means a wrong address is caught here rather
+       than quietly placing someone in the wrong city.
+
+       Coordinates are never sent to this page and never posted back. The
+       server geocodes the address again when the form is submitted and stores
+       that result, so what is shown here is only ever information.
+       ---------------------------------------------------------------------- */
+
+    function setUpLocationConfirm() {
+        var box   = document.getElementById('location');
+        var panel = document.getElementById('locationConfirm');
+
+        if (!box || !panel || !box.hasAttribute('data-location-lookup')) {
+            return;
+        }
+
+        var form     = box.form;
+        var endpoint = box.getAttribute('data-location-lookup');
+        var token    = form ? form.querySelector('input[name="_token"]') : null;
+        var lastAsked = box.value.trim();
+
+        function say(text, tone) {
+            panel.textContent = text;
+            panel.className = 'small ' + (tone || 'muted');
+            panel.hidden = false;
+        }
+
+        function check() {
+            var address = box.value.trim();
+
+            if (address === '' || address === lastAsked) {
+                return;
+            }
+
+            lastAsked = address;
+            say('Checking that address...', 'muted');
+
+            var body = new FormData();
+            body.append('location', address);
+
+            if (token) {
+                body.append('_token', token.value);
+            }
+
+            fetch(endpoint, {
+                method: 'POST',
+                body: body,
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json();
+            }).then(function (data) {
+                if (!data.found) {
+                    say(data.message || 'That address could not be found.', 'muted');
+                    return;
+                }
+
+                if (data.approximate || !data.label) {
+                    say('Found, but only roughly - distances will be approximate.', 'muted');
+                    return;
+                }
+
+                // confirm() rather than a custom dialog: it blocks, so the
+                // answer is given before anything else happens on the form.
+                if (window.confirm('We found:\n\n' + data.label + '\n\nIs that right?')) {
+                    say('Confirmed: ' + data.label, 'muted');
+                } else {
+                    say('Not confirmed - please make the address more specific.', 'muted');
+                    box.focus();
+                    box.select();
+                    lastAsked = '';
+                }
+            }).catch(function () {
+                // The address is still saved; only the confirmation is missing.
+                say('Could not check that address just now.', 'muted');
+            });
+        }
+
+        box.addEventListener('blur', check);
+    }
+
     function start() {
         setUpVenuePreview();
         setUpPickers();
         setUpRoleFields();
         setUpSlotGuard();
+        setUpStateFromPostcode();
         setUpNoCopyFields();
         setUpPasswordReveal();
         setUpDropzones();
         setUpLocationConfirm();
-        setUpPastTimeGuard();
-
-        var boxes = document.querySelectorAll('[data-suggest]');
-
-        Array.prototype.forEach.call(boxes, setUpSuggestions);
     }
 
     if (document.readyState === 'loading') {
