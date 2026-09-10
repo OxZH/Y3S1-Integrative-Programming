@@ -1,7 +1,6 @@
 <?php
 // A facility owner's own venues. Author: Goh Jian Yu
-
-/** @var \App\Model\Facility[] $facilities */
+// Receives: $facilities, $deletable
 ?>
 <h1>My venues</h1>
 <p class="lede">Register venues, adjust pricing and opening hours, and delist a venue without losing its history.</p>
@@ -25,11 +24,13 @@
             <?php foreach ($facilities as $facility): ?>
                 <?php
                 $status = $facility->getStatus();
-                $pill   = match ($status->value) {
-                    'ACTIVE'  => 'live',
-                    'PENDING' => 'wait',
-                    default   => 'dead',
-                };
+                $statusClass = 'dead';
+
+                if ($status->value === 'ACTIVE') {
+                    $statusClass = 'live';
+                } else if ($status->value === 'PENDING') {
+                    $statusClass = 'wait';
+                }
                 ?>
                 <tr>
                     <td>
@@ -39,7 +40,7 @@
                     <td><?= e($facility->getType()) ?></td>
                     <td><?= e(money($facility->getBookingFee())) ?></td>
                     <td class="small"><?= e(hhmm($facility->getOperationalHrsStart())) ?>&ndash;<?= e(hhmm($facility->getOperationalHrsEnd())) ?></td>
-                    <td><span class="pill <?= e($pill) ?>"><?= e($status->label()) ?></span></td>
+                    <td><span class="pill <?= e($statusClass) ?>"><?= e($status->label()) ?></span></td>
                     <td class="actions">
                         <a class="btn ghost small" href="<?= e(url('facility', 'edit', ['id' => $facility->getFacilityId()])) ?>">Edit</a>
 
@@ -57,12 +58,20 @@
                             </form>
                         <?php endif; ?>
 
-                        <form method="post" action="<?= e(url('facility', 'delete')) ?>" class="inline-form"
-                              data-confirm="Delete this venue?">
-                            <?= $csrfField ?>
-                            <input type="hidden" name="facilityId" value="<?= e((string) $facility->getFacilityId()) ?>">
-                            <button class="btn ghost small" type="submit">Delete</button>
-                        </form>
+                        <?php
+                        // Only offered when it would really delete. A venue with
+                        // games or reviews behind it can only be delisted, and
+                        // the Delist button above already does that - so there is
+                        // no button here that has to apologise afterwards.
+                        ?>
+                        <?php if ($deletable[(string) $facility->getFacilityId()] ?? false): ?>
+                            <form method="post" action="<?= e(url('facility', 'delete')) ?>" class="inline-form"
+                                  data-confirm="Delete this venue? Nothing is booked or reviewed against it, so the record goes for good.">
+                                <?= $csrfField ?>
+                                <input type="hidden" name="facilityId" value="<?= e((string) $facility->getFacilityId()) ?>">
+                                <button class="btn danger small" type="submit">Delete</button>
+                            </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -72,6 +81,7 @@
 
     <p class="small muted">
         A new venue stays <strong>Pending</strong> until approved. Delisting hides it from search and
-        stops new bookings; games already scheduled there are untouched.
+        stops new bookings; games already scheduled there are untouched. Once a venue has games or
+        reviews against it, it can only be delisted, so <strong>Delete</strong> is no longer offered.
     </p>
 <?php endif; ?>

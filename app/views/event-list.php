@@ -1,8 +1,6 @@
 <?php
 // Published upcoming games. Author: Goh Jian Yu
-
-/** @var \App\Model\Event[] $events */
-/** @var string|null $sport */
+// Receives: $events, $sport
 ?>
 <h1>Upcoming games</h1>
 <p class="lede">

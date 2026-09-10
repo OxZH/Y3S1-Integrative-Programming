@@ -1,8 +1,6 @@
 <?php
 // Event entity. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Competitiveness;
@@ -14,37 +12,68 @@ use App\SkillLevel;
 use DateTimeImmutable;
 use DomainException;
 
-/**
- * One organised game at one venue. The class diagram names the venue
- * association "location", so that is the accessor; getFacility() is an alias.
- *
- * The diagram also draws booking: Booking. That belongs to the Venue Booking &
- * Payment module and is not a property here - this module asks that module for
- * a booking's status over a web service instead of reading its tables.
- */
+// One organised game at one venue.
+//
+// The class diagram names the venue association "location", so that is what the
+// accessor is called. getFacility() is just an alias that reads better.
+//
+// The diagram also draws booking: Booking. That belongs to the Venue Booking &
+// Payment module, so it is not a property here. This module asks that module
+// for a booking's status over a web service instead of reading their tables.
 class Event extends Entity
 {
-    protected ?Account $host = null;
-    protected ?Facility $location = null;
+    private $eventId;
+    private $name;
+    private $sport;
+    private $eventDate;
+    private $startTime;
+    private $endTime;
+    private $minParticipants;
+    private $maxParticipants;
+    private $skillLevel;
+    private $fitnessRequirement;
+    private $competitiveness;
+    private $visibility;
+    private $status;
+    private $feePerParticipant;
+    private $createdAt;
+
+    // protected and not private, so the lazy loader in Entity can reach them
+    protected $host = null;
+    protected $location = null;
 
     public function __construct(
-        private ?string $eventId,
-        private string $name,
-        private string $sport,
-        private DateTimeImmutable $eventDate,
-        private string $startTime,
-        private string $endTime,
-        private int $minParticipants,
-        private int $maxParticipants,
-        private SkillLevel $skillLevel,
-        private FitnessRequirement $fitnessRequirement,
-        private Competitiveness $competitiveness,
-        private EventVisibility $visibility = EventVisibility::PUBLIC,
-        private EventStatus $status = EventStatus::DRAFT,
-        private float $feePerParticipant = 0.0,
-        private ?DateTimeImmutable $createdAt = null
+        $eventId,
+        $name,
+        $sport,
+        DateTimeImmutable $eventDate,
+        $startTime,
+        $endTime,
+        $minParticipants,
+        $maxParticipants,
+        SkillLevel $skillLevel,
+        FitnessRequirement $fitnessRequirement,
+        Competitiveness $competitiveness,
+        EventVisibility $visibility = EventVisibility::PUBLIC,
+        EventStatus $status = EventStatus::DRAFT,
+        $feePerParticipant = 0.0,
+        DateTimeImmutable $createdAt = null
     ) {
-        $this->createdAt ??= new DateTimeImmutable();
+        $this->eventId = $eventId;
+        $this->name = $name;
+        $this->sport = $sport;
+        $this->eventDate = $eventDate;
+        $this->startTime = $startTime;
+        $this->endTime = $endTime;
+        $this->minParticipants = $minParticipants;
+        $this->maxParticipants = $maxParticipants;
+        $this->skillLevel = $skillLevel;
+        $this->fitnessRequirement = $fitnessRequirement;
+        $this->competitiveness = $competitiveness;
+        $this->visibility = $visibility;
+        $this->status = $status;
+        $this->feePerParticipant = $feePerParticipant;
+        $this->createdAt = $createdAt === null ? new DateTimeImmutable() : $createdAt;
     }
 
     public function getIdentity(): ?string
@@ -52,152 +81,163 @@ class Event extends Entity
         return $this->eventId;
     }
 
-    public function getEventId(): ?string
+    public function getEventId()
     {
         return $this->eventId;
     }
 
-    public function getName(): string
+    public function getName()
     {
         return $this->name;
     }
 
-    public function getSport(): string
+    public function getSport()
     {
         return $this->sport;
     }
 
-    public function getEventDate(): DateTimeImmutable
+    public function getEventDate()
     {
         return $this->eventDate;
     }
 
-    public function getStartTime(): string
+    public function getStartTime()
     {
         return $this->startTime;
     }
 
-    public function getEndTime(): string
+    public function getEndTime()
     {
         return $this->endTime;
     }
 
-    public function getMinParticipants(): int
+    public function getMinParticipants()
     {
         return $this->minParticipants;
     }
 
-    public function getMaxParticipants(): int
+    public function getMaxParticipants()
     {
         return $this->maxParticipants;
     }
 
-    public function getSkillLevel(): SkillLevel
+    public function getSkillLevel()
     {
         return $this->skillLevel;
     }
 
-    public function getFitnessRequirement(): FitnessRequirement
+    public function getFitnessRequirement()
     {
         return $this->fitnessRequirement;
     }
 
-    public function getCompetitiveness(): Competitiveness
+    public function getCompetitiveness()
     {
         return $this->competitiveness;
     }
 
-    public function getVisibility(): EventVisibility
+    public function getVisibility()
     {
         return $this->visibility;
     }
 
-    public function getStatus(): EventStatus
+    public function getStatus()
     {
         return $this->status;
     }
 
-    public function getFeePerParticipant(): float
+    public function getFeePerParticipant()
     {
         return $this->feePerParticipant;
     }
 
-    public function getCreatedAt(): DateTimeImmutable
+    public function getCreatedAt()
     {
         return $this->createdAt;
     }
 
-    public function getHost(): ?Account
+    // the organiser
+    public function getHost()
     {
         return $this->resolve('host');
     }
 
-    public function setHost(Account $host): void
+    public function setHost(Account $host)
     {
         $this->host = $host;
     }
 
-    public function getLocation(): ?Facility
+    // the venue, named location on the class diagram
+    public function getLocation()
     {
         return $this->resolve('location');
     }
 
-    public function getFacility(): ?Facility
+    // reads better at the call site than getLocation()
+    public function getFacility()
     {
         return $this->getLocation();
     }
 
-    public function setLocation(Facility $facility): void
+    public function setLocation(Facility $facility)
     {
         $this->location = $facility;
     }
 
-    public function getStartsAt(): DateTimeImmutable
+    public function getStartsAt()
     {
         return new DateTimeImmutable($this->eventDate->format('Y-m-d') . ' ' . $this->startTime);
     }
 
-    public function getEndsAt(): DateTimeImmutable
+    public function getEndsAt()
     {
         return new DateTimeImmutable($this->eventDate->format('Y-m-d') . ' ' . $this->endTime);
     }
 
-    public function getDurationHours(): float
+    public function getDurationHours()
     {
-        return round(($this->getEndsAt()->getTimestamp() - $this->getStartsAt()->getTimestamp()) / 3600, 2);
+        $seconds = $this->getEndsAt()->getTimestamp() - $this->getStartsAt()->getTimestamp();
+
+        return round($seconds / 3600, 2);
     }
 
-    public function isInThePast(): bool
+    public function isInThePast()
     {
         return $this->getEndsAt() < new DateTimeImmutable();
     }
 
-    public function isPublished(): bool
+    public function isPublished()
     {
         return $this->status->isPublished();
     }
 
-    public function isFriendsOnly(): bool
+    public function isFriendsOnly()
     {
         return $this->visibility === EventVisibility::FRIENDS_ONLY;
     }
 
-    public function isHostedBy(string $userId): bool
+    public function isHostedBy($userId)
     {
-        return $this->getHost()?->getBaseUserId() === $userId;
+        $host = $this->getHost();
+
+        return $host !== null && $host->getBaseUserId() === $userId;
     }
 
-    // Only a quote at the venue's current rate. What is actually charged is
-    // snapshotted onto Booking.bookingAmount by the Venue Booking module, so a
-    // later price change cannot alter what someone already paid.
-    public function quoteVenueCost(): float
+    // What the venue would cost for this slot, at today's rate. Only a quote:
+    // the amount actually charged is fixed by the Venue Booking module when the
+    // booking is made, so a later price change cannot alter what was paid.
+    public function quoteVenueCost()
     {
         $facility = $this->getLocation();
 
-        return $facility === null ? 0.0 : round($facility->getBookingFee() * $this->getDurationHours(), 2);
+        if ($facility === null) {
+            return 0.0;
+        }
+
+        return round($facility->getBookingFee() * $this->getDurationHours(), 2);
     }
 
-    public function publish(): void
+    public function publish()
     {
         if ($this->status === EventStatus::CANCELLED) {
             throw new DomainException('A cancelled event cannot be published.');
@@ -206,7 +246,7 @@ class Event extends Entity
         $this->status = EventStatus::PUBLISHED;
     }
 
-    public function cancel(): void
+    public function cancel()
     {
         if ($this->status === EventStatus::COMPLETED) {
             throw new DomainException('A completed event cannot be cancelled.');
@@ -215,20 +255,20 @@ class Event extends Entity
         $this->status = EventStatus::CANCELLED;
     }
 
-    /** @param array<string,mixed> $changes */
-    public function updateDetails(array $changes): void
+    // $changes comes from the Validator, so only fields that passed are in it
+    public function updateDetails(array $changes)
     {
-        $this->name               = $changes['name'] ?? $this->name;
-        $this->sport              = $changes['sport'] ?? $this->sport;
-        $this->eventDate          = $changes['eventDate'] ?? $this->eventDate;
-        $this->startTime          = $changes['startTime'] ?? $this->startTime;
-        $this->endTime            = $changes['endTime'] ?? $this->endTime;
-        $this->minParticipants    = $changes['minParticipants'] ?? $this->minParticipants;
-        $this->maxParticipants    = $changes['maxParticipants'] ?? $this->maxParticipants;
-        $this->skillLevel         = $changes['skillLevel'] ?? $this->skillLevel;
-        $this->fitnessRequirement = $changes['fitnessRequirement'] ?? $this->fitnessRequirement;
-        $this->competitiveness    = $changes['competitiveness'] ?? $this->competitiveness;
-        $this->visibility         = $changes['visibility'] ?? $this->visibility;
-        $this->feePerParticipant  = $changes['feePerParticipant'] ?? $this->feePerParticipant;
+        $this->name = isset($changes['name']) ? $changes['name'] : $this->name;
+        $this->sport = isset($changes['sport']) ? $changes['sport'] : $this->sport;
+        $this->eventDate = isset($changes['eventDate']) ? $changes['eventDate'] : $this->eventDate;
+        $this->startTime = isset($changes['startTime']) ? $changes['startTime'] : $this->startTime;
+        $this->endTime = isset($changes['endTime']) ? $changes['endTime'] : $this->endTime;
+        $this->minParticipants = isset($changes['minParticipants']) ? $changes['minParticipants'] : $this->minParticipants;
+        $this->maxParticipants = isset($changes['maxParticipants']) ? $changes['maxParticipants'] : $this->maxParticipants;
+        $this->skillLevel = isset($changes['skillLevel']) ? $changes['skillLevel'] : $this->skillLevel;
+        $this->fitnessRequirement = isset($changes['fitnessRequirement']) ? $changes['fitnessRequirement'] : $this->fitnessRequirement;
+        $this->competitiveness = isset($changes['competitiveness']) ? $changes['competitiveness'] : $this->competitiveness;
+        $this->visibility = isset($changes['visibility']) ? $changes['visibility'] : $this->visibility;
+        $this->feePerParticipant = isset($changes['feePerParticipant']) ? $changes['feePerParticipant'] : $this->feePerParticipant;
     }
 }

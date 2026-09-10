@@ -1,17 +1,16 @@
 <?php
 // Facility search filters. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Domain;
 
-final class SearchCriteria
+// Holds the filters for one venue search, so the search method takes a single
+// object instead of nine loose arguments.
+class SearchCriteria
 {
-    /**
-     * Allow-list for ORDER BY. A column name cannot be a bound parameter, so a
-     * ?sort= value that is not a key here never becomes SQL.
-     */
-    public const SORTS = [
+    // The only sort columns allowed. A column name cannot be sent to MySQL as a
+    // bound parameter, so a ?sort= value the user invents is dropped here and
+    // never reaches the query.
+    const SORTS = [
         'name'     => 'f.`name`',
         'price'    => 'f.`bookingFee`',
         'city'     => 'f.`city`',
@@ -19,61 +18,88 @@ final class SearchCriteria
         'distance' => 'distanceKm',
     ];
 
+    public $keyword;
+    public $city;
+    public $type;
+    public $maxFee;
+    public $latitude;
+    public $longitude;
+    public $radiusKm;
+    public $sortBy;
+    public $direction;
+    public $limit;
+
     public function __construct(
-        public readonly ?string $keyword = null,
-        public readonly ?string $city = null,
-        public readonly ?string $type = null,
-        public readonly ?float $maxFee = null,
-        public readonly ?float $latitude = null,
-        public readonly ?float $longitude = null,
-        public readonly ?float $radiusKm = null,
-        public readonly string $sortBy = 'name',
-        public readonly string $direction = 'ASC',
-        public readonly int $limit = 50
+        $keyword = null,
+        $city = null,
+        $type = null,
+        $maxFee = null,
+        $latitude = null,
+        $longitude = null,
+        $radiusKm = null,
+        $sortBy = 'name',
+        $direction = 'ASC',
+        $limit = 50
     ) {
+        $this->keyword = $keyword;
+        $this->city = $city;
+        $this->type = $type;
+        $this->maxFee = $maxFee;
+        $this->latitude = $latitude;
+        $this->longitude = $longitude;
+        $this->radiusKm = $radiusKm;
+        $this->sortBy = $sortBy;
+        $this->direction = $direction;
+        $this->limit = $limit;
     }
 
-    /** @param array<string,mixed> $input usually $_GET */
-    public static function fromArray(array $input): self
+    // Builds the object from $_GET, cleaning every value on the way in.
+    public static function fromArray(array $input)
     {
-        $sortBy = is_string($input['sort'] ?? null) ? $input['sort'] : 'name';
+        $sortBy = isset($input['sort']) && is_string($input['sort']) ? $input['sort'] : 'name';
 
-        if (!array_key_exists($sortBy, self::SORTS)) {
+        if (!array_key_exists($sortBy, SearchCriteria::SORTS)) {
             $sortBy = 'name';
         }
 
-        $latitude  = self::toFloat($input['lat'] ?? null);
-        $longitude = self::toFloat($input['lng'] ?? null);
+        $latitude  = SearchCriteria::toFloat(isset($input['lat']) ? $input['lat'] : null);
+        $longitude = SearchCriteria::toFloat(isset($input['lng']) ? $input['lng'] : null);
 
+        // sorting by distance means nothing without a point to measure from
         if ($sortBy === 'distance' && ($latitude === null || $longitude === null)) {
             $sortBy = 'name';
         }
 
-        return new self(
-            keyword:   self::toText($input['q'] ?? null),
-            city:      self::toText($input['city'] ?? null),
-            type:      self::toText($input['type'] ?? null),
-            maxFee:    self::toFloat($input['max_fee'] ?? null),
-            latitude:  $latitude,
-            longitude: $longitude,
-            radiusKm:  self::toFloat($input['radius'] ?? null),
-            sortBy:    $sortBy,
-            direction: strtoupper((string) ($input['dir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC',
-            limit:     min(100, max(1, (int) ($input['limit'] ?? 50)))
+        $direction = isset($input['dir']) ? strtoupper($input['dir']) : 'ASC';
+        $limit     = isset($input['limit']) ? (int) $input['limit'] : 50;
+
+        return new SearchCriteria(
+            SearchCriteria::toText(isset($input['q']) ? $input['q'] : null),
+            SearchCriteria::toText(isset($input['city']) ? $input['city'] : null),
+            SearchCriteria::toText(isset($input['type']) ? $input['type'] : null),
+            SearchCriteria::toFloat(isset($input['max_fee']) ? $input['max_fee'] : null),
+            $latitude,
+            $longitude,
+            SearchCriteria::toFloat(isset($input['radius']) ? $input['radius'] : null),
+            $sortBy,
+            $direction === 'DESC' ? 'DESC' : 'ASC',
+            min(100, max(1, $limit))
         );
     }
 
-    public function hasOrigin(): bool
+    public function hasOrigin()
     {
         return $this->latitude !== null && $this->longitude !== null;
     }
 
-    public function sortExpression(): string
+    public function sortExpression()
     {
-        return self::SORTS[$this->sortBy] ?? self::SORTS['name'];
+        return isset(SearchCriteria::SORTS[$this->sortBy])
+            ? SearchCriteria::SORTS[$this->sortBy]
+            : SearchCriteria::SORTS['name'];
     }
 
-    private static function toText(mixed $value): ?string
+    private static function toText($value)
     {
         if (!is_string($value)) {
             return null;
@@ -84,8 +110,12 @@ final class SearchCriteria
         return $trimmed === '' ? null : $trimmed;
     }
 
-    private static function toFloat(mixed $value): ?float
+    private static function toFloat($value)
     {
-        return ($value === null || $value === '' || !is_numeric($value)) ? null : (float) $value;
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 }

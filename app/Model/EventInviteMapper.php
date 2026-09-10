@@ -1,8 +1,6 @@
 <?php
 // Invite link persistence. Author: Goh Jian Yu
 
-declare(strict_types=1);
-
 namespace App\Model;
 
 use App\Core\DataMapper;
@@ -72,26 +70,21 @@ final class EventInviteMapper extends DataMapper
             return null;
         }
 
-        /** @var EventInvite $invite */
         $invite = $this->register($this->toEntity($row));
 
         return $invite;
     }
 
-    /** @return EventInvite[] */
     public function findByEvent(string $eventId): array
     {
-        /** @var EventInvite[] $invites */
         $invites = $this->findBy(['eventId' => $eventId], 'createdAt', 'DESC');
 
         return $invites;
     }
 
-    /**
-     * One UPDATE rather than read-modify-write: two people opening the same
-     * single use link at once would both read useCount = 0 and both get in. The
-     * WHERE re-checks the cap, so the loser affects zero rows.
-     */
+    // One UPDATE rather than read-modify-write: two people opening the same
+    // single use link at once would both read useCount = 0 and both get in. The
+    // WHERE re-checks the cap, so the loser affects zero rows.
     public function recordUse(EventInvite $invite): bool
     {
         $affected = $this->execute(

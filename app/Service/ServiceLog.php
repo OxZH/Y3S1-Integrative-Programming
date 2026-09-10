@@ -1,20 +1,16 @@
 <?php
 // Records web service calls in both directions. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
-declare(strict_types=1);
-
 namespace App\Service;
 
 use App\Core\Database;
 use Throwable;
 
-/**
- * What the IFA's mandatory requestId is for. Recorded at both ends, it lets us
- * take an id out of our log and ask a teammate to find the same one in theirs.
- *
- * Nothing here may break the call it is logging, so every method swallows its
- * own exceptions.
- */
+// What the IFA's mandatory requestId is for. Recorded at both ends, it lets us
+// take an id out of our log and ask a teammate to find the same one in theirs.
+//
+// Nothing here may break the call it is logging, so every method swallows its
+// own exceptions.
 final class ServiceLog
 {
     public const INBOUND  = 'INBOUND';

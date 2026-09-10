@@ -51,6 +51,15 @@ CREATE TABLE `BaseUser` (
     `userType`      ENUM('USER','FACILITY_OWNER','ADMIN') NOT NULL,  -- [+] CTI discriminator: tells the Data Mapper which subclass to build
     `accountStatus` ENUM('ACTIVE','DEACTIVATED','SUSPENDED')
                     NOT NULL DEFAULT 'ACTIVE',                       -- [+] Ivan: module 2 lists account deactivation
+
+    -- [+] Ivan, 5.2 threat 1 (brute force / credential stuffing). The counter and
+    --     the lock live on the account so the check costs no extra query on the
+    --     login path, and a lock survives the attacker dropping their session.
+    `failedLoginAttempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `lockedUntil`         DATETIME NULL,
+    `lastLoginAt`         DATETIME NULL,                             -- [+] Ivan: shown to the user on next sign-in
+    `passwordChangedAt`   DATETIME NULL,                             -- [+] Ivan: password age, and invalidates older reset tokens
+
     PRIMARY KEY (`baseUserId`),
     UNIQUE KEY `uq_BaseUser_email`    (`email`),
     UNIQUE KEY `uq_BaseUser_username` (`username`),
@@ -90,6 +99,52 @@ CREATE TABLE `Admin` (
         FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- [+] Ivan, 5.2 threat 1. Password recovery is an authentication path, so it is
+--     controlled like one: the row stores a HASH of the token, never the token
+--     itself, so a leak of this table does not let anyone reset an account.
+--     usedAt makes a link single use; expiresAt keeps the window short.
+CREATE TABLE `PasswordReset` (
+    `passwordResetId` VARCHAR(36) NOT NULL,
+    `baseUserId`      VARCHAR(36) NOT NULL,
+    `tokenHash`       CHAR(64)    NOT NULL,   -- hash('sha256', token); the raw token only ever exists in the emailed link
+    `requestedAt`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `expiresAt`       DATETIME    NOT NULL,
+    `usedAt`          DATETIME    NULL,       -- NULL = still redeemable
+    `requestIp`       VARCHAR(45) NULL,       -- 45 chars covers IPv6
+    PRIMARY KEY (`passwordResetId`),
+    UNIQUE KEY `uq_PasswordReset_tokenHash` (`tokenHash`),
+    CONSTRAINT `fk_PasswordReset_BaseUser`
+        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE,
+    KEY `idx_PasswordReset_user` (`baseUserId`, `usedAt`)
+) ENGINE=InnoDB;
+
+-- [+] Ivan, 5.2 threat 2 (unnoticed account takeover and privilege change).
+--     The audit trail. Every authentication and account event lands here,
+--     success and failure alike. It deliberately holds NO password, no reset
+--     token and no session id, so the log itself is not worth stealing.
+--     baseUserId is nullable: a login attempt against an address that does not
+--     exist still has to be recorded, and there is no account to point at.
+CREATE TABLE `AuthEventLog` (
+    `authEventId` VARCHAR(36) NOT NULL,
+    `baseUserId`  VARCHAR(36) NULL,
+    `eventType`   ENUM('LOGIN_SUCCESS','LOGIN_FAILED','LOGOUT','ACCOUNT_LOCKED',
+                       'REGISTERED','PASSWORD_CHANGED','PASSWORD_RESET_REQUESTED',
+                       'PASSWORD_RESET_COMPLETED','PROFILE_UPDATED',
+                       'ACCOUNT_DEACTIVATED','ACCOUNT_REACTIVATED',
+                       'ROLE_CHANGED','ACCESS_DENIED') NOT NULL,
+    `emailTried`  VARCHAR(255) NULL,          -- what was typed, when no account matched
+    `succeeded`   TINYINT(1)   NOT NULL,
+    `ipAddress`   VARCHAR(45)  NULL,
+    `userAgent`   VARCHAR(255) NULL,
+    `detail`      VARCHAR(255) NULL,          -- short, written by us, never raw user input
+    `occurredAt`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`authEventId`),
+    CONSTRAINT `fk_AuthEventLog_BaseUser`
+        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE SET NULL,
+    KEY `idx_AuthEventLog_user` (`baseUserId`, `occurredAt`),
+    KEY `idx_AuthEventLog_type` (`eventType`, `occurredAt`)
+) ENGINE=InnoDB;
+
 
 -- ============================================================================
 --  MODULE 1 - Event & Facility Management  (ME)
@@ -116,16 +171,19 @@ CREATE TABLE `Facility` (
     CONSTRAINT `fk_Facility_owner`
         FOREIGN KEY (`ownerId`) REFERENCES `FacilityOwner`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Facility_fee`   CHECK (`bookingFee` >= 0),
-    CONSTRAINT `chk_Facility_hours` CHECK (`operationalHrsEnd` > `operationalHrsStart`),
     CONSTRAINT `chk_Facility_lat`   CHECK (`latitude`  BETWEEN  -90 AND  90),
     CONSTRAINT `chk_Facility_lng`   CHECK (`longitude` BETWEEN -180 AND 180),
     KEY `idx_Facility_owner`  (`ownerId`),
     KEY `idx_Facility_geo`    (`latitude`, `longitude`),            -- bounding-box prefilter before Haversine
     KEY `idx_Facility_search` (`status`, `city`, `type`, `bookingFee`)
 ) ENGINE=InnoDB;
--- NOTE: chk_Facility_hours rejects venues open past midnight (e.g. 18:00-02:00).
---       Acceptable for now. If overnight venues are needed later, drop this CHECK
---       and treat operationalHrsEnd <= operationalHrsStart as "crosses midnight".
+-- NOTE: operationalHrsEnd is deliberately allowed to be earlier than
+--       operationalHrsStart. Plenty of venues open past midnight, e.g. 22:00 to
+--       02:00, and that reads as closing on the next day. Facility::
+--       isWithinOperatingHours() checks the two halves separately.
+--       Event.startTime/endTime is different: chk_Event_time below still
+--       requires endTime > startTime, because an event has to finish on the
+--       day it starts.
 
 CREATE TABLE `Event` (
     `eventId`            VARCHAR(36)  NOT NULL,   -- [D]

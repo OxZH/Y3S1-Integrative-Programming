@@ -1,9 +1,6 @@
 <?php
 // Venue registration and edit form. Author: Goh Jian Yu
-
-/** @var \App\Model\Facility|null $facility */
-/** @var array<string,mixed> $input */
-/** @var array<string,string> $errors */
+// Receives: $facility, $input, $errors, $types, $states
 
 $isEdit = $facility !== null;
 
@@ -30,7 +27,8 @@ $err = static function (string $field) use ($errors): string {
     <div class="flash error">Please correct the highlighted fields.</div>
 <?php endif; ?>
 
-<form method="post" action="<?= e(url('facility', $isEdit ? 'update' : 'store')) ?>" class="card">
+<form method="post" action="<?= e(url('facility', $isEdit ? 'update' : 'store')) ?>" class="card"
+      enctype="multipart/form-data">
     <?= $csrfField ?>
 
     <?php if ($isEdit): ?>
@@ -44,12 +42,18 @@ $err = static function (string $field) use ($errors): string {
 
     <label for="type">Venue type</label>
     <input class="<?= e($bad('type')) ?>" type="text" id="type" name="type" maxlength="50"
-           placeholder="Badminton Hall, Futsal Court" value="<?= $value('type', $facility?->getType()) ?>" required>
+           placeholder="Badminton Hall, Futsal Court" value="<?= $value('type', $facility?->getType()) ?>"
+           required autocomplete="off"
+           data-suggest="<?= e(json_encode($types, JSON_UNESCAPED_UNICODE)) ?>">
+    <div class="chip-list suggest" id="typeSuggest" hidden></div>
+    <p class="small muted">Pick a type already in use, or type a new one.</p>
     <?= $err('type') ?>
 
     <label for="addressLine">Street address</label>
     <input class="<?= e($bad('addressLine')) ?>" type="text" id="addressLine" name="addressLine" maxlength="255"
+           placeholder="1-2-2, Taman Setiawangsa, Jalan Genting Klang, 53300"
            value="<?= $value('addressLine', $facility?->getAddressLine()) ?>" required>
+    <p class="small muted">Unit, area, street, postcode - separated by commas. The street can be left out.</p>
     <?= $err('addressLine') ?>
 
     <div class="row">
@@ -61,8 +65,15 @@ $err = static function (string $field) use ($errors): string {
         </div>
         <div>
             <label for="state">State</label>
-            <input class="<?= e($bad('state')) ?>" type="text" id="state" name="state" maxlength="100"
-                   value="<?= $value('state', $facility?->getState()) ?>" required>
+            <?php $chosenState = $value('state', $facility?->getState()); ?>
+            <select class="<?= e($bad('state')) ?>" id="state" name="state" required>
+                <option value="">Choose a state&hellip;</option>
+                <?php foreach ($states as $stateName): ?>
+                    <option value="<?= e($stateName) ?>" <?= $chosenState === $stateName ? 'selected' : '' ?>>
+                        <?= e($stateName) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
             <?= $err('state') ?>
         </div>
     </div>
@@ -86,31 +97,46 @@ $err = static function (string $field) use ($errors): string {
             <input class="<?= e($bad('operationalHrsEnd')) ?>" type="time" id="operationalHrsEnd" name="operationalHrsEnd"
                    value="<?= $value('operationalHrsEnd', $facility !== null ? hhmm($facility->getOperationalHrsEnd()) : '22:00') ?>" required>
             <?= $err('operationalHrsEnd') ?>
+            <p class="small muted">Closing earlier than opening means the next day, eg 22:00 to 02:00.</p>
         </div>
     </div>
 
-    <div class="row">
-        <div>
-            <label for="latitude">Latitude</label>
-            <input class="<?= e($bad('latitude')) ?>" type="number" step="0.0000001" min="-90" max="90"
-                   id="latitude" name="latitude" placeholder="3.2145000"
-                   value="<?= $value('latitude', $facility !== null ? (string) $facility->getLatitude() : null) ?>" required>
-            <?= $err('latitude') ?>
-        </div>
-        <div>
-            <label for="longitude">Longitude</label>
-            <input class="<?= e($bad('longitude')) ?>" type="number" step="0.0000001" min="-180" max="180"
-                   id="longitude" name="longitude" placeholder="101.7268000"
-                   value="<?= $value('longitude', $facility !== null ? (string) $facility->getLongitude() : null) ?>" required>
-            <?= $err('longitude') ?>
-        </div>
-    </div>
-    <p class="small muted">Coordinates drive the map pins and distance sorting.</p>
+    <label for="image">Photo of the venue (optional)</label>
+    <?php if ($isEdit && $facility->getImageUrl() !== null): ?>
+        <img class="upload-preview" src="<?= e(imageSrc($facility->getImageUrl())) ?>"
+             alt="<?= e($facility->getName()) ?>">
+    <?php endif; ?>
+    <input class="<?= e($bad('image')) ?>" type="file" id="image" name="image"
+           accept=".jpg,.jpeg,.png,.webp">
+    <?= $err('image') ?>
+    <p class="small muted">
+        JPG, JPEG, PNG or WEBP, up to 3 MB.
+        <?= $isEdit ? 'Leave this empty to keep the photo you already have.' : '' ?>
+    </p>
 
-    <label for="imageUrl">Image address (optional)</label>
-    <input class="<?= e($bad('imageUrl')) ?>" type="text" id="imageUrl" name="imageUrl" maxlength="500"
-           placeholder="/uploads/facility/my-venue.jpg" value="<?= $value('imageUrl', $facility?->getImageUrl()) ?>">
-    <?= $err('imageUrl') ?>
+    <details class="advanced">
+        <summary>Exact map position (optional)</summary>
+        <p class="small muted">
+            The pin is worked out from the address above, which is close enough for
+            sorting venues by distance. Fill these in only if you want it exact.
+        </p>
+        <div class="row">
+            <div>
+                <label for="latitude">Latitude</label>
+                <input class="<?= e($bad('latitude')) ?>" type="number" step="0.0000001" min="-90" max="90"
+                       id="latitude" name="latitude" placeholder="3.2145000"
+                       value="<?= $value('latitude', $facility !== null ? (string) $facility->getLatitude() : null) ?>">
+                <?= $err('latitude') ?>
+            </div>
+            <div>
+                <label for="longitude">Longitude</label>
+                <input class="<?= e($bad('longitude')) ?>" type="number" step="0.0000001" min="-180" max="180"
+                       id="longitude" name="longitude" placeholder="101.7268000"
+                       value="<?= $value('longitude', $facility !== null ? (string) $facility->getLongitude() : null) ?>">
+                <?= $err('longitude') ?>
+            </div>
+        </div>
+    </details>
 
     <div class="form-actions">
         <button class="btn" type="submit"><?= $isEdit ? 'Save changes' : 'Submit venue' ?></button>

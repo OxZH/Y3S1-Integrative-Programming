@@ -6,11 +6,7 @@ use App\EventVisibility;
 use App\FitnessRequirement;
 use App\Model\Facility;
 use App\SkillLevel;
-
-/** @var array<string,mixed> $input */
-/** @var array<string,string> $errors */
-/** @var Facility[] $venues */
-/** @var array<string,float> $ratings */
+// Receives: $input, $errors, $venues, $ratings, $maxDate, $sports
 
 $bad = static function (string $field) use ($errors): string {
     return isset($errors[$field]) ? 'bad' : '';
@@ -37,11 +33,9 @@ $options = static function (array $cases, ?string $selected): string {
 
 $selectedVenue = (string) ($input['facilityId'] ?? '');
 
-/*
- * Venue details for the preview panel. Handed to public/js/app.js through a
- * data attribute rather than an inline script, so no PHP ends up in the
- * JavaScript file and no JavaScript ends up in this view.
- */
+// Venue details for the preview panel. Handed to public/js/app.js through a
+// data attribute rather than an inline script, so no PHP ends up in the
+// JavaScript file and no JavaScript ends up in this view.
 $venueData = [];
 
 foreach ($venues as $venue) {
@@ -52,9 +46,10 @@ foreach ($venues as $venue) {
         'name'    => $venue->getName() . ' · ' . $venue->getType(),
         'address' => $venue->getFullAddress(),
         'fee'     => money($venue->getBookingFee()),
-        'hours'   => hhmm($venue->getOperationalHrsStart()) . '–' . hhmm($venue->getOperationalHrsEnd()),
-        'image'   => $venue->getImageUrl(),
-        'rating'  => $rating !== null ? number_format($rating, 1) . ' / 5' : 'Not rated yet',
+        'hours'   => hhmm($venue->getOperationalHrsStart()) . '–' . hhmm($venue->getOperationalHrsEnd())
+                     . ($venue->closesAfterMidnight() ? ' (next day)' : ''),
+        'image'   => imageSrc($venue->getImageUrl()),
+        'rating'  => starsText($rating),
         'url'     => url('facility', 'show', ['id' => $id]),
     ];
 }
@@ -83,7 +78,10 @@ foreach ($venues as $venue) {
 
     <label for="sport">Sport</label>
     <input class="<?= e($bad('sport')) ?>" type="text" id="sport" name="sport" maxlength="50"
-           placeholder="Badminton" value="<?= old($input, 'sport') ?>" required>
+           placeholder="Badminton" value="<?= old($input, 'sport') ?>" required autocomplete="off"
+           data-suggest="<?= e(json_encode($sports, JSON_UNESCAPED_UNICODE)) ?>">
+    <div class="chip-list suggest" id="sportSuggest" hidden></div>
+    <p class="small muted">Pick one that is already being played, or type a new one.</p>
     <?= $err('sport') ?>
 
     <label for="facilityId">Venue</label>
@@ -99,7 +97,7 @@ foreach ($venues as $venue) {
                 <?= e($venue->getName()) ?>
                 &mdash; <?= e($venue->getCity()) ?>
                 &mdash; <?= e(money($venue->getBookingFee())) ?>/h
-                &mdash; <?= $rating !== null ? e(number_format($rating, 1)) . '/5' : 'unrated' ?>
+                &mdash; <?= e(starsText($rating)) ?>
             </option>
         <?php endforeach; ?>
     </select>
@@ -112,10 +110,13 @@ foreach ($venues as $venue) {
                 <strong data-field="name"></strong>
                 <div class="small muted" data-field="address"></div>
                 <div class="stat stat-tight">
-                    <div><span>Rating</span><strong data-field="rating"></strong></div>
                     <div><span>Hourly fee</span><strong data-field="fee"></strong></div>
                     <div><span>Open</span><strong data-field="hours"></strong></div>
                 </div>
+            </div>
+            <div class="venue-preview-rating">
+                <span class="small muted">Rating</span>
+                <strong data-field="rating"></strong>
             </div>
             <a class="btn ghost small" data-field="link" href="#" target="_blank" rel="noopener">
                 View venue details
@@ -131,7 +132,9 @@ foreach ($venues as $venue) {
         <div>
             <label for="eventDate">Date</label>
             <input class="<?= e($bad('eventDate')) ?>" type="date" id="eventDate" name="eventDate"
-                   min="<?= e(date('Y-m-d')) ?>" value="<?= old($input, 'eventDate') ?>" required>
+                   min="<?= e(date('Y-m-d')) ?>" max="<?= e($maxDate) ?>"
+                   value="<?= old($input, 'eventDate') ?>" required>
+            <p class="small muted">Up to <?= e(date('d M Y', strtotime($maxDate))) ?>.</p>
             <?= $err('eventDate') ?>
         </div>
         <div>

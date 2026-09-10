@@ -1,21 +1,9 @@
 <?php
-/**
- * Stand-in for the three teammate services this module consumes.
- * Author: Goh Jian Yu
- *
- * DELETE THIS FILE once the real modules are up. It exists only so this
- * module's consumption code can be built and demonstrated before they are, and
- * so it can be tested against known data.
- *
- * It answers in the agreed IFA envelope and reads the seeded tables, so the
- * replies match the demo data: evt-001 and evt-002 are paid, evt-003 is not.
- * It implements none of the real behaviour - no booking workflow, no Stripe, no
- * friend state machine.
- *
- * Functions: getUserContactInfo, getBookingStatus, getFacilityRatings, areFriends
- */
-
-declare(strict_types=1);
+/*
+Stand-in for the teammate services this module consumes. Author: Goh Jian Yu
+Delete this file once the real modules are up.
+Functions: getUserContactInfo, getBookingStatus, getFacilityRatings, areFriends
+*/
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 

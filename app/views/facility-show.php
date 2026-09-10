@@ -2,16 +2,25 @@
 // Venue detail. Author: Goh Jian Yu
 
 use App\Security\Auth;
-
-/** @var \App\Model\Facility $facility */
-/** @var \App\Model\Event[] $events */
-/** @var array $slots */
-/** @var \DateTimeImmutable $slotDate */
+// Receives: $facility, $rating, $events, $slots, $slotDate
 
 $owner = $facility->getOwner();
+
+// Opening hours. A venue can close after midnight, so say which day it closes
+// on rather than leaving "22:00-02:00" looking like a mistake.
+$hours = hhmm($facility->getOperationalHrsStart()) . '–' . hhmm($facility->getOperationalHrsEnd());
+
+if ($facility->closesAfterMidnight()) {
+    $hours .= ' (next day)';
+}
 ?>
 <h1><?= e($facility->getName()) ?></h1>
 <p class="lede"><?= e($facility->getFullAddress()) ?></p>
+
+<?php if ($facility->getImageUrl() !== null): ?>
+    <img class="venue-photo" src="<?= e(imageSrc($facility->getImageUrl())) ?>"
+         alt="<?= e($facility->getName()) ?>">
+<?php endif; ?>
 
 <div class="row">
     <div class="card">
@@ -19,26 +28,30 @@ $owner = $facility->getOwner();
         <div class="stat">
             <div><span>Type</span><strong><?= e($facility->getType()) ?></strong></div>
             <div><span>Hourly fee</span><strong><?= e(money($facility->getBookingFee())) ?></strong></div>
-            <div><span>Opening hours</span><strong><?= e(hhmm($facility->getOperationalHrsStart())) ?>&ndash;<?= e(hhmm($facility->getOperationalHrsEnd())) ?></strong></div>
+            <div><span>Opening hours</span><strong><?= e($hours) ?></strong></div>
             <div><span>Status</span><strong><?= e($facility->getStatus()->label()) ?></strong></div>
         </div>
-        <p class="small muted">
-            Coordinates <?= e(number_format($facility->getLatitude(), 5)) ?>,
-            <?= e(number_format($facility->getLongitude(), 5)) ?>
-        </p>
     </div>
 
-    <div class="card">
-        <h2>Operated by</h2>
-        <?php if ($owner !== null): ?>
-            <p class="flush"><strong><?= e($owner->getUsername()) ?></strong></p>
-            <p class="small muted sub-tight">
-                <?= e($owner->getEmail()) ?><br>
-                <?= e($owner->getContactNumber()) ?>
-            </p>
-        <?php else: ?>
-            <p class="muted">Owner details are unavailable.</p>
-        <?php endif; ?>
+    <div>
+        <div class="card rating-block">
+            <h2>Rating</h2>
+            <?= stars($rating) ?>
+            <p class="small muted sub-tight">From the Social Networking &amp; Review module.</p>
+        </div>
+
+        <div class="card">
+            <h2>Operated by</h2>
+            <?php if ($owner !== null): ?>
+                <p class="flush"><strong><?= e($owner->getUsername()) ?></strong></p>
+                <p class="small muted sub-tight">
+                    <?= e($owner->getEmail()) ?><br>
+                    <?= e($owner->getContactNumber()) ?>
+                </p>
+            <?php else: ?>
+                <p class="muted">Owner details are unavailable.</p>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
@@ -96,5 +109,5 @@ $owner = $facility->getOwner();
         Create an event here
     </a>
 <?php else: ?>
-    <a class="btn ghost" href="<?= e(url('login')) ?>">Sign in to organise a game here</a>
+    <a class="btn ghost" href="<?= e(url('auth')) ?>">Sign in to organise a game here</a>
 <?php endif; ?>
