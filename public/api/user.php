@@ -1,4 +1,5 @@
 <?php
+
 /**
  * MODULE 2 - User Authentication & Profile Management
  * Exposed web service.  Author: Ivan Lim Tze Yang
@@ -54,6 +55,11 @@
  *    Description : Yes/no check before another module writes a foreign key.
  *    Response data carries exists (boolean) and active (boolean).
  *
+ *  FUNCTION: areFriends
+ *    Description : Checks whether two users have an accepted friendship.
+ *    Request adds requesterId and addresseeId.
+ *    Response data carries areFriends (boolean).
+ *
  * ---------------------------------------------------------------------------
  *  WHAT THIS ENDPOINT WILL NOT RETURN
  *  The password hash, the failed-attempt counter, the lockout time, reset
@@ -73,6 +79,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
 use App\Model\AccountMapper;
+use App\Model\FriendConnectionMapper;
 use App\Model\FacilityOwner;
 use App\Model\User;
 use App\Service\Ifa;
@@ -201,6 +208,21 @@ try {
             'exists' => $account !== null,
             'active' => $account !== null && $account->isActive(),
         ], 'Account checked.'));
+    }
+
+    if ($function === 'areFriends') {
+        $requesterId = $readAccountId(['baseUserId' => $request['requesterId'] ?? null]);
+        $addresseeId = $readAccountId(['baseUserId' => $request['addresseeId'] ?? null]);
+
+        if ($requesterId === '' || $addresseeId === '') {
+            ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'Friend ids missing or invalid.');
+            Ifa::respond(Ifa::fail($requestId, 'requesterId and addresseeId are mandatory and must be valid identifiers.'), 400);
+        }
+
+        $friends = (new FriendConnectionMapper())->areFriends($requesterId, $addresseeId);
+
+        ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
+        Ifa::respond(Ifa::success($requestId, ['areFriends' => $friends], 'Friendship checked.'));
     }
 
     ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'Unknown function');
