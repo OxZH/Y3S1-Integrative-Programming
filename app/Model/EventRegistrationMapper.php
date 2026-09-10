@@ -190,6 +190,42 @@ final class EventRegistrationMapper extends DataMapper
         return $registrations;
     }
 
+    /**
+     * One page of the players in an event, in the order they signed up, so the
+     * team sheet reads the way the queue formed.
+     *
+     * Only CONFIRMED and ATTENDED appear: somebody who left is not a player, and
+     * the list is a team sheet rather than an audit trail of who changed their
+     * mind.
+     *
+     * @return EventRegistration[]
+     */
+    public function findActiveForEvent(string $eventId, int $limit, int $offset): array
+    {
+        // LIMIT and OFFSET cannot be bound parameters, so both are forced into
+        // range as integers rather than interpolated as given.
+        $safeLimit  = max(1, min(50, $limit));
+        $safeOffset = max(0, $offset);
+
+        $rows = $this->select(
+            'SELECT * FROM `EventRegistration`
+              WHERE `eventId` = :eventId AND `status` IN (:confirmed, :attended)
+              ORDER BY `registerTime` ASC
+              LIMIT ' . $safeLimit . ' OFFSET ' . $safeOffset,
+            [':eventId' => $eventId, ':confirmed' => 'CONFIRMED', ':attended' => 'ATTENDED']
+        );
+
+        $registrations = [];
+
+        foreach ($rows as $row) {
+            /** @var EventRegistration $registration */
+            $registration    = $this->register($this->toEntity($row));
+            $registrations[] = $registration;
+        }
+
+        return $registrations;
+    }
+
     /** @return string[] userIds of everyone active in this event, for the "friends attending" signal */
     public function findActiveUserIds(string $eventId): array
     {

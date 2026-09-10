@@ -19,6 +19,9 @@ $markerData = array_map(static fn (EventFeedItem $m): array => [
     'lng'      => $m->longitude,
     'spaces'   => $m->spacesLeft,
     'distance' => $m->distanceKm,
+    // A pin answers "where"; the link is how the reader gets to "what and who".
+    // Event & Facility Management decides what that page then shows them.
+    'url'      => url('event', 'show', ['id' => $m->eventId]),
 ], $markers);
 ?>
 <h1>Map</h1>
@@ -40,6 +43,14 @@ $markerData = array_map(static fn (EventFeedItem $m): array => [
         maxZoom: 19
     }).addTo(map);
 
+    // An event name is whatever its organiser typed, and this popup is built as
+    // HTML, so every value is escaped on the way in.
+    function esc(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     markers.forEach(function (m) {
         if (typeof m.lat !== 'number' || typeof m.lng !== 'number') {
             return;
@@ -48,10 +59,11 @@ $markerData = array_map(static fn (EventFeedItem $m): array => [
         var distance = m.distance !== null ? m.distance.toFixed(1) + ' km away' : '';
 
         L.marker([m.lat, m.lng]).addTo(map).bindPopup(
-            '<strong>' + m.name + '</strong><br>' +
-            m.sport + ' &middot; ' + m.date + ', ' + m.time + '<br>' +
-            (m.spaces !== null ? m.spaces + ' spots left' : '') +
-            (distance ? '<br>' + distance : '')
+            '<strong>' + esc(m.name) + '</strong><br>' +
+            esc(m.sport) + ' &middot; ' + esc(m.date) + ', ' + esc(m.time) + '<br>' +
+            (m.spaces !== null ? esc(m.spaces) + ' spots left' : '') +
+            (distance ? '<br>' + esc(distance) : '') +
+            '<br><a href="' + esc(m.url) + '">View event</a>'
         );
     });
 })();

@@ -45,13 +45,9 @@ use App\Domain\Discovery\EventFeedItem;
                     </p>
                 <?php endif; ?>
 
+                <?php // Joining happens on the event's own page - same as the browse list. ?>
                 <div class="actions">
                     <a class="btn small" href="<?= e(url('event', 'show', ['id' => $event->eventId])) ?>">View</a>
-                    <form method="post" action="<?= e(url('discovery', 'join')) ?>" class="inline-form">
-                        <?= $csrfField ?>
-                        <input type="hidden" name="eventId" value="<?= e($event->eventId) ?>">
-                        <button class="btn ghost small" type="submit">Join</button>
-                    </form>
                 </div>
             </div>
         <?php endforeach; ?>

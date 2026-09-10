@@ -20,7 +20,10 @@
  * function    String   Mandatory  Operation wanted          getParticipationHistory,
  *                                                           getRecommendedEvents
  * userId      String   Mandatory  Whose history/feed wanted UUID
- * limit       Integer  Optional   Max rows                  1-100, default 10, getRecommendedEvents only
+ * viewerId    String   Optional   Who is asking             UUID, getParticipationHistory only
+ * limit       Integer  Optional   Max rows                  getParticipationHistory 1-50,
+ *                                                           default 10; getRecommendedEvents
+ *                                                           1-100, default 10
  *
  * Response
  * Field       Type     M/O        Description               Format
@@ -34,7 +37,13 @@
  *                                 getParticipationHistory -> count, registrations[]
  *                                 getRecommendedEvents    -> count, events[]
  *
- * registration: eventId, eventName, sport, eventDate, status, registerTime.
+ * registration: eventId, eventName, sport, eventDate, status, registerTime,
+ * available. The registration rows are this module's own; the event behind each
+ * one is described by Event & Facility Management, asked with viewerId attached.
+ * available is false when that module will not show the event to this viewer, or
+ * is unreachable - the row is still returned, because the person did join it,
+ * but eventName, sport and eventDate come back null.
+ *
  * event: eventId, name, sport, eventDate, startTime, spacesLeft,
  * recommendationScore, recommendationReason.
  *
@@ -49,7 +58,6 @@ require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
 use App\Domain\Discovery\EventFeedItem;
 use App\Domain\DiscoveryFacade;
-use App\Model\EventRegistration;
 use App\Service\Ifa;
 use App\Service\ServiceLog;
 
@@ -72,21 +80,6 @@ ServiceLog::start(
     $function,
     (string) $request['timeStamp']
 );
-
-/** @return array<string,mixed> */
-function registrationToArray(EventRegistration $registration): array
-{
-    $event = $registration->getEvent();
-
-    return [
-        'eventId'      => $registration->getEventId(),
-        'eventName'    => $event?->getName(),
-        'sport'        => $event?->getSport(),
-        'eventDate'    => $event?->getEventDate()->format('Y-m-d'),
-        'status'       => $registration->getStatus()->value,
-        'registerTime' => $registration->getRegisterTime()->format('Y-m-d H:i:s'),
-    ];
-}
 
 /** @return array<string,mixed> */
 function feedItemToArray(EventFeedItem $item): array
@@ -114,7 +107,17 @@ try {
             Ifa::respond(Ifa::fail($requestId, 'userId is mandatory for getParticipationHistory.'), 400);
         }
 
-        $registrations = array_map('registrationToArray', $facade->participationHistoryFor($userId));
+        // Optional: without it the rows still come back, but nothing can be said
+        // about events whose visibility depends on who is asking.
+        $viewerId = is_string($request['viewerId'] ?? null) && $request['viewerId'] !== ''
+            ? $request['viewerId']
+            : null;
+
+        $registrations = $facade->participationHistoryFor(
+            $userId,
+            $viewerId,
+            min(50, max(1, (int) ($request['limit'] ?? 10)))
+        );
 
         ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
 

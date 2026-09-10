@@ -26,6 +26,8 @@ final class EventFeedItem
         public readonly string $endTime,
         public readonly ?string $venueName = null,
         public readonly ?string $city = null,
+        /** Raw EventVisibility value. The card turns it into a tag; a map marker never carries it. */
+        public readonly ?string $visibility = null,
         public readonly ?float $latitude = null,
         public readonly ?float $longitude = null,
         public readonly ?float $distanceKm = null,

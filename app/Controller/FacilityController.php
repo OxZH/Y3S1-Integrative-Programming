@@ -27,7 +27,7 @@ final class FacilityController extends Controller
         $facilityId = $this->queryId();
 
         if ($facilityId === null) {
-            $this->redirect(url('event'));
+            $this->redirect(url('discovery')); // js part - was url('event')
         }
 
         $facility = $this->facade->getFacility($facilityId);

@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Competitiveness;
 use App\Core\Controller;
+use App\Domain\DiscoveryFacade; // js part
 use App\Domain\EventManagementFacade;
 use App\EventVisibility;
 use App\FitnessRequirement;
@@ -36,16 +37,11 @@ final class EventController extends Controller
 
     // -- browsing -----------------------------------------------------------
 
-    public function index(): void
-    {
-        $sport = is_string($_GET['sport'] ?? null) ? $_GET['sport'] : null;
-
-        $this->view('event-list', [
-            'title'  => 'Upcoming games',
-            'events' => $this->facade->listVisibleEvents($sport),
-            'sport'  => $sport,
-        ]);
-    }
+    // js part - index() rendered the temporary Upcoming games listing and has
+    // been removed with it. Browsing lives on Find a game, which reaches the
+    // same events through listVisibleEvents on this module's web service rather
+    // than through a second page. The facade method itself is untouched, since
+    // api/event.php still serves it.
 
     public function mine(): void
     {
@@ -62,11 +58,13 @@ final class EventController extends Controller
         $eventId = $this->queryId();
 
         if ($eventId === null) {
-            $this->redirect(url('event'));
+            $this->redirect(url('discovery')); // js part - was url('event')
         }
 
         $event  = $this->facade->viewEvent($eventId);
         $isHost = Auth::id() !== null && $event->isHostedBy((string) Auth::id());
+
+        $discovery = new DiscoveryFacade(); // js part
 
         $this->view('event-show', [
             'title'        => $event->getName(),
@@ -75,6 +73,16 @@ final class EventController extends Controller
             'isHost'       => $isHost,
             'blocker'      => $isHost ? $this->facade->explainPublicationBlockers($eventId) : null,
             'canDelete'    => $isHost && $this->facade->canHardDelete($eventId),
+
+            // js part - joining an event belongs to Discovery & Event
+            // Matchmaking, so that module is asked whether this viewer is
+            // already in, and who else is. Null covers "not joined" and "not
+            // signed in" alike, which is all the view needs to pick its button.
+            'myRegistration' => $discovery->myRegistrationFor($eventId),
+            'playerPage'     => $discovery->playersFor(
+                $eventId,
+                (int) ($_GET['players'] ?? 1)
+            ),
         ]);
     }
 
@@ -83,7 +91,7 @@ final class EventController extends Controller
         $token = $_GET['token'] ?? '';
 
         if (!is_string($token) || $token === '') {
-            $this->redirect(url('event'));
+            $this->redirect(url('discovery')); // js part - was url('event')
         }
 
         $event = $this->facade->redeemInvite($token);

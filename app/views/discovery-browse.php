@@ -6,6 +6,7 @@ use App\Domain\Discovery\EventFeedItem;
 /** @var EventFeedItem[] $events */
 /** @var \App\Domain\Discovery\FeedFilterCriteria $criteria */
 /** @var array<string,mixed> $input */
+/** @var string[] $sports the sports that currently have games */
 ?>
 <h1>Find a game</h1>
 <p class="lede">Filter by sport, open spots and how far away, then sort by date, distance, rating or who is going.</p>
@@ -26,22 +27,23 @@ use App\Domain\Discovery\EventFeedItem;
     <input type="hidden" name="a" value="index">
 
     <label class="inline-label" for="sport">Sport</label>
-    <input class="medium-field" type="text" id="sport" name="sport" placeholder="Badminton, Futsal"
-           value="<?= e($input['sport'] ?? '') ?>">
+    <select class="medium-field" id="sport" name="sport">
+        <option value="">Any sport</option>
+        <?php foreach ($sports as $sport): ?>
+            <option value="<?= e($sport) ?>" <?= ($input['sport'] ?? '') === $sport ? 'selected' : '' ?>>
+                <?= e($sport) ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
 
     <label class="inline-label" for="minSpacesLeft">Min. spots left</label>
     <input class="medium-field" type="number" id="minSpacesLeft" name="minSpacesLeft" min="1"
            value="<?= e($input['minSpacesLeft'] ?? '') ?>">
 
-    <label class="inline-label" for="radius">Within</label>
-    <select class="medium-field" id="radius" name="radius" <?= $hasPosition ? '' : 'disabled' ?>>
-        <option value="">Any distance</option>
-        <?php foreach ([5, 10, 20, 50, 100] as $km): ?>
-            <option value="<?= $km ?>" <?= (string) ($input['radius'] ?? '') === (string) $km ? 'selected' : '' ?>>
-                <?= $km ?> km
-            </option>
-        <?php endforeach; ?>
-    </select>
+    <label class="inline-label" for="radius">Within (km)</label>
+    <input class="medium-field" type="number" id="radius" name="radius" min="1" max="500" step="1"
+           placeholder="Any distance" value="<?= e($input['radius'] ?? '') ?>"
+           <?= $hasPosition ? '' : 'disabled' ?>>
 
     <label class="inline-label" for="sort">Sort by</label>
     <select class="medium-field" id="sort" name="sort">
@@ -68,9 +70,6 @@ use App\Domain\Discovery\EventFeedItem;
                         <strong><?= e($event->name) ?></strong>
                         <div class="small muted"><?= e($event->sport) ?></div>
                     </div>
-                    <?php if ($event->distanceKm !== null): ?>
-                        <span class="pill live"><?= e(number_format($event->distanceKm, 1)) ?> km</span>
-                    <?php endif; ?>
                 </div>
 
                 <div class="stat">
@@ -96,14 +95,37 @@ use App\Domain\Discovery\EventFeedItem;
                     </p>
                 <?php endif; ?>
 
+                <?php
+                // Joining happens on the event's own page, where the full
+                // details are in front of the player - a card is for choosing
+                // which game to look at, not for committing to one.
+                ?>
                 <div class="actions">
                     <a class="btn small" href="<?= e(url('event', 'show', ['id' => $event->eventId])) ?>">View</a>
-                    <form method="post" action="<?= e(url('discovery', 'join')) ?>" class="inline-form">
-                        <?= $csrfField ?>
-                        <input type="hidden" name="eventId" value="<?= e($event->eventId) ?>">
-                        <button class="btn ghost small" type="submit">Join</button>
-                    </form>
                 </div>
+
+                <?php
+                // Tags sit under the button rather than in the corner, so a card
+                // can carry as many as apply without crowding its title. The
+                // visibility tag repeats Event & Facility Management's own
+                // wording and colour, so the same game reads the same on both
+                // listings.
+                $visibility = $event->visibility === null
+                    ? null
+                    : App\EventVisibility::tryFrom($event->visibility);
+                ?>
+                <?php if ($visibility !== null || $event->distanceKm !== null): ?>
+                    <div class="chip-list spaced-top">
+                        <?php if ($visibility !== null): ?>
+                            <span class="pill <?= $visibility === App\EventVisibility::PUBLIC ? 'live' : 'wait' ?>">
+                                <?= e($visibility->label()) ?>
+                            </span>
+                        <?php endif; ?>
+                        <?php if ($event->distanceKm !== null): ?>
+                            <span class="pill"><?= e(number_format($event->distanceKm, 1)) ?> km away</span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php endforeach; ?>
     </div>

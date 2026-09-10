@@ -31,6 +31,9 @@ final class DiscoveryController extends Controller
             'events'      => $this->facade->browseEvents($criteria, $viewerId),
             'criteria'    => $criteria,
             'input'       => $_GET,
+            // The filter offers the sports that actually have games, so it can
+            // never be set to something that returns an empty page.
+            'sports'      => $this->facade->availableSports($viewerId),
             // Distance filtering measures from the player's own saved position,
             // so the form says as much when there is not one to measure from.
             'hasPosition' => $this->facade->hasKnownPosition($viewerId),
@@ -87,7 +90,14 @@ final class DiscoveryController extends Controller
             $this->flash('error', $e->getMessage());
         }
 
-        $this->redirect(url('discovery', 'mine'));
+        // Leaving from an event's own page returns to it, so the button that was
+        // pressed is still on screen; from the participation list it returns
+        // there. Only an id travels, and it is only ever put back into a URL.
+        $eventId = (string) ($_POST['eventId'] ?? '');
+
+        $this->redirect($eventId !== ''
+            ? url('event', 'show', ['id' => $eventId])
+            : url('discovery', 'mine'));
     }
 
     public function mine(): void

@@ -17,6 +17,7 @@ use App\NotFoundException;
 use App\Security\Auth;
 use App\Security\DiscoverySecurity;
 use App\Service\DiscoveryRemoteServices;
+use App\ServiceUnavailableException;
 use DomainException;
 
 /**
@@ -35,6 +36,12 @@ final class DiscoveryFacade
 
     /** viewerId => [latitude, longitude], so one page load asks the profile service once. */
     private array $originCache = [];
+
+    /** "eventId|viewerId" => details or null, so a repeated event is asked about once. */
+    private array $eventDetailsCache = [];
+
+    /** "sport|viewerId" => the feed, so the browse page and its sport list share one call. */
+    private array $feedCache = [];
 
     public function __construct(
         ?DiscoveryRemoteServices $services = null,
@@ -55,7 +62,7 @@ final class DiscoveryFacade
         // player's own saved position - never something they have to type.
         $criteria = $this->resolveOrigin($criteria, $viewerId);
 
-        $events = $this->services->listUpcomingEvents($criteria->sport, $viewerId, 100);
+        $events = $this->feed($criteria->sport, $viewerId);
 
         // Both batched - one call for every facility id on the page, one for the
         // viewer's whole friend list - rather than one call per event card.
@@ -96,6 +103,31 @@ final class DiscoveryFacade
         $this->sort($items, $criteria->effectiveSort(), $criteria->direction);
 
         return array_slice($items, 0, $criteria->limit);
+    }
+
+    /**
+     * The sports actually on offer right now, for the browse page's filter.
+     *
+     * Taken from the events themselves rather than from the Sport enum, so the
+     * list never offers a sport that would return nothing. It shrinks and grows
+     * with what organisers have published, which is the point.
+     *
+     * @return string[] distinct, alphabetical
+     */
+    public function availableSports(?string $viewerId): array
+    {
+        $sports = [];
+
+        foreach ($this->feed(null, $viewerId) as $event) {
+            if (is_string($event['sport'] ?? null) && $event['sport'] !== '') {
+                $sports[$event['sport']] = true;
+            }
+        }
+
+        $sports = array_keys($sports);
+        sort($sports);
+
+        return $sports;
     }
 
     /** Whether this viewer has a position on file at all, so the page can say so. */
@@ -194,6 +226,59 @@ final class DiscoveryFacade
         );
     }
 
+    /**
+     * The signed-in player's live registration for one event, or null.
+     *
+     * Event & Facility Management's own detail page asks this so its button can
+     * read "Join" or "Leave" rather than finding out on submit. Joining belongs
+     * to this module, so the answer comes from here.
+     */
+    public function myRegistrationFor(string $eventId): ?EventRegistration
+    {
+        $viewerId = Auth::id();
+
+        if ($viewerId === null) {
+            return null;
+        }
+
+        $registration = $this->registrations->findForUserAndEvent($viewerId, $eventId);
+
+        return $registration instanceof EventRegistration && $registration->isActive()
+            ? $registration
+            : null;
+    }
+
+    /** How many players an event's team sheet shows before it needs a second page. */
+    public const PLAYERS_PER_PAGE = 10;
+
+    /**
+     * One page of an event's team sheet.
+     *
+     * Who is in a game is this module's to answer - the registrations are its
+     * table - so Event & Facility Management's detail page asks rather than
+     * counting rows itself. The page number is clamped to something that exists,
+     * so ?players=999 lands on the last page instead of an empty card.
+     *
+     * @return array{players:EventRegistration[],total:int,page:int,pages:int}
+     */
+    public function playersFor(string $eventId, int $page = 1): array
+    {
+        $total = $this->registrations->countActive($eventId);
+        $pages = max(1, (int) ceil($total / self::PLAYERS_PER_PAGE));
+        $page  = max(1, min($pages, $page));
+
+        return [
+            'players' => $this->registrations->findActiveForEvent(
+                $eventId,
+                self::PLAYERS_PER_PAGE,
+                ($page - 1) * self::PLAYERS_PER_PAGE
+            ),
+            'total'   => $total,
+            'page'    => $page,
+            'pages'   => $pages,
+        ];
+    }
+
     public function leaveEvent(string $eventRegistrationId): void
     {
         $registration = $this->registrations->find($eventRegistrationId);
@@ -213,10 +298,36 @@ final class DiscoveryFacade
         return $this->registrations->findByUser(Auth::requireLogin()->getBaseUserId());
     }
 
-    /** For the getParticipationHistory service, consumed by User Authentication & Profile Management. */
-    public function participationHistoryFor(string $userId): array
+    /**
+     * For the getParticipationHistory service, consumed by User Authentication &
+     * Profile Management.
+     *
+     * The registration rows are this module's own. What each event actually *is*
+     * belongs to Event & Facility Management, so it is asked - once per event,
+     * with the viewer attached - rather than read out of its tables. A refusal
+     * means "this person may no longer see that event": the row still appears,
+     * because they really did join it, but it is marked unavailable and carries
+     * no details.
+     *
+     * That visibility check lives here, not in the consuming module, because
+     * these rows are this module's to explain. A consumer gets one call and a
+     * straight answer instead of a lookup per row.
+     *
+     * @return array<int,array{eventId:string,eventName:?string,sport:?string,
+     *         eventDate:?string,status:string,registerTime:string,available:bool}>
+     */
+    public function participationHistoryFor(string $userId, ?string $viewerId = null, int $limit = 10): array
     {
-        return $this->registrations->findByUser($userId);
+        $registrations = array_slice(
+            $this->registrations->findByUser($userId),
+            0,
+            max(1, min(50, $limit))
+        );
+
+        return array_map(
+            fn (EventRegistration $registration): array => $this->describe($registration, $viewerId),
+            $registrations
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -281,6 +392,83 @@ final class DiscoveryFacade
         [$latitude, $longitude] = $this->originCache[$viewerId];
 
         return $criteria->withOrigin($latitude, $longitude);
+    }
+
+    /**
+     * One history row: what this module knows for certain, plus whatever Event &
+     * Facility Management is willing to tell this viewer about the event.
+     *
+     * @return array{eventId:string,eventName:?string,sport:?string,eventDate:?string,
+     *         status:string,registerTime:string,available:bool}
+     */
+    private function describe(EventRegistration $registration, ?string $viewerId): array
+    {
+        $row = [
+            'eventId'      => $registration->getEventId(),
+            'eventName'    => null,
+            'sport'        => null,
+            'eventDate'    => null,
+            'status'       => $registration->getStatus()->value,
+            'registerTime' => $registration->getRegisterTime()->format('Y-m-d H:i:s'),
+            'available'    => false,
+        ];
+
+        $event = $this->eventDetails($registration->getEventId(), $viewerId);
+
+        if ($event === null) {
+            return $row;
+        }
+
+        return array_replace($row, [
+            'eventName' => is_scalar($event['name'] ?? null) ? (string) $event['name'] : null,
+            'sport'     => is_scalar($event['sport'] ?? null) ? (string) $event['sport'] : null,
+            'eventDate' => is_scalar($event['eventDate'] ?? null) ? (string) $event['eventDate'] : null,
+            'available' => true,
+        ]);
+    }
+
+    /**
+     * getEventDetails with the history's own failure rule. Joining fails closed
+     * when Event & Facility Management is unreachable, because that is a
+     * security decision; a history is a display, so an outage costs the row its
+     * details rather than emptying somebody's profile page.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function eventDetails(string $eventId, ?string $viewerId): ?array
+    {
+        $key = $eventId . '|' . ($viewerId ?? '');
+
+        if (!array_key_exists($key, $this->eventDetailsCache)) {
+            try {
+                $this->eventDetailsCache[$key] = $this->services->getEventDetails($eventId, $viewerId);
+            } catch (ServiceUnavailableException $e) {
+                error_log('Participation history: ' . $e->getMessage());
+
+                $this->eventDetailsCache[$key] = null;
+            }
+        }
+
+        return $this->eventDetailsCache[$key];
+    }
+
+    /**
+     * listUpcomingEvents, remembered for the length of the request. Browsing and
+     * building the sport filter both want the feed, and with no sport chosen
+     * they want the same one - so the page asks Event & Facility Management
+     * once, not twice.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function feed(?string $sport, ?string $viewerId): array
+    {
+        $key = ($sport ?? '') . '|' . ($viewerId ?? '');
+
+        if (!array_key_exists($key, $this->feedCache)) {
+            $this->feedCache[$key] = $this->services->listUpcomingEvents($sport, $viewerId, 100);
+        }
+
+        return $this->feedCache[$key];
     }
 
     /**

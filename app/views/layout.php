@@ -27,10 +27,11 @@ $assetVersion = static function (string $relative) use ($assets): string {
 
 <header class="site-header">
     <div class="site-bar">
-        <a class="brand" href="<?= e(url('event')) ?>">Sports<span class="brand-accent">Platform</span></a>
+        <?php // js part - the temporary Upcoming games listing is going, so home is Find a game ?>
+        <a class="brand" href="<?= e(url('discovery')) ?>">Sports<span class="brand-accent">Platform</span></a>
 
         <nav class="site-nav">
-            <a href="<?= e(url('event')) ?>">Upcoming games</a>
+            <?php // js part - the Upcoming games link is gone with the page it pointed at ?>
             <!-- js part - Discovery & Event Matchmaking -->
             <a href="<?= e(url('discovery')) ?>">Find a game</a>
             <a href="<?= e(url('discovery', 'map')) ?>">Map</a>

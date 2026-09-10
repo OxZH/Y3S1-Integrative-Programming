@@ -11,5 +11,6 @@
         <p class="mono muted message-detail"><?= e($detail) ?></p>
     <?php endif; ?>
 
-    <a class="btn" href="<?= e(url('event')) ?>">Back to games</a>
+    <?php // js part - was the Upcoming games listing, which is being removed ?>
+    <a class="btn" href="<?= e(url('discovery')) ?>">Back to games</a>
 </div>

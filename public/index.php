@@ -27,7 +27,9 @@ $routes = [
     ],
     'event' => [
         'class'   => EventController::class,
-        'actions' => ['index', 'mine', 'show', 'create', 'store', 'finalise',
+        // js part - 'index' was the temporary Upcoming games listing, now removed.
+        // Find a game is the browse page; everything else here is unchanged.
+        'actions' => ['mine', 'show', 'create', 'store', 'finalise',
                       'publish', 'cancel', 'delete',
                       'invite', 'invites', 'createInvite', 'revokeInvite'],
     ],
@@ -62,7 +64,9 @@ if (($_GET['c'] ?? null) === 'login') {
     $_GET['c'] = 'auth';
 }
 
-$controllerName = is_string($_GET['c'] ?? null) ? $_GET['c'] : 'event';
+// js part - the site opened on the temporary Upcoming games listing. With that
+// page going, an address with no controller lands on Find a game instead.
+$controllerName = is_string($_GET['c'] ?? null) ? $_GET['c'] : 'discovery';
 $actionName     = is_string($_GET['a'] ?? null) ? $_GET['a'] : 'index';
 
 function renderError(int $status, string $heading, string $message, ?string $detail = null): never
