@@ -13,6 +13,10 @@ authentication module introduced:
 
 ```
 C:\xampp\mysql\bin\mysql -u root < database\module2_upgrade.sql
+Install the Stripe PHP SDK once:
+
+```
+composer install
 ```
 
 Only `public/` should be reachable over HTTP. Link it into `htdocs` once, from
@@ -37,6 +41,28 @@ Every seeded account uses the password `Password123!`:
 | `admin@sportsplatform.my` | Administrator |
 
 Or register a new account at **Register**.
+
+### Stripe Test Mode
+
+Enable Stripe Connect on the platform's Stripe Test account, then expose these
+environment variables to Apache and restart Apache:
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SP_PAYMENT_SERVICE_KEY=replace-with-a-shared-random-value
+```
+
+For local Webhook delivery, install Stripe CLI, sign in, and run:
+
+```
+stripe listen --forward-to http://localhost/sportsplatform/api/stripe-webhook.php
+```
+
+Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET`. In Test Mode,
+facility owners connect their account from **Payments** before organizers pay
+for a venue. Organizers also connect before accepting participant fees.
 
 ### Other ways to run it
 
@@ -103,6 +129,27 @@ Exposed, on `POST /api/facility.php` and `POST /api/event.php`:
 `getFacilityDetails`, `searchFacilities`, `getEventDetails`,
 `listUpcomingEvents`, `getEventsByFacility`. Full IFA tables are in each file's
 header comment.
+
+Venue Booking & Payment also exposes `POST /api/payment.php`:
+`getBookingStatus`, `getEventPaymentSummary`, `cancelEventPayments` and
+`settleEventPayout`. The two mutation functions require the shared
+`X-Service-Key` header. Their complete IFA is in the endpoint's header.
+
+The payment module is isolated from Jianyu's pages and controllers. Its own
+entry points are:
+
+```
+payment.php
+payment.php?action=venue&eventId=<eventId>
+payment.php?action=participant&eventId=<eventId>
+```
+
+When integrating, Jianyu only needs to redirect a newly-created event to the
+venue URL above. On event cancellation call `cancelEventPayments`; after the
+Event module changes an event to `COMPLETED`, call `settleEventPayout`.
+Venue payments are non-refundable. Participant fees receive a full refund only
+when the participant or Event module cancels before the event's actual start
+date and time.
 
 ```
 curl -X POST http://localhost:8000/api/facility.php \

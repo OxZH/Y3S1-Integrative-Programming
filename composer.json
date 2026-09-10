@@ -1,0 +1,8 @@
+{
+    "name": "bmit3173/sports-platform",
+    "description": "Event, venue booking and Stripe Connect payment module",
+    "license": "proprietary",
+    "require": {
+        "stripe/stripe-php": "^16.0"
+    }
+}
