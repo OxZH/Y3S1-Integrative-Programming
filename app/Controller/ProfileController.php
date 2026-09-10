@@ -10,6 +10,8 @@ use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
 use App\Model\FacilityOwner;
 use App\Model\FriendConnectionMapper;
+use App\Model\AccountMapper;
+use App\Model\ReviewMapper;
 use App\Model\User;
 use App\Security\Auth;
 use App\Security\PasswordPolicy;
@@ -28,6 +30,8 @@ use App\ValidationException;
  */
 final class ProfileController extends Controller
 {
+    private const REVIEWS_PER_HOUR = 5;
+
     private AccountServiceInterface $accounts;
     private RemoteServices $services;
 
@@ -185,6 +189,7 @@ final class ProfileController extends Controller
     {
         $current = Auth::requireLogin();
         $userId = $this->queryId() ?? $current->getBaseUserId();
+        $page = max(1, (int) ($_GET['page'] ?? 1));
         $isSelf = $userId === $current->getBaseUserId();
         $account = $this->accounts->viewPublicProfile($userId, $current->getBaseUserId());
         $connectionState = $isSelf
@@ -197,6 +202,14 @@ final class ProfileController extends Controller
             $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
         }
 
+        $reviewMapper = new ReviewMapper();
+        $reviews = $reviewMapper->findVisibleByTargetUserId($userId, $page);
+        $accountMapper = new AccountMapper();
+        $reviewAuthors = [];
+        foreach ($reviews as $review) {
+            $reviewAuthors[$review->getAuthorId()] = $accountMapper->findAccount($review->getAuthorId());
+        }
+
         $this->view('profile-public', [
             'title'        => $account->getUsername(),
             'account'      => $account,
@@ -205,7 +218,103 @@ final class ProfileController extends Controller
             'history'      => $history,
             'lastLoginAt'  => $_SESSION['_last_login_at'] ?? null,
             'recentEvents' => $isSelf ? $this->accounts->securityHistory($account->getBaseUserId(), 8) : [],
+            'reviews'       => $reviews,
+            'reviewAuthors' => $reviewAuthors,
+            'reviewPage'    => $page,
+            'reviewPages'   => max(1, (int) ceil($reviewMapper->countVisibleByTargetUserId($userId) / 5)),
         ]);
+    }
+
+    public function submitReview(): void
+    {
+        $this->requirePostWithCsrf();
+        $current = Auth::requireLogin();
+        $targetId = is_string($_POST['targetUserId'] ?? null) ? $_POST['targetUserId'] : '';
+        // $targetId = (new Validator($_POST))
+        //     ->required('targetUserId', 'Target user')
+        //     ->identifier('targetUserId', 'Target user')
+        //     ->validate()['targetUserId'];
+        $title = trim((string) ($_POST['reviewTitle'] ?? ''));
+        $comment = trim((string) ($_POST['reviewComment'] ?? ''));
+
+        if ($targetId === '' || $targetId === $current->getBaseUserId() || $title === '' || $comment === '') {
+            $this->flash('error', 'A review title and comment are required.');
+        } elseif (mb_strlen($title) > 50 || mb_strlen($comment) > 200) {
+            $this->flash('error', 'The review title or comment is too long.');
+        } elseif ($this->containsHttpUrl($title) || $this->containsHttpUrl($comment)) {
+            $this->flash('error', 'Reviews cannot contain web addresses.');
+        } elseif ((new ReviewMapper())->countByAuthorSince(
+            $current->getBaseUserId(),
+            new \DateTimeImmutable('-1 hour')
+        ) >= self::REVIEWS_PER_HOUR) {
+            $this->flash('error', 'You can only post up to five reviews per hour.');
+        } else {
+            $title = filter_var($title, FILTER_SANITIZE_SPECIAL_CHARS);
+            $comment = filter_var($comment, FILTER_SANITIZE_SPECIAL_CHARS);
+            $this->accounts->viewPublicProfile($targetId, $current->getBaseUserId());
+            (new ReviewMapper())->createUserReview($current->getBaseUserId(), $targetId, $title, $comment);
+            $this->flash('success', 'Your review has been posted.');
+        }
+
+        $this->redirect(url('profile', 'showOther', ['id' => $targetId]));
+    }
+
+    private function containsHttpUrl(string $value): bool
+    {
+        $decoded = $value;
+
+        for ($pass = 0; $pass < 3; $pass++) {
+            $next = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $next = rawurldecode($next);
+
+            if ($next === $decoded) {
+                break;
+            }
+
+            $decoded = $next;
+        }
+
+        $normalised = str_replace('\\', '/', $decoded);
+        $compact = preg_replace('/[\s\x00-\x1F\x7F]+/u', '', $normalised) ?? $normalised;
+        $compact = strtolower($compact);
+
+        if (preg_match('/(?:https?|hxxps?):\/{2,}/', $compact) === 1) {
+            return true;
+        }
+
+        if (preg_match('~(?:^|[\s(])//[a-z0-9.-]+(?:[/:?#]|$)~', $normalised) === 1) {
+            return true;
+        }
+
+        return preg_match(
+            '~(?:^|[\s(])(?:www\.)?[a-z0-9-]+\.[a-z]{2,}(?::\d{1,5})?(?:[/?#\s)]|$)~i',
+            $normalised
+        ) === 1;
+    }
+
+    public function voteReview(): void
+    {
+        $this->requirePostWithCsrf();
+        $current = Auth::requireLogin();
+        $reviewId = is_string($_POST['reviewId'] ?? null) ? $_POST['reviewId'] : '';
+        $targetId = is_string($_POST['targetUserId'] ?? null) ? $_POST['targetUserId'] : '';
+        // $targetId = (new Validator($_POST))
+        //     ->required('targetUserId', 'Target user')
+        //     ->identifier('targetUserId', 'Target user')
+        //     ->validate()['targetUserId'];
+        $vote = (int) ($_POST['vote'] ?? 0);
+
+        if ($reviewId !== '' && $targetId !== '' && in_array($vote, [-1, 1], true)) {
+            $reviewMapper = new ReviewMapper();
+            $review = $reviewMapper->findById($reviewId);
+
+            if ($review !== null && $review->getTargetUserId() === $targetId) {
+                $reviewMapper->vote($reviewId, $current->getBaseUserId(), $vote);
+                $this->flash('success', 'Your review vote was recorded.');
+            }
+        }
+
+        $this->redirect(url('profile', 'showOther', ['id' => $targetId]));
     }
 
     public function sendFriendRequest(): void

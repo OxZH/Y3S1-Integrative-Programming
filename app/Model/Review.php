@@ -14,7 +14,7 @@ class Review extends Entity
     public function __construct(
         private string $reviewId,
         private string $authorId, // store id for now
-        private string $facilityId,
+        private ?string $facilityId,
         private string $targetUserId,
         private string $title,
         private string $comment,
@@ -39,7 +39,7 @@ class Review extends Entity
         return $this->authorId;
     }
 
-    public function getFacilityId(): string
+    public function getFacilityId(): ?string
     {
         return $this->facilityId;
     }

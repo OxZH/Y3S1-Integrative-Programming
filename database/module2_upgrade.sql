@@ -60,3 +60,6 @@ CREATE TABLE `AuthEventLog` (
 
 -- The seeded accounts were created before this column existed.
 UPDATE `BaseUser` SET `passwordChangedAt` = `registerTime` WHERE `passwordChangedAt` IS NULL;
+
+ALTER TABLE Review
+    ADD KEY idx_Review_author_time (authorId, reviewTimestamp);

@@ -14,9 +14,9 @@ use InvalidArgumentException;
 
 $currentAccount = Auth::user();
 
-if ($currentAccount === null) {
-    throw new RuntimeException('No signed-in account found for this session.');
-}
+// if ($currentAccount === null) {
+//     throw new RuntimeException('No signed-in account found for this session.');
+// }
 
 final class FriendConnectionMapper extends DataMapper
 {

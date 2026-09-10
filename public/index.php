@@ -66,7 +66,7 @@ $routes = [
     ],
     'profile' => [
         'class'   => ProfileController::class,
-        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate', 'showOther', 'sendFriendRequest', 'discover'],
+        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate', 'showOther', 'sendFriendRequest', 'submitReview', 'voteReview', 'discover'],
     ],
     'admin' => [
         'class'   => AdminController::class,

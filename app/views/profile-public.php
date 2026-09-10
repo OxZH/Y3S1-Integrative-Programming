@@ -7,6 +7,10 @@
 /** @var array<int,array<string,mixed>> $history */
 /** @var string|null $lastLoginAt */
 /** @var \App\Model\AuthEvent[] $recentEvents */
+/** @var \App\Model\Review[] $reviews */
+/** @var array<string,\App\Model\Account|null> $reviewAuthors */
+/** @var int $reviewPage */
+/** @var int $reviewPages */
 
 use App\Model\Admin;
 use App\Model\FacilityOwner;
@@ -139,34 +143,76 @@ use App\Model\User;
     <?php endif; ?>
 </div>
 
-<?php if ($isSelf && $recentEvents !== []): ?>
-    <div class="card">
-        <h2>Recent account activity</h2>
-        <p class="small muted">
-            Every sign-in, password change and refused attempt on this account.
-            <a href="<?= e(url('profile', 'security')) ?>">See the full history</a>.
-        </p>
-        <table class="card-table">
-            <thead>
-                <tr>
-                    <th>When</th>
-                    <th>Event</th>
-                    <th>Result</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($recentEvents as $event): ?>
-                    <tr>
-                        <td class="mono small"><?= e($event->getOccurredAt()?->format('Y-m-d H:i') ?? '-') ?></td>
-                        <td><?= e($event->getEventType()->label()) ?></td>
-                        <td>
-                            <span class="pill <?= $event->succeeded() ? 'live' : 'dead' ?>">
-                                <?= $event->succeeded() ? 'ok' : 'refused' ?>
-                            </span>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+<section class="reviews-section">
+    <div class="page-head">
+        <div>
+            <h2>Reviews</h2>
+            <p class="lede lede-flush">What other players have said.</p>
+        </div>
     </div>
-<?php endif; ?>
+
+    <?php if ($reviews === []): ?>
+        <div class="card empty">
+            <p>No reviews yet.</p>
+        </div>
+    <?php else: ?>
+        <div class="review-list">
+            <?php foreach ($reviews as $review): ?>
+                <?php $author = $reviewAuthors[$review->getAuthorId()] ?? null; ?>
+                <article class="card review-card">
+                    <div class="review-author">
+                        <?php if ($author instanceof User && $author->getProfilePicURL() !== null): ?>
+                            <img class="review-avatar" src="<?= e($author->getProfilePicURL()) ?>"
+                                alt="<?= e($author->getUsername()) ?> profile picture">
+                        <?php else: ?>
+                            <div class="review-avatar review-avatar-placeholder" aria-hidden="true">
+                                <?= e(strtoupper(substr($author?->getUsername() ?? '?', 0, 1))) ?>
+                            </div>
+                        <?php endif; ?>
+                        <strong><?= e($author?->getUsername() ?? 'Unknown user') ?></strong>
+                    </div>
+                    <h3><?= e($review->getTitle()) ?></h3>
+                    <p><?= nl2br(e($review->getComment())) ?></p>
+                    <div class="review-footer">
+                        <form method="post" action="<?= e(url('profile', 'voteReview')) ?>" class="button-row">
+                            <?= $csrfField ?? '' ?>
+                            <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                            <input type="hidden" name="targetUserId" value="<?= e($account->getBaseUserId()) ?>">
+                            <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
+                            <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
+                            <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
+                        </form>
+                        <time class="small muted" datetime="<?= e($review->getReviewTimestamp()->format(DATE_ATOM)) ?>">
+                            <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
+                        </time>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+
+        <?php if ($reviewPages > 1): ?>
+            <nav class="pagination" aria-label="Review pages">
+                <?php for ($page = 1; $page <= $reviewPages; $page++): ?>
+                    <a class="btn small <?= $page === $reviewPage ? '' : 'ghost' ?>"
+                        href="<?= e(url('profile', 'showOther', ['id' => $account->getBaseUserId(), 'page' => $page])) ?>">
+                        <?= $page ?>
+                    </a>
+                <?php endfor; ?>
+            </nav>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if (!$isSelf): ?>
+        <form method="post" action="<?= e(url('profile', 'submitReview')) ?>" class="card review-form">
+            <?= $csrfField ?? '' ?>
+            <input type="hidden" name="targetUserId" value="<?= e($account->getBaseUserId()) ?>">
+            <h3>Write a review</h3>
+            <label for="reviewTitle">Title</label>
+            <input id="reviewTitle" name="reviewTitle" maxlength="50" required>
+            <label for="reviewComment">Review</label>
+            <textarea id="reviewComment" name="reviewComment" rows="5" maxlength="200" required></textarea>
+            <br />
+            <button class="btn" type="submit">Submit review</button>
+        </form>
+    <?php endif; ?>
+</section>

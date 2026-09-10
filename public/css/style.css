@@ -285,6 +285,71 @@ h2 {
     margin-top: 20px;
 }
 
+.reviews-section {
+    margin-top: 28px;
+}
+
+.review-card {
+    margin-bottom: 14px;
+}
+
+.review-author {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.review-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.review-avatar-placeholder {
+    display: grid;
+    place-items: center;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+}
+
+.review-card h3 {
+    margin: 16px 0 6px;
+}
+
+.review-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.pagination {
+    display: flex;
+    gap: 8px;
+    margin: 18px 0 24px;
+}
+
+.review-form {
+    display: flex;
+    flex-direction: column;
+    margin-top: 24px;
+}
+
+.review-form textarea {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 130px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
 /* Title on the left, status badges on the right. */
 .page-head {
     display: flex;
