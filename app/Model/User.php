@@ -27,7 +27,8 @@ final class User extends Account
         ?DateTimeImmutable $registerTime = null,
         ?DateTimeImmutable $lastLoginAt = null,
         ?DateTimeImmutable $passwordChangedAt = null,
-        private ?string $favoriteSport = null,
+        /** @var string[] values from App\Sport, held in the UserFavoriteSport table */
+        private array $favoriteSports = [],
         private ?string $location = null,
         private ?string $profilePicURL = null,
         private ?DateTimeImmutable $birthDate = null,
@@ -47,9 +48,30 @@ final class User extends Account
         );
     }
 
+    /** @return string[] */
+    public function getFavoriteSports(): array
+    {
+        return $this->favoriteSports;
+    }
+
+    /**
+     * The first favourite, for the places that can only show one - a profile
+     * heading, or a caller that has not been updated to handle the list.
+     */
     public function getFavoriteSport(): ?string
     {
-        return $this->favoriteSport;
+        return $this->favoriteSports[0] ?? null;
+    }
+
+    public function likesSport(string $sport): bool
+    {
+        foreach ($this->favoriteSports as $favourite) {
+            if (strcasecmp($favourite, $sport) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function getLocation(): ?string
@@ -77,9 +99,33 @@ final class User extends Account
         return $this->longitude;
     }
 
-    public function setFavoriteSport(?string $sport): void
+    /**
+     * Order is not meaningful, so the list is sorted and de-duplicated on the
+     * way in. That way two players who picked the same sports in a different
+     * order store the same thing, and the primary key on UserFavoriteSport is
+     * never asked to accept a duplicate.
+     *
+     * @param string[] $sports
+     */
+    public function setFavoriteSports(array $sports): void
     {
-        $this->favoriteSport = $sport;
+        $clean = [];
+
+        foreach ($sports as $sport) {
+            if (!is_string($sport)) {
+                continue;
+            }
+
+            $sport = trim($sport);
+
+            if ($sport !== '' && !in_array($sport, $clean, true)) {
+                $clean[] = $sport;
+            }
+        }
+
+        sort($clean);
+
+        $this->favoriteSports = $clean;
     }
 
     public function setLocation(?string $location): void

@@ -431,7 +431,7 @@ final class AccountService implements AccountServiceInterface
             $email,
             $username,
             $contact,
-            favoriteSport: $this->nullable($validated['favoriteSport'] ?? null),
+            favoriteSports: is_array($validated['favoriteSports'] ?? null) ? $validated['favoriteSports'] : [],
             location: $this->nullable($validated['location'] ?? null),
             birthDate: ($validated['birthDate'] ?? null) instanceof DateTimeImmutable ? $validated['birthDate'] : null
         );
@@ -457,10 +457,18 @@ final class AccountService implements AccountServiceInterface
     {
         $location = $user->getLocation();
 
+        // An address that was cleared takes its coordinates with it, otherwise
+        // the player would keep being placed where they used to live.
         if ($location === null || trim($location) === '') {
+            $user->setCoordinates(null, null);
+
             return;
         }
 
+        // This is the ONLY place a player's coordinates are ever set. The
+        // browser is shown the matched address to confirm, never the numbers,
+        // and never gets to send them back - so there is no request a player
+        // can craft that puts them somewhere they are not.
         $coordinates = (new AddressGeocoder())->locate($location);
 
         if ($coordinates !== null) {
@@ -475,18 +483,17 @@ final class AccountService implements AccountServiceInterface
         // not include means "leave it alone", never "clear it" - otherwise a
         // partial form silently wipes whatever it happened not to render.
         if ($account instanceof User) {
-            if (array_key_exists('favoriteSport', $validated)) {
-                $account->setFavoriteSport($this->nullable($validated['favoriteSport']));
+            if (array_key_exists('favoriteSports', $validated) && is_array($validated['favoriteSports'])) {
+                $account->setFavoriteSports($validated['favoriteSports']);
             }
 
             if (array_key_exists('location', $validated)) {
                 $account->setLocation($this->nullable($validated['location']));
 
-                // A new address means the old coordinates are stale. Skipped when
-                // the form sent coordinates of its own, handled below.
-                if (!array_key_exists('latitude', $validated) && !array_key_exists('longitude', $validated)) {
-                    $this->applyGeocodedCoordinates($account);
-                }
+                // A new address means the old coordinates are stale, so they
+                // are always worked out again here. Coordinates are never taken
+                // from the request - see applyGeocodedCoordinates().
+                $this->applyGeocodedCoordinates($account);
             }
 
             if (array_key_exists('profilePicURL', $validated)) {
@@ -497,15 +504,9 @@ final class AccountService implements AccountServiceInterface
                 $account->setBirthDate($validated['birthDate'] instanceof DateTimeImmutable ? $validated['birthDate'] : null);
             }
 
-            if (array_key_exists('latitude', $validated) || array_key_exists('longitude', $validated)) {
-                $latitude  = $validated['latitude']  ?? null;
-                $longitude = $validated['longitude'] ?? null;
-
-                $account->setCoordinates(
-                    is_numeric($latitude) ? (float) $latitude : null,
-                    is_numeric($longitude) ? (float) $longitude : null
-                );
-            }
+            // No branch for latitude/longitude on purpose. They are not fields
+            // a player fills in - they are derived from `location` above, and
+            // anything the request sends under those names is ignored.
 
             return;
         }

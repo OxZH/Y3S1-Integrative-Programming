@@ -15,6 +15,7 @@ use App\Security\Auth;
 use App\Security\AuthEventLogger;
 use App\Security\PasswordPolicy;
 use App\Security\Validator;
+use App\Sport;
 use App\UserType;
 use App\ValidationException;
 
@@ -28,6 +29,10 @@ use App\ValidationException;
  */
 final class AuthController extends Controller
 {
+    /** Old enough that a real person could plausibly be playing. Also rejects
+     *  a mistyped future date, which is the common case. */
+    private const MINIMUM_AGE_YEARS = 3;
+
     private AccountServiceInterface $accounts;
 
     public function __construct(?AccountServiceInterface $accounts = null)
@@ -246,9 +251,10 @@ final class AuthController extends Controller
                 ->text('businessRegNum', 'Business registration number', 4, 50);
         } else {
             $validator
-                ->text('favoriteSport', 'Favourite sport', 2, 50)
+                ->inListMultiple('favoriteSports', 'Favourite sports', Sport::values())
                 ->text('location', 'Location', 2, 255)
-                ->date('birthDate', 'Date of birth');
+                ->date('birthDate', 'Date of birth')
+                ->minimumAge('birthDate', 'Date of birth', self::MINIMUM_AGE_YEARS);
         }
 
         $validated = $validator->validate();

@@ -8,10 +8,12 @@
 
 use App\Security\PasswordPolicy;
 ?>
+<div class="auth-page">
+
 <h1>Reset your password</h1>
 
 <?php if ($sent): ?>
-    <div class="card narrow-field">
+    <div class="card auth-card">
         <p class="lede">Check your email.</p>
         <p>
             If that address has an account, a reset link is on its way to it. The link
@@ -38,7 +40,7 @@ use App\Security\PasswordPolicy;
 <?php else: ?>
     <p class="lede">We will send a single-use link to the address on the account.</p>
 
-    <form method="post" action="<?= e(url('auth', 'sendReset')) ?>" class="card narrow-field">
+    <form method="post" action="<?= e(url('auth', 'sendReset')) ?>" class="card auth-card">
         <?= $csrfField ?>
 
         <label for="email">Email</label>
@@ -51,3 +53,5 @@ use App\Security\PasswordPolicy;
         </div>
     </form>
 <?php endif; ?>
+
+</div>

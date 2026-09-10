@@ -16,15 +16,31 @@ final class RecommendationEngine
     private const SPORT_MATCH_POINTS = 50.0;
     private const MAX_DISTANCE_POINTS = 30.0;
 
-    /** @return array{0:float,1:?string} [score, reason] */
-    public function score(string $eventSport, ?string $favoriteSport, ?float $distanceKm): array
+    /**
+     * A player may list several favourite sports, so the event scores if it
+     * matches any one of them. Matching two is not worth more than matching
+     * one - an event only has one sport.
+     *
+     * @param string[]|string|null $favoriteSports one sport, a list, or nothing
+     * @return array{0:float,1:?string} [score, reason]
+     */
+    public function score(string $eventSport, array|string|null $favoriteSports, ?float $distanceKm): array
     {
         $points  = 0.0;
         $reasons = [];
 
-        if ($favoriteSport !== null && strcasecmp($eventSport, $favoriteSport) === 0) {
-            $points += self::SPORT_MATCH_POINTS;
-            $reasons[] = 'matches your favourite sport';
+        $favourites = match (true) {
+            is_array($favoriteSports)  => $favoriteSports,
+            is_string($favoriteSports) => [$favoriteSports],
+            default                    => [],
+        };
+
+        foreach ($favourites as $favourite) {
+            if (is_string($favourite) && strcasecmp($eventSport, $favourite) === 0) {
+                $points += self::SPORT_MATCH_POINTS;
+                $reasons[] = 'matches your favourite sport';
+                break;
+            }
         }
 
         if ($distanceKm !== null) {

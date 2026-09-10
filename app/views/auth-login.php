@@ -11,10 +11,12 @@ $err = static fn (string $f): string => isset($errors[$f])
     ? '<div class="field-error">' . e($errors[$f]) . '</div>'
     : '';
 ?>
+<div class="auth-page">
+
 <h1>Sign in</h1>
 <p class="lede">Use the email address you registered with.</p>
 
-<form method="post" action="<?= e(url('auth', 'login')) ?>" class="card narrow-field">
+<form method="post" action="<?= e(url('auth', 'login')) ?>" class="card auth-card">
     <?= $csrfField ?>
 
     <label for="email">Email</label>
@@ -23,8 +25,13 @@ $err = static fn (string $f): string => isset($errors[$f])
     <?= $err('email') ?>
 
     <label for="password">Password</label>
-    <input class="<?= e($bad('password')) ?>" type="password" id="password" name="password"
-           autocomplete="current-password" required>
+    <div class="password-field">
+        <input class="<?= e($bad('password')) ?>" type="password" id="password" name="password"
+               autocomplete="current-password" required>
+        <?php // type="button", or holding it would submit the form. ?>
+        <button class="btn ghost small reveal-btn" type="button"
+                data-reveal-password="password" aria-pressed="false">Hold to show</button>
+    </div>
     <?= $err('password') ?>
 
     <div class="form-actions">
@@ -56,3 +63,5 @@ $err = static fn (string $f): string => isset($errors[$f])
         </span>
     </div>
 <?php endif; ?>
+
+</div>

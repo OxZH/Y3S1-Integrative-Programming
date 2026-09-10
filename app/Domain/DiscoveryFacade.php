@@ -141,7 +141,7 @@ final class DiscoveryFacade
 
             [$score, $reason] = $this->recommender->score(
                 (string) $event['sport'],
-                $profile['favoriteSport'] ?? null,
+                $profile['favoriteSports'] ?? null,
                 $distance
             );
 
