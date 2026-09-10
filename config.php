@@ -22,6 +22,7 @@ if (getenv('SP_BASE_URL') === false && isset($_SERVER['HTTP_HOST'], $_SERVER['SC
 // `php -S` it must point somewhere else: that server is single threaded, so a
 // page calling its own host waits on a request it is itself blocking.
 $stubBase = getenv('SP_STUB_BASE') ?: $baseUrl;
+$serviceKey = getenv('SP_PAYMENT_SERVICE_KEY') ?: '';
 
 return [
     'db' => [
@@ -48,7 +49,16 @@ return [
         ],
         'booking' => [
             'module' => 'Venue Booking & Payment',
-            'url'    => $stubBase . '/api/stub.php',
+            'url'    => $baseUrl . '/api/payment.php',
+            'key'    => $serviceKey,
+        ],
+        'event' => [
+            'module' => 'Event & Facility Management',
+            'url'    => $baseUrl . '/api/event.php',
+        ],
+        'facility' => [
+            'module' => 'Event & Facility Management',
+            'url'    => $baseUrl . '/api/facility.php',
         ],
         'rating' => [
             'module' => 'Social Networking & Review System',
@@ -63,5 +73,14 @@ return [
     'http' => [
         'timeout'         => 5,
         'connect_timeout' => 3,
+    ],
+
+    'payment' => [
+        'currency'        => 'myr',
+        'service_key'     => $serviceKey,
+        'stripe_secret'   => getenv('STRIPE_SECRET_KEY') ?: '',
+        'stripe_public'   => getenv('STRIPE_PUBLISHABLE_KEY') ?: '',
+        'webhook_secret'  => getenv('STRIPE_WEBHOOK_SECRET') ?: '',
+        'connect_country' => 'MY',
     ],
 ];
