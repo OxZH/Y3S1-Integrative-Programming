@@ -53,8 +53,8 @@ final class PaymentFacade
             throw new DomainException('Stripe requires the venue charge to be at least RM2.00.');
         }
 
-        $payment = $this->reserveVenuePayment($eventId, $userId, $payeeId, $amount);
-        $bookingId = (string) $payment['bookingId'];
+        $payment = $this->reserveVenuePayment($eventId, $userId, $amount);
+        $this->reserveVenueTransfer($eventId, $payeeId, $amount);
 
         if (($payment['paymentStatus'] ?? null) === 'PAID') {
             return compact('event', 'facility', 'amount') + [
@@ -370,15 +370,21 @@ final class PaymentFacade
 
     public function cancelEventPayments(string $eventId, string $reason): void
     {
-        $venue = $this->one(
-            'SELECT p.*, b.`eventId`, b.`bookingStatus`
-               FROM `Booking` b LEFT JOIN `Payment` p ON p.`bookingId` = b.`bookingId`
-              WHERE b.`eventId` = :event LIMIT 1',
+        $organizer = $this->one(
+            'SELECT `hostId` FROM `Event` WHERE `eventId` = :event LIMIT 1',
             [':event' => $eventId]
         );
 
-        if ($venue !== null) {
-            $this->refundVenueRow($venue, $reason);
+        if ($organizer === null) {
+            throw new DomainException('The event does not exist.');
+        }
+
+        $event = $this->remote->eventDetails($eventId, (string) $organizer['hostId']);
+
+        // Venue bookings are non-refundable. Participant fees are refundable
+        // only until the event's actual start date and time.
+        if ($this->eventHasStarted($event)) {
+            return;
         }
 
         foreach ($this->all(
@@ -596,77 +602,29 @@ final class PaymentFacade
         );
     }
 
-    public function claimWebhook(string $stripeEventId, string $eventType): bool
-    {
-        $statement = $this->db->prepare(
-            'INSERT IGNORE INTO `StripeWebhookEvent`
-                (`stripeEventId`, `eventType`, `status`, `processedAt`)
-             VALUES (:id, :type, :status, NULL)'
-        );
-        $statement->execute([':id' => $stripeEventId, ':type' => $eventType, ':status' => 'PROCESSING']);
-
-        return $statement->rowCount() === 1;
-    }
-
-    public function markWebhookProcessed(string $stripeEventId): void
-    {
-        $this->execute(
-            'UPDATE `StripeWebhookEvent` SET `status` = :status, `processedAt` = NOW()
-              WHERE `stripeEventId` = :id',
-            [':status' => 'COMPLETED', ':id' => $stripeEventId]
-        );
-    }
-
-    public function releaseWebhook(string $stripeEventId): void
-    {
-        $this->execute(
-            'DELETE FROM `StripeWebhookEvent`
-              WHERE `stripeEventId` = :id AND `status` = :status',
-            [':id' => $stripeEventId, ':status' => 'PROCESSING']
-        );
-    }
-
     private function releaseVenueTransfer(string $paymentId): void
     {
         $row = $this->one(
-            'SELECT p.`amount`, b.`eventId`, b.`payeeId`
-               FROM `Payment` p JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
+            'SELECT p.`amount`, b.`eventId`, t.`transferId`, t.`recipientId`,
+                    t.`status`, t.`stripeTransferId`
+               FROM `Payment` p
+               JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
+               JOIN `PaymentTransfer` t
+                 ON t.`eventId` = b.`eventId` AND t.`transferType` = :type
               WHERE p.`paymentId` = :id AND p.`paymentStatus` = :paid LIMIT 1',
-            [':id' => $paymentId, ':paid' => 'PAID']
+            [':type' => 'VENUE', ':id' => $paymentId, ':paid' => 'PAID']
         );
 
-        if ($row === null) {
+        if ($row === null || (string) $row['status'] === 'PAID') {
             return;
         }
 
         $eventId = (string) $row['eventId'];
-        $existing = $this->one(
-            'SELECT * FROM `PaymentTransfer`
-              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-            [':event' => $eventId, ':type' => 'VENUE']
-        );
-
-        if (($existing['status'] ?? null) === 'PAID') {
-            return;
-        }
-
         $account = $this->requireReadyConnectAccount(
-            (string) $row['payeeId'],
+            (string) $row['recipientId'],
             'The facility owner Stripe Connect account is not ready.'
         );
-        $transferId = $existing === null ? uuid() : (string) $existing['transferId'];
-
-        if ($existing === null) {
-            $this->execute(
-                'INSERT INTO `PaymentTransfer`
-                    (`transferId`, `eventId`, `recipientId`, `transferType`, `amount`, `status`)
-                 VALUES (:id, :event, :recipient, :type, :amount, :status)',
-                [
-                    ':id' => $transferId, ':event' => $eventId, ':recipient' => $row['payeeId'],
-                    ':type' => 'VENUE', ':amount' => $row['amount'], ':status' => 'PENDING',
-                ]
-            );
-        }
+        $transferId = (string) $row['transferId'];
 
         $stripeId = $this->stripe()->createTransfer(
             $transferId,
@@ -682,82 +640,20 @@ final class PaymentFacade
     }
 
     /** @param array<string,mixed> $row */
-    private function refundVenueRow(array $row, string $reason): void
-    {
-        $eventId = (string) $row['eventId'];
-        $transfer = $this->one(
-            'SELECT * FROM `PaymentTransfer`
-              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-            [':event' => $eventId, ':type' => 'VENUE']
-        );
-
-        if (($transfer['status'] ?? null) === 'PAID') {
-            $this->stripe()->reverseTransfer(
-                (string) $transfer['transferId'],
-                (string) $transfer['stripeTransferId'],
-                (float) $transfer['amount']
-            );
-            $this->execute(
-                'UPDATE `PaymentTransfer` SET `status` = :status, `reversedAmount` = `amount`
-                  WHERE `transferId` = :id',
-                [':status' => 'REVERSED', ':id' => $transfer['transferId']]
-            );
-        }
-
-        if (($row['paymentStatus'] ?? null) === 'PAID') {
-            $refund = $this->one(
-                'SELECT * FROM `Refund` WHERE `paymentId` = :id LIMIT 1',
-                [':id' => $row['paymentId']]
-            );
-            $refundId = $refund === null ? uuid() : (string) $refund['refundId'];
-
-            if ($refund === null) {
-                $this->execute(
-                    'INSERT INTO `Refund`
-                        (`refundId`, `paymentId`, `participantPaymentId`, `datetime`, `amount`, `reason`)
-                     VALUES (:id, :payment, NULL, NOW(), :amount, :reason)',
-                    [
-                        ':id' => $refundId, ':payment' => $row['paymentId'],
-                        ':amount' => $row['amount'], ':reason' => mb_substr($reason, 0, 255),
-                    ]
-                );
-            }
-
-            $stripeRefundId = $this->stripe()->refundPaymentIntent(
-                $refundId,
-                (string) $row['stripePaymentIntentId']
-            );
-            $this->execute(
-                'UPDATE `Refund` SET `stripeRefundId` = :stripe WHERE `refundId` = :id',
-                [':stripe' => $stripeRefundId, ':id' => $refundId]
-            );
-            $this->execute(
-                'UPDATE `Payment` SET `paymentStatus` = :status WHERE `paymentId` = :id',
-                [':status' => 'REFUNDED', ':id' => $row['paymentId']]
-            );
-        }
-
-        $this->execute(
-            'UPDATE `Booking` SET `bookingStatus` = :status WHERE `eventId` = :event',
-            [':status' => 'CANCELLED', ':event' => $eventId]
-        );
-    }
-
-    /** @param array<string,mixed> $row */
     private function refundParticipantRow(array $row, string $reason): void
     {
         if ((string) $row['paymentStatus'] === 'PAID' && (float) $row['amount'] > 0) {
             $refund = $this->one(
-                'SELECT * FROM `Refund` WHERE `participantPaymentId` = :id LIMIT 1',
+                'SELECT * FROM `ParticipantRefund` WHERE `participantPaymentId` = :id LIMIT 1',
                 [':id' => $row['participantPaymentId']]
             );
-            $refundId = $refund === null ? uuid() : (string) $refund['refundId'];
+            $refundId = $refund === null ? uuid() : (string) $refund['participantRefundId'];
 
             if ($refund === null) {
                 $this->execute(
-                    'INSERT INTO `Refund`
-                        (`refundId`, `paymentId`, `participantPaymentId`, `datetime`, `amount`, `reason`)
-                     VALUES (:id, NULL, :participant, NOW(), :amount, :reason)',
+                    'INSERT INTO `ParticipantRefund`
+                        (`participantRefundId`, `participantPaymentId`, `datetime`, `amount`, `reason`)
+                     VALUES (:id, :participant, NOW(), :amount, :reason)',
                     [
                         ':id' => $refundId, ':participant' => $row['participantPaymentId'],
                         ':amount' => $row['amount'], ':reason' => mb_substr($reason, 0, 255),
@@ -770,7 +666,8 @@ final class PaymentFacade
                 (string) $row['stripePaymentIntentId']
             );
             $this->execute(
-                'UPDATE `Refund` SET `stripeRefundId` = :stripe WHERE `refundId` = :id',
+                'UPDATE `ParticipantRefund` SET `stripeRefundId` = :stripe
+                  WHERE `participantRefundId` = :id',
                 [':stripe' => $stripeRefundId, ':id' => $refundId]
             );
         }
@@ -800,9 +697,9 @@ final class PaymentFacade
     }
 
     /** @return array<string,mixed> */
-    private function reserveVenuePayment(string $eventId, string $userId, string $payeeId, float $amount): array
+    private function reserveVenuePayment(string $eventId, string $userId, float $amount): array
     {
-        return Database::transaction(function () use ($eventId, $userId, $payeeId, $amount): array {
+        return Database::transaction(function () use ($eventId, $userId, $amount): array {
             if ($this->one(
                 'SELECT `eventId` FROM `Event` WHERE `eventId` = :event FOR UPDATE',
                 [':event' => $eventId]
@@ -819,11 +716,11 @@ final class PaymentFacade
                 $bookingId = uuid();
                 $this->execute(
                     'INSERT INTO `Booking`
-                        (`bookingId`, `eventId`, `madeById`, `payeeId`, `bookingStatus`, `bookingAmount`)
-                     VALUES (:id, :event, :maker, :payee, :status, :amount)',
+                        (`bookingId`, `eventId`, `madeById`, `bookingStatus`, `bookingAmount`)
+                     VALUES (:id, :event, :maker, :status, :amount)',
                     [
                         ':id' => $bookingId, ':event' => $eventId, ':maker' => $userId,
-                        ':payee' => $payeeId, ':status' => 'PENDING', ':amount' => $this->decimal($amount),
+                        ':status' => 'PENDING', ':amount' => $this->decimal($amount),
                     ]
                 );
             } else {
@@ -831,7 +728,6 @@ final class PaymentFacade
 
                 if (
                     (string) $booking['madeById'] !== $userId
-                    || (string) $booking['payeeId'] !== $payeeId
                     || abs((float) $booking['bookingAmount'] - $amount) > 0.001
                 ) {
                     throw new DomainException('The existing booking does not match this event quote.');
@@ -848,7 +744,7 @@ final class PaymentFacade
                 $this->execute(
                     'INSERT INTO `Payment`
                         (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`)
-                     VALUES (:id, :booking, :amount, NULL, :method, :status)',
+                     VALUES (:id, :booking, :amount, NOW(), :method, :status)',
                     [
                         ':id' => $paymentId, ':booking' => $bookingId, ':amount' => $this->decimal($amount),
                         ':method' => 'stripe', ':status' => 'PENDING',
@@ -866,6 +762,40 @@ final class PaymentFacade
 
             return $payment;
         });
+    }
+
+    private function reserveVenueTransfer(string $eventId, string $payeeId, float $amount): void
+    {
+        $transfer = $this->one(
+            'SELECT * FROM `PaymentTransfer`
+              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
+            [':event' => $eventId, ':type' => 'VENUE']
+        );
+
+        if ($transfer === null) {
+            $this->execute(
+                'INSERT IGNORE INTO `PaymentTransfer`
+                    (`transferId`, `eventId`, `recipientId`, `transferType`, `amount`, `status`)
+                 VALUES (:id, :event, :recipient, :type, :amount, :status)',
+                [
+                    ':id' => uuid(), ':event' => $eventId, ':recipient' => $payeeId,
+                    ':type' => 'VENUE', ':amount' => $this->decimal($amount), ':status' => 'PENDING',
+                ]
+            );
+            $transfer = $this->one(
+                'SELECT * FROM `PaymentTransfer`
+                  WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
+                [':event' => $eventId, ':type' => 'VENUE']
+            );
+        }
+
+        if (
+            $transfer === null
+            || (string) $transfer['recipientId'] !== $payeeId
+            || abs((float) $transfer['amount'] - $amount) > 0.001
+        ) {
+            throw new DomainException('The venue transfer does not match the facility owner or booking amount.');
+        }
     }
 
     private function reserveParticipantPlace(string $eventId, string $userId, int $maximum): string
@@ -955,14 +885,20 @@ final class PaymentFacade
     /** @param array<string,mixed> $event */
     private function assertEventHasNotStarted(array $event): void
     {
+        if ($this->eventHasStarted($event)) {
+            throw new DomainException('This action is only available before the event starts.');
+        }
+    }
+
+    /** @param array<string,mixed> $event */
+    private function eventHasStarted(array $event): bool
+    {
         $startsAt = DateTimeImmutable::createFromFormat(
             '!Y-m-d H:i:s',
             (string) ($event['eventDate'] ?? '') . ' ' . (string) ($event['startTime'] ?? '')
         );
 
-        if ($startsAt === false || $startsAt <= new DateTimeImmutable()) {
-            throw new DomainException('This action is only available before the event starts.');
-        }
+        return $startsAt === false || $startsAt <= new DateTimeImmutable();
     }
 
     /** @param array{id:string,detailsSubmitted:bool,chargesEnabled:bool,payoutsEnabled:bool} $account */

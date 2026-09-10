@@ -89,12 +89,12 @@ INSERT INTO `EventInvite`
 --  evt-003 intentionally has a booking with NO payment row: that is the 0..1.
 -- ---------------------------------------------------------------------------
 INSERT INTO `Booking`
-    (`bookingId`, `eventId`, `madeById`, `payeeId`, `bookingStatus`, `bookingAmount`, `createdAt`) VALUES
-('bkg-001', 'evt-001', 'usr-001', 'own-001', 'CONFIRMED', 70.00, '2026-08-20 21:12:00'),
-('bkg-002', 'evt-002', 'usr-002', 'own-002', 'CONFIRMED', 160.00,'2026-08-21 09:32:00'),
-('bkg-003', 'evt-003', 'usr-003', 'own-001', 'PENDING',   100.00,'2026-08-24 13:07:00'),
-('bkg-004', 'evt-004', 'usr-001', 'own-001', 'CANCELLED', 105.00,'2026-08-18 18:02:00'),
-('bkg-005', 'evt-005', 'usr-002', 'own-001', 'CONFIRMED', 70.00, '2026-08-05 10:02:00');
+    (`bookingId`, `eventId`, `madeById`, `bookingStatus`, `bookingAmount`, `createdAt`) VALUES
+('bkg-001', 'evt-001', 'usr-001', 'CONFIRMED', 70.00, '2026-08-20 21:12:00'),
+('bkg-002', 'evt-002', 'usr-002', 'CONFIRMED', 160.00,'2026-08-21 09:32:00'),
+('bkg-003', 'evt-003', 'usr-003', 'PENDING',   100.00,'2026-08-24 13:07:00'),
+('bkg-004', 'evt-004', 'usr-001', 'CANCELLED', 105.00,'2026-08-18 18:02:00'),
+('bkg-005', 'evt-005', 'usr-002', 'CONFIRMED', 70.00, '2026-08-05 10:02:00');
 
 INSERT INTO `Payment`
     (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`, `stripePaymentIntentId`) VALUES

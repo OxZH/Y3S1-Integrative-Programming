@@ -126,6 +126,9 @@ payment.php?action=participant&eventId=<eventId>
 When integrating, Jianyu only needs to redirect a newly-created event to the
 venue URL above. On event cancellation call `cancelEventPayments`; after the
 Event module changes an event to `COMPLETED`, call `settleEventPayout`.
+Venue payments are non-refundable. Participant fees receive a full refund only
+when the participant or Event module cancels before the event's actual start
+date and time.
 
 ```
 curl -X POST http://localhost:8000/api/facility.php \

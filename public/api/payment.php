@@ -18,7 +18,8 @@
  *
  * cancelEventPayments
  *   Request:  requestId, timeStamp, function, eventId, reason; X-Service-Key
- *   Effect:   reverses the venue transfer and fully refunds all event payments
+ *   Effect:   fully refunds participant fees only when called before event start;
+ *             venue payments and venue transfers are always non-refundable
  *
  * settleEventPayout
  *   Request:  requestId, timeStamp, function, eventId; X-Service-Key
@@ -90,7 +91,11 @@ try {
             $facade->cancelEventPayments($eventId, $reason);
             $data = $facade->eventPaymentSummary($eventId);
             ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
-            Ifa::respond(Ifa::success($requestId, $data, 'Event payments cancelled and refunded.'));
+            Ifa::respond(Ifa::success(
+                $requestId,
+                $data,
+                'Eligible participant fees refunded. Venue payments are non-refundable.'
+            ));
         }
 
         $data = $facade->settleEventPayout($eventId);

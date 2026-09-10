@@ -20,19 +20,10 @@ if (!is_string($payload) || !is_string($signature) || $signature === '') {
     exit;
 }
 
-$facade = null;
-$eventId = '';
-
 try {
     $event = StripeService::constructWebhook($payload, $signature);
     $facade = new PaymentFacade();
-    $eventId = (string) $event->id;
     $eventType = (string) $event->type;
-
-    if (!$facade->claimWebhook($eventId, $eventType)) {
-        echo '{"received":true,"duplicate":true}';
-        exit;
-    }
 
     $object = $event->data->object;
 
@@ -65,19 +56,11 @@ try {
         );
     }
 
-    $facade->markWebhookProcessed($eventId);
     echo '{"received":true}';
 } catch (UnexpectedValueException | \Stripe\Exception\SignatureVerificationException $e) {
     http_response_code(400);
     echo '{"received":false}';
 } catch (Throwable $e) {
-    if ($facade instanceof PaymentFacade && $eventId !== '') {
-        try {
-            $facade->releaseWebhook($eventId);
-        } catch (Throwable) {
-            // Stripe will retry; preserve the original error below.
-        }
-    }
     error_log('Stripe webhook failed: ' . $e->getMessage());
     http_response_code(500);
     echo '{"received":false}';

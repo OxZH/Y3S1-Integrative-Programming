@@ -110,17 +110,6 @@ final class StripeService
         return (string) $transfer->id;
     }
 
-    public function reverseTransfer(string $localTransferId, string $stripeTransferId, float $amount): string
-    {
-        $reversal = $this->execute(fn () => $this->client->transfers->createReversal(
-            $stripeTransferId,
-            ['amount' => (int) round($amount * 100)],
-            ['idempotency_key' => 'reversal-' . $localTransferId]
-        ));
-
-        return (string) $reversal->id;
-    }
-
     public function refundPaymentIntent(string $localRefundId, string $paymentIntentId): string
     {
         $refund = $this->execute(fn () => $this->client->refunds->create([

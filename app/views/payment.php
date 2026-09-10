@@ -29,6 +29,7 @@ $mode = $mode ?? 'dashboard';
                 <p class="small muted">
                     The platform collects this venue fee and transfers it to
                     <?= e((string) ($checkout['facility']['owner']['username'] ?? 'the facility owner')) ?>.
+                    Venue payments are non-refundable.
                 </p>
             <?php else: ?>
                 <p class="small muted">

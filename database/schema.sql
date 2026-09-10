@@ -219,7 +219,6 @@ CREATE TABLE `Booking` (
     `bookingId`     VARCHAR(36)   NOT NULL,   -- [D]
     `eventId`       VARCHAR(36)   NOT NULL,   -- [D] Event 1 --has-- 1 Booking
     `madeById`      VARCHAR(36)   NOT NULL,   -- [D] madeBy: User (the organiser)
-    `payeeId`       VARCHAR(36)   NOT NULL,   -- [+] facility owner snapshot used for the Connect transfer
     `bookingStatus` ENUM('AVAILABLE','PENDING','CONFIRMED','CANCELLED')
                     NOT NULL DEFAULT 'PENDING',  -- [D]
     `bookingAmount` DECIMAL(10,2) NOT NULL,   -- [+] price snapshot: if the owner edits Facility.bookingFee later, past bookings must not change
@@ -231,8 +230,6 @@ CREATE TABLE `Booking` (
         FOREIGN KEY (`eventId`)  REFERENCES `Event`(`eventId`)   ON DELETE RESTRICT,
     CONSTRAINT `fk_Booking_user`
         FOREIGN KEY (`madeById`) REFERENCES `User`(`baseUserId`) ON DELETE RESTRICT,
-    CONSTRAINT `fk_Booking_payee`
-        FOREIGN KEY (`payeeId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Booking_amount` CHECK (`bookingAmount` >= 0),
     KEY `idx_Booking_status` (`bookingStatus`)
 ) ENGINE=InnoDB;
@@ -241,7 +238,7 @@ CREATE TABLE `Payment` (
     `paymentId`             VARCHAR(36)   NOT NULL,   -- [D]
     `bookingId`             VARCHAR(36)   NOT NULL,   -- [D] Booking 1 --has-- 0..1 Payment; FK held on the optional side
     `amount`                DECIMAL(10,2) NOT NULL,   -- [D] diagram says double -> DECIMAL
-    `paymentDateTime`       DATETIME      NULL,       -- [D] filled only after Stripe confirms payment
+    `paymentDateTime`       DATETIME      NOT NULL,   -- [D]
     `paymentMethod`         VARCHAR(50)   NOT NULL,   -- [D] e.g. card, fpx
     `paymentStatus`         ENUM('PENDING','PAID','FAILED',
                                  'REFUNDED','PARTIALLY_REFUNDED')
@@ -285,23 +282,32 @@ CREATE TABLE `ParticipantPayment` (
 
 CREATE TABLE `Refund` (
     `refundId`       VARCHAR(36)   NOT NULL,   -- [D]
-    `paymentId`      VARCHAR(36)   NULL,       -- [D] venue payment target
-    `participantPaymentId` VARCHAR(36) NULL,   -- [+] participant payment target
+    `paymentId`      VARCHAR(36)   NOT NULL,   -- [D] Payment 1 --has been-- 0..1 Refund
     `datetime`       DATETIME      NOT NULL,   -- [D]
     `amount`         DECIMAL(10,2) NOT NULL,   -- [+] the PENDING and PAID refund paths produce different amounts
     `reason`         VARCHAR(255)  NULL,       -- [+]
     `stripeRefundId` VARCHAR(255)  NULL,       -- [+]
     PRIMARY KEY (`refundId`),
     UNIQUE KEY `uq_Refund_payment` (`paymentId`),
-    UNIQUE KEY `uq_Refund_participant` (`participantPaymentId`),
     UNIQUE KEY `uq_Refund_stripe`  (`stripeRefundId`),
     CONSTRAINT `fk_Refund_payment`
         FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`paymentId`) ON DELETE RESTRICT,
-    CONSTRAINT `fk_Refund_participant`
-        FOREIGN KEY (`participantPaymentId`) REFERENCES `ParticipantPayment`(`participantPaymentId`) ON DELETE RESTRICT,
-    CONSTRAINT `chk_Refund_target`
-        CHECK ((`paymentId` IS NULL) <> (`participantPaymentId` IS NULL)),
     CONSTRAINT `chk_Refund_amount` CHECK (`amount` >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE `ParticipantRefund` (
+    `participantRefundId`  VARCHAR(36)   NOT NULL,
+    `participantPaymentId` VARCHAR(36)   NOT NULL,
+    `datetime`             DATETIME      NOT NULL,
+    `amount`               DECIMAL(10,2) NOT NULL,
+    `reason`               VARCHAR(255)  NULL,
+    `stripeRefundId`       VARCHAR(255)  NULL,
+    PRIMARY KEY (`participantRefundId`),
+    UNIQUE KEY `uq_ParticipantRefund_payment` (`participantPaymentId`),
+    UNIQUE KEY `uq_ParticipantRefund_stripe` (`stripeRefundId`),
+    CONSTRAINT `fk_ParticipantRefund_payment`
+        FOREIGN KEY (`participantPaymentId`) REFERENCES `ParticipantPayment`(`participantPaymentId`) ON DELETE RESTRICT,
+    CONSTRAINT `chk_ParticipantRefund_amount` CHECK (`amount` >= 0)
 ) ENGINE=InnoDB;
 
 CREATE TABLE `ConnectAccount` (
@@ -338,15 +344,6 @@ CREATE TABLE `PaymentTransfer` (
     CONSTRAINT `chk_PaymentTransfer_amount` CHECK (`amount` >= 0),
     CONSTRAINT `chk_PaymentTransfer_reversed` CHECK (`reversedAmount` >= 0 AND `reversedAmount` <= `amount`)
 ) ENGINE=InnoDB;
-
-CREATE TABLE `StripeWebhookEvent` (
-    `stripeEventId` VARCHAR(255) NOT NULL,
-    `eventType`     VARCHAR(100) NOT NULL,
-    `status`        ENUM('PROCESSING','COMPLETED') NOT NULL DEFAULT 'PROCESSING',
-    `processedAt`   DATETIME     NULL,
-    PRIMARY KEY (`stripeEventId`)
-) ENGINE=InnoDB;
-
 
 -- ============================================================================
 --  MODULE 3 - Social Networking & Review System  (kw)
