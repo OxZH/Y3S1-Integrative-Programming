@@ -81,7 +81,9 @@ final class AdminController extends Controller
     {
         Auth::requireAdmin();
 
-        $reviews = $this->reviews->possibleSpamReviews();
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $spamPage = $this->reviews->possibleSpamPage($page);
+        $reviews = $spamPage['reviews'];
         $authors = [];
         foreach ($reviews as $review) {
             $authors[$review->getAuthorId()] = (new \App\Model\AccountMapper())->findAccount($review->getAuthorId());
@@ -91,6 +93,8 @@ final class AdminController extends Controller
             'title'        => 'Possible spam reviews',
             'reviews'      => $reviews,
             'reviewAuthors' => $authors,
+            'reviewPage'   => $page,
+            'reviewPages'  => $spamPage['reviewPages'],
         ]);
     }
 }

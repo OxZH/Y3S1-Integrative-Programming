@@ -11,6 +11,19 @@ use App\ValidationException;
 
 final class ReviewController extends Controller
 {
+    private const REMOVAL_REASONS = [
+        'abusive_language',
+        'spam_or_repetitive',
+        'personal_information',
+        'other',
+    ];
+    private const REMOVAL_REASON_LABELS = [
+        'abusive_language' => 'Abusive language',
+        'spam_or_repetitive' => 'Spam or repetitive content',
+        'personal_information' => 'Personal information',
+        'other' => 'Other',
+    ];
+
     private ReviewService $reviews;
 
     public function __construct(?ReviewService $reviews = null)
@@ -62,8 +75,14 @@ final class ReviewController extends Controller
         $targetType = is_string($_POST['targetType'] ?? null) ? $_POST['targetType'] : '';
         $targetId = is_string($_POST['targetId'] ?? null) ? $_POST['targetId'] : '';
         $remove = ($_POST['moderationAction'] ?? '') === 'remove';
+        $removalReason = is_string($_POST['removalReason'] ?? null) ? $_POST['removalReason'] : '';
 
-        if ($this->reviews->moderate($reviewId, $targetType, $targetId, $remove)) {
+        if ($remove && !in_array($removalReason, self::REMOVAL_REASONS, true)) {
+            $this->flash('error', 'Select a reason before removing the review.');
+            $this->redirect($this->targetUrl($targetType, $targetId));
+        }
+
+        if ($this->reviews->moderate($reviewId, $targetType, $targetId, $remove, self::REMOVAL_REASON_LABELS[$removalReason]) ?? "Unknown reason") {
             $this->flash('success', $remove ? 'The review was removed.' : 'The review visibility was toggled.');
         }
 

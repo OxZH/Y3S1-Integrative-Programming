@@ -148,7 +148,7 @@ use App\Model\User;
     <?php endif; ?>
 </div>
 
-<?php if (!$isSelf): ?>
+<?php if (!$isSelf && !$isAdmin): ?>
     <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
         data-rating-widget>
         <?= $csrfField ?? '' ?>
@@ -228,13 +228,13 @@ use App\Model\User;
                                     <?= $review->getModerationStatus()->isVisible() ? 'Mark invisible' : 'Mark visible' ?>
                                 </button>
                             </form>
-                            <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                            <form method="post" action="<?= e(url('review', 'moderate')) ?>" data-remove-review-form>
                                 <?= $csrfField ?? '' ?>
                                 <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
                                 <input type="hidden" name="targetType" value="user">
                                 <input type="hidden" name="targetId" value="<?= e($account->getBaseUserId()) ?>">
                                 <input type="hidden" name="moderationAction" value="remove">
-                                <button class="btn danger small" type="submit">Mark removed</button>
+                                <button class="btn danger small" type="button" data-remove-review>Mark removed</button>
                             </form>
                         </div>
                     <?php endif; ?>
@@ -254,7 +254,7 @@ use App\Model\User;
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if (!$isSelf): ?>
+    <?php if (!$isSelf && !$isAdmin): ?>
         <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
             <?= $csrfField ?? '' ?>
             <input type="hidden" name="targetType" value="user">

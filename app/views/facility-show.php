@@ -23,7 +23,7 @@ $owner = $facility->getOwner();
         <h1><?= e($facility->getName()) ?></h1>
         <p class="lede-flush"><?= e($facility->getFullAddress()) ?></p>
     </div>
-    <?php if (Auth::check()): ?>
+    <?php if (Auth::check() && !$isAdmin): ?>
         <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
             data-rating-widget data-current-rating="<?= e((string) ($currentRating ?? 0)) ?>">
             <?= $csrfField ?? '' ?>
@@ -177,7 +177,7 @@ $owner = $facility->getOwner();
                         </div>
                         <?php if ($isAdmin && !$review->getModerationStatus()->isRemoved()): ?>
                             <div class="button-row">
-                                <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                <form method="post" action="<?= e(url('review', 'moderate')) ?>" data-remove-review-form>
                                     <?= $csrfField ?? '' ?>
                                     <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
                                     <input type="hidden" name="targetType" value="facility">
@@ -188,13 +188,13 @@ $owner = $facility->getOwner();
                                         <?= $review->getModerationStatus()->isVisible() ? 'Mark invisible' : 'Mark visible' ?>
                                     </button>
                                 </form>
-                                <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                                <form method="post" action="<?= e(url('review', 'moderate')) ?>" data-remove-review-form>
                                     <?= $csrfField ?? '' ?>
                                     <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
                                     <input type="hidden" name="targetType" value="facility">
                                     <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
                                     <input type="hidden" name="moderationAction" value="remove">
-                                    <button class="btn danger small" type="submit">Mark removed</button>
+                                    <button class="btn danger small" type="button" data-remove-review>Mark removed</button>
                                 </form>
                             </div>
                         <?php endif; ?>
@@ -214,18 +214,20 @@ $owner = $facility->getOwner();
             <?php endif; ?>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
-            <?= $csrfField ?? '' ?>
-            <input type="hidden" name="targetType" value="facility">
-            <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
-            <h3>Write a review</h3>
-            <label for="reviewTitle">Title</label>
-            <input id="reviewTitle" name="reviewTitle" maxlength="50" required>
-            <label for="reviewComment">Review</label>
-            <textarea id="reviewComment" name="reviewComment" rows="5" maxlength="200" required></textarea>
-            <br />
-            <button class="btn" type="submit">Submit review</button>
-        </form>
+        <?php if (!$isAdmin): ?>
+            <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
+                <?= $csrfField ?? '' ?>
+                <input type="hidden" name="targetType" value="facility">
+                <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+                <h3>Write a review</h3>
+                <label for="reviewTitle">Title</label>
+                <input id="reviewTitle" name="reviewTitle" maxlength="50" required>
+                <label for="reviewComment">Review</label>
+                <textarea id="reviewComment" name="reviewComment" rows="5" maxlength="200" required></textarea>
+                <br />
+                <button class="btn" type="submit">Submit review</button>
+            </form>
+        <?php endif; ?>
     </section>
 <?php else: ?>
     <a class="btn ghost" href="<?= e(url('auth')) ?>">Sign in to organise a game here</a>

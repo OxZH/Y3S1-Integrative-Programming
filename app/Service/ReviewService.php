@@ -15,7 +15,7 @@ use DateTimeImmutable;
 
 final class ReviewService
 {
-    private const REMOVED_MESSAGE = 'This review was removed by a moderator for abusive language.';
+    private const REMOVED_MESSAGE = 'This review was removed by a moderator for: ';
     private const REVIEWS_PER_HOUR = 5;
     private const REVIEWS_PER_PAGE = 5;
 
@@ -88,6 +88,20 @@ final class ReviewService
         return array_values($flagged);
     }
 
+    /** @return array{reviews:Review[],reviewPages:int} */
+    public function possibleSpamPage(int $page = 1): array
+    {
+        $page = max(1, $page);
+        $allReviews = $this->possibleSpamReviews();
+        $reviewPages = max(1, (int) ceil(count($allReviews) / self::REVIEWS_PER_PAGE));
+        $offset = ($page - 1) * self::REVIEWS_PER_PAGE;
+
+        return [
+            'reviews' => array_slice($allReviews, $offset, self::REVIEWS_PER_PAGE),
+            'reviewPages' => $reviewPages,
+        ];
+    }
+
     public function submit(
         string $authorId,
         string $targetType,
@@ -148,7 +162,7 @@ final class ReviewService
         return true;
     }
 
-    public function moderate(string $reviewId, string $targetType, string $targetId, bool $remove): bool
+    public function moderate(string $reviewId, string $targetType, string $targetId, bool $remove, string $removalReason): bool
     {
         $review = $this->reviews->findById($reviewId);
         if ($review === null || !$this->belongsToTarget($review, $targetType, $targetId)) {
@@ -156,7 +170,7 @@ final class ReviewService
         }
 
         if ($remove) {
-            $this->reviews->remove($reviewId, self::REMOVED_MESSAGE);
+            $this->reviews->remove($reviewId, self::REMOVED_MESSAGE . $removalReason);
         } else {
             $status = $review->getModerationStatus() === ModerationStatus::VISIBLE
                 ? ModerationStatus::HIDDEN

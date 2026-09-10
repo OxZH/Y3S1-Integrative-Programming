@@ -3,6 +3,8 @@
 
 /** @var \App\Model\Review[] $reviews */
 /** @var array<string,\App\Model\Account|null> $reviewAuthors */
+/** @var int $reviewPage */
+/** @var int $reviewPages */
 ?>
 <div class="page-head">
     <div>
@@ -49,7 +51,7 @@
                         <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
                     </time>
                     <div class="button-row">
-                        <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                        <form method="post" action="<?= e(url('review', 'moderate')) ?>" data-remove-review-form>
                             <?= $csrfField ?? '' ?>
                             <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
                             <input type="hidden" name="targetType" value="<?= e($targetType) ?>">
@@ -65,11 +67,21 @@
                             <input type="hidden" name="targetType" value="<?= e($targetType) ?>">
                             <input type="hidden" name="targetId" value="<?= e((string) $targetId) ?>">
                             <input type="hidden" name="moderationAction" value="remove">
-                            <button class="btn danger small" type="submit">Mark removed</button>
+                            <button class="btn danger small" type="button" data-remove-review>Mark removed</button>
                         </form>
                     </div>
                 </div>
             </article>
         <?php endforeach; ?>
     </div>
+    <?php if ($reviewPages > 1): ?>
+        <nav class="pagination" aria-label="Possible spam review pages">
+            <?php for ($page = 1; $page <= $reviewPages; $page++): ?>
+                <a class="btn small <?= $page === $reviewPage ? '' : 'ghost' ?>"
+                    href="<?= e(url('admin', 'spam', ['page' => $page])) ?>">
+                    <?= $page ?>
+                </a>
+            <?php endfor; ?>
+        </nav>
+    <?php endif; ?>
 <?php endif; ?>
