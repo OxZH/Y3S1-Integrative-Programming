@@ -36,13 +36,7 @@ final class PasswordPolicy
     {
     }
 
-    /**
-     * bcrypt through PHP's own password_hash: a slow, salted, one-way hash. The
-     * salt is generated per password and stored inside the output, so two
-     * accounts with the same password do not produce the same hash and a
-     * precomputed table is useless. MD5 and SHA-1 are fast by design, which is
-     * exactly wrong here.
-     */
+
     public static function hash(string $plain): string
     {
         return password_hash($plain, PASSWORD_BCRYPT, ['cost' => 12]);

@@ -71,8 +71,8 @@ and seed data become downloadable. Fine on a local machine, but the junction
 avoids it.
 
 The built-in server needs no Apache, but it is single threaded, so a page that
-calls a web service on its own host times out. Run a second instance for the
-stub services:
+calls a web service on its own host times out. Run a second instance to answer
+those calls:
 
 ```
 php -S localhost:8001 -t public
@@ -119,7 +119,7 @@ public/
   api/event.php         exposed service, IFA in the file header       (module 1)
   api/payment.php       exposed service, IFA in the file header       (module 4)
   api/user.php          exposed service, IFA in the file header       (module 2)
-  api/stub.php          stand-in for the teammate services not yet built
+  api/discovery.php     exposed service, IFA in the file header       (module 5)
   booking.php           stand-in for the booking and payment screen
 storage/
   mail.log              where reset links are written, outside the web root
@@ -328,11 +328,13 @@ picked up without clearing the browser cache.
 
 ## Not built yet
 
-`public/api/stub.php` stands in for the teammate services that do not exist yet
-(`getBookingStatus`, `getFacilityRatings`, `areFriends`), and
 `public/booking.php` stands in for the Venue Booking & Payment booking screen.
-Both go once those modules are integrated — for the booking screen, point
-`EventController::store()` at theirs.
+It goes once that module is integrated — point `EventController::store()` at
+theirs.
+
+The `api/stub.php` stand-in is gone. Every service it answered for
+(`getBookingStatus`, `getFacilityRatings`, `areFriends`, `getUserContactInfo`)
+is now served by the real endpoint of the module that owns it.
 
 The password-less account picker that used to stand in for authentication is
 gone, replaced by the real sign-in. `?c=login` still redirects to it so older

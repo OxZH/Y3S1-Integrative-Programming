@@ -314,10 +314,11 @@ final class AccountService implements AccountServiceInterface
 
         AuthEventLogger::success(AuthEventType::PASSWORD_RESET_REQUESTED, $baseUserId);
 
-        // There is no mail server in this project, so the link is handed to the
-        // delivery class, which writes it where the demo can pick it up. In
-        // production this is the one place that changes: the link goes to the
-        // address already on the account and nowhere else.
+        // The link goes to the address already held on the account and nowhere
+        // else - never to an address supplied with the request. Delivery sends
+        // it over authenticated SMTP when mail is configured, and records it in
+        // storage/mail.log otherwise, so a fresh clone can still complete the
+        // flow without credentials.
         ResetLinkDelivery::send($account, $token);
     }
 

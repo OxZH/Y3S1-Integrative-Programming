@@ -37,7 +37,7 @@ if (getenv('SP_BASE_URL') === false && isset($_SERVER['HTTP_HOST'], $_SERVER['SC
     $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . rtrim($dir, '/');
 }
 
-// Under Apache the stubs sit on the same host and this just works. Under
+// Under Apache the endpoints sit on the same host and this just works. Under
 // `php -S` it must point somewhere else: that server is single threaded, so a
 // page calling its own host waits on a request it is itself blocking.
 $stubBase = getenv('SP_STUB_BASE') ?: $baseUrl;
@@ -60,11 +60,9 @@ return [
         'debug'    => true,
     ],
 
-    // Services this module consumes. Each points at the stub until the real
-    // module is ready; then only the url changes.
+    // Services this module consumes. Every one now points at the real endpoint
+    // of the module that owns it; the api/stub.php stand-in has been removed.
     'services' => [
-        // Module 2 is built, so this one is no longer a stub: it points at the
-        // real endpoint. Nothing in module 1 changed - only this url did.
         'profile' => [
             'module' => 'User Authentication & Profile Management',
             'url'    => $stubBase . '/api/user.php',
