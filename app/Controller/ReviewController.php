@@ -92,7 +92,7 @@ final class ReviewController extends Controller
             $this->redirect($this->targetUrl($targetType, $targetId));
         }
 
-        if ($this->reviews->moderate($reviewId, $targetType, $targetId, $remove, self::REMOVAL_REASON_LABELS[$removalReason]) ?? "Unknown reason") {
+        if ($this->reviews->moderate($reviewId, $targetType, $targetId, $remove, self::REMOVAL_REASON_LABELS[$removalReason] ?? "Unknown reason")) {
             $this->flash('success', $remove ? 'The review was removed.' : 'The review visibility was toggled.');
         }
 

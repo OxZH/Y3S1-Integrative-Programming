@@ -61,7 +61,7 @@
                                 <?= $review->getModerationStatus()->isVisible() ? 'Mark invisible' : 'Mark visible' ?>
                             </button>
                         </form>
-                        <form method="post" action="<?= e(url('review', 'moderate')) ?>">
+                        <form method="post" action="<?= e(url('review', 'moderate')) ?>" data-remove-review-form>
                             <?= $csrfField ?? '' ?>
                             <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
                             <input type="hidden" name="targetType" value="<?= e($targetType) ?>">

@@ -58,7 +58,7 @@ $canTakePart = Auth::user()?->isPlayer() ?? false;
 
 <?php if ($facility->getImageUrl() !== null): ?>
     <img class="venue-photo" src="<?= e(imageSrc($facility->getImageUrl())) ?>"
-         alt="<?= e($facility->getName()) ?>">
+        alt="<?= e($facility->getName()) ?>">
 <?php endif; ?>
 
 <div class="row">
