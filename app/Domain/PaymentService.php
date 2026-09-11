@@ -79,10 +79,10 @@ final class PaymentService
     }
 
     /**
-     * What the checkout page shows. For a paid game this writes nothing: the
-     * fee, the game and whether there is room are a preview, and the place is
-     * only taken when the payment goes through. A free game has no payment to
-     * wait for, so its one atomic step happens here instead.
+     * What the checkout page shows. This writes nothing: the fee, the game and
+     * whether there is room are a preview, and the place is only taken when the
+     * payment goes through. A free game goes through checkout too, at RM0.00,
+     * so a payment method is still chosen and recorded.
      *
      * @return array<string,mixed>
      */
@@ -96,14 +96,6 @@ final class PaymentService
         $existing = $this->registrations->findForUserAndEvent($userId, $eventId);
 
         if ($existing instanceof EventRegistration && $existing->isActive()) {
-            return compact('event', 'amount') + [
-                'kind' => 'participant', 'status' => 'PAID',
-            ];
-        }
-
-        if ($amount <= 0) {
-            $this->takePlace($event, $userId, 0.0, null);
-
             return compact('event', 'amount') + [
                 'kind' => 'participant', 'status' => 'PAID',
             ];
@@ -194,10 +186,7 @@ final class PaymentService
         $event  = $this->participantEventOrFail($eventId, $payerId);
         $amount = $this->participantFee($event);
 
-        if ($amount <= 0) {
-            throw new DomainException('This game has no fee to pay.');
-        }
-
+        // free games come through here too, with amount 0 and the chosen method
         $this->takePlace($event, $payerId, $amount, $snapshot);
 
         return $snapshot;
