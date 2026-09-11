@@ -7,23 +7,40 @@ namespace App\Domain;
 
 use App\Core\Database;
 use App\Domain\Payment\PaymentMethodStrategyFactory;
+use App\Model\EventRegistration;
+use App\Model\EventRegistrationMapper;
 use App\Service\PaymentRemoteServices;
 use DateTimeImmutable;
 use DomainException;
 use PDO;
 use RuntimeException;
 
+/**
+ * A participant's place in a game is taken at the moment the fee is paid, not
+ * before. Nothing is written for a paid game while the checkout page is open,
+ * so a seat is never held by somebody who then walks away, and two people
+ * looking at the last seat find out who has it when one of them pays.
+ *
+ * The registration row itself belongs to Discovery & Event Matchmaking. That
+ * module's EventRegistrationMapper owns the row lock that keeps a full game
+ * full, so the place is taken through it, inside the same transaction as the
+ * payment row, and this class never writes EventRegistration directly.
+ */
 final class PaymentFacade
 {
     public const MAX_SAVED_METHODS = 5;
 
     private PDO $db;
     private PaymentRemoteServices $remote;
+    private EventRegistrationMapper $registrations;
 
-    public function __construct(?PaymentRemoteServices $remote = null)
-    {
+    public function __construct(
+        ?PaymentRemoteServices $remote = null,
+        ?EventRegistrationMapper $registrations = null
+    ) {
         $this->db = Database::getConnection();
         $this->remote = $remote ?? new PaymentRemoteServices();
+        $this->registrations = $registrations ?? new EventRegistrationMapper();
     }
 
     /** @return array<string,mixed> */
@@ -61,76 +78,41 @@ final class PaymentFacade
         ];
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * What the checkout page shows. For a paid game this writes nothing: the
+     * fee, the game and whether there is room are a preview, and the place is
+     * only taken when the payment goes through. A free game has no payment to
+     * wait for, so its one atomic step happens here instead.
+     *
+     * @return array<string,mixed>
+     */
     public function prepareParticipantCheckout(string $eventId, string $userId): array
     {
         $this->requirePlayer($userId);
-        $event = $this->remote->eventDetails($eventId, $userId);
-        $organizerId = (string) ($event['host']['baseUserId'] ?? '');
+        $event  = $this->participantEventOrFail($eventId, $userId);
+        $amount = $this->participantFee($event);
 
-        if ($organizerId === $userId) {
-            throw new DomainException('The organizer cannot join their own event as a participant.');
-        }
+        // Already in this game: nothing to pay, and the page sends them back.
+        $existing = $this->registrations->findForUserAndEvent($userId, $eventId);
 
-        if (!in_array((string) ($event['status'] ?? ''), ['PUBLISHED', 'FULL'], true)) {
-            throw new DomainException('This event is not accepting participant payments.');
-        }
-
-        if ((int) ($event['spacesLeft'] ?? 0) < 1) {
-            throw new DomainException('This event is full.');
-        }
-
-        $this->assertEventHasNotStarted($event);
-        $amount = round((float) ($event['feePerParticipant'] ?? 0), 2);
-
-        $registrationId = $this->reserveParticipantPlace(
-            $eventId,
-            $userId,
-            (int) ($event['maxParticipants'] ?? 0)
-        );
-        $payment = $this->one(
-            'SELECT * FROM `ParticipantPayment` WHERE `eventRegistrationId` = :id LIMIT 1',
-            [':id' => $registrationId]
-        );
-        if ($payment === null) {
-            $participantPaymentId = uuid();
-            $this->execute(
-                'INSERT IGNORE INTO `ParticipantPayment`
-                    (`participantPaymentId`, `eventRegistrationId`, `eventId`, `participantId`,
-                     `organizerId`, `amount`, `paymentStatus`)
-                 VALUES (:id, :registration, :event, :participant, :organizer, :amount, :status)',
-                [
-                    ':id' => $participantPaymentId, ':registration' => $registrationId,
-                    ':event' => $eventId, ':participant' => $userId, ':organizer' => $organizerId,
-                    ':amount' => $this->decimal($amount), ':status' => 'PENDING',
-                ]
-            );
-            $payment = $this->one(
-                'SELECT * FROM `ParticipantPayment` WHERE `eventRegistrationId` = :id LIMIT 1',
-                [':id' => $registrationId]
-            );
-        }
-
-        if ($payment === null) {
-            throw new RuntimeException('The participant payment could not be prepared.');
-        }
-
-        if (
-            (string) $payment['participantId'] !== $userId
-            || (string) $payment['organizerId'] !== $organizerId
-            || abs((float) $payment['amount'] - $amount) > 0.001
-        ) {
-            throw new DomainException('The existing participant payment does not match this event fee.');
-        }
-
-        if ((string) $payment['paymentStatus'] === 'PAID') {
+        if ($existing instanceof EventRegistration && $existing->isActive()) {
             return compact('event', 'amount') + [
                 'kind' => 'participant', 'status' => 'PAID',
             ];
         }
 
-        if ((string) $payment['paymentStatus'] === 'REFUNDED') {
-            throw new DomainException('A refunded registration cannot be reopened. Please contact the organizer.');
+        if ($amount <= 0) {
+            $this->takePlace($event, $userId, 0.0, null);
+
+            return compact('event', 'amount') + [
+                'kind' => 'participant', 'status' => 'PAID',
+            ];
+        }
+
+        // Advisory only. The count that decides is taken under the event row
+        // lock inside confirmInternalPayment(), at the moment of payment.
+        if ((int) ($event['spacesLeft'] ?? 0) < 1) {
+            throw new DomainException('This event is full.');
         }
 
         return compact('event', 'amount') + [
@@ -206,47 +188,135 @@ final class PaymentFacade
             throw new DomainException('The payment type is invalid.');
         }
 
-        Database::transaction(function () use ($eventId, $payerId, $snapshot): void {
-            $payment = $this->one(
-                'SELECT pp.`participantPaymentId`, pp.`paymentStatus`, pp.`eventRegistrationId`
-                   FROM `ParticipantPayment` pp
-                  WHERE pp.`eventId` = :event AND pp.`participantId` = :payer
-                  FOR UPDATE',
-                [':event' => $eventId, ':payer' => $payerId]
-            );
+        // The game is asked about again here, not trusted from the page: it may
+        // have been cancelled, started, or filled while the form was open.
+        $this->requirePlayer($payerId);
+        $event  = $this->participantEventOrFail($eventId, $payerId);
+        $amount = $this->participantFee($event);
 
-            if ($payment === null) {
-                throw new DomainException('This participant payment does not belong to you.');
-            }
+        if ($amount <= 0) {
+            throw new DomainException('This game has no fee to pay.');
+        }
 
-            if ((string) $payment['paymentStatus'] === 'REFUNDED') {
-                throw new DomainException('A refunded payment cannot be paid again.');
-            }
-
-            if ((string) $payment['paymentStatus'] === 'PAID') {
-                throw new DomainException('This payment is already complete.');
-            }
-
-            $this->execute(
-                'UPDATE `ParticipantPayment`
-                    SET `paymentStatus` = :paid, `paidAt` = NOW(),
-                        `paymentMethod` = :method, `payerName` = :payerName,
-                        `accountMask` = :accountMask, `providerLabel` = :providerLabel,
-                        `methodDetailJson` = :detail
-                  WHERE `participantPaymentId` = :id',
-                $this->snapshotParams($snapshot) + [
-                    ':paid' => 'PAID', ':id' => $payment['participantPaymentId'],
-                ]
-            );
-            $this->execute(
-                'UPDATE `EventRegistration`
-                    SET `status` = :confirmed
-                  WHERE `eventRegistrationId` = :id',
-                [':confirmed' => 'CONFIRMED', ':id' => $payment['eventRegistrationId']]
-            );
-        });
+        $this->takePlace($event, $payerId, $amount, $snapshot);
 
         return $snapshot;
+    }
+
+    /**
+     * The one step that commits a participant: the place is taken and the
+     * payment recorded together, or neither is.
+     *
+     * registerIfSpaceAvailable() is Discovery & Event Matchmaking's, and it is
+     * where the capacity check really lives - it locks the event row, so two
+     * people paying for the last seat are served one at a time and the second
+     * is told the game is full. Because Database::transaction() joins a
+     * transaction that is already open, that lock is held until the payment
+     * row below is written as well.
+     *
+     * @param array<string,mixed>      $event
+     * @param array<string,mixed>|null $snapshot null for a free game
+     */
+    private function takePlace(array $event, string $userId, float $amount, ?array $snapshot): void
+    {
+        Database::transaction(function () use ($event, $userId, $amount, $snapshot): void {
+            $registration = $this->registrations->registerIfSpaceAvailable(
+                (string) $event['eventId'],
+                $userId,
+                (int) ($event['maxParticipants'] ?? 0)
+            );
+
+            $this->recordParticipantPayment($registration, $event, $amount, $snapshot);
+        });
+    }
+
+    /**
+     * One payment row per registration. A player who left and came back reuses
+     * their registration row (that is how the registration mapper works), so
+     * the refunded payment row that goes with it is brought back to PAID rather
+     * than joined by a second one - the unique key would refuse that anyway.
+     *
+     * @param array<string,mixed>      $event
+     * @param array<string,mixed>|null $snapshot
+     */
+    private function recordParticipantPayment(
+        EventRegistration $registration,
+        array $event,
+        float $amount,
+        ?array $snapshot
+    ): void {
+        $registrationId = (string) $registration->getEventRegistrationId();
+        $organizerId    = (string) ($event['host']['baseUserId'] ?? '');
+
+        $detail = $snapshot === null
+            ? [':method' => null, ':payerName' => null, ':accountMask' => null, ':providerLabel' => null, ':detail' => null]
+            : $this->snapshotParams($snapshot);
+
+        $existing = $this->one(
+            'SELECT `participantPaymentId` FROM `ParticipantPayment` WHERE `eventRegistrationId` = :id LIMIT 1',
+            [':id' => $registrationId]
+        );
+
+        if ($existing === null) {
+            $this->execute(
+                'INSERT INTO `ParticipantPayment`
+                    (`participantPaymentId`, `eventRegistrationId`, `eventId`, `participantId`,
+                     `organizerId`, `amount`, `paymentStatus`, `paidAt`,
+                     `paymentMethod`, `payerName`, `accountMask`, `providerLabel`, `methodDetailJson`)
+                 VALUES (:id, :registration, :event, :participant, :organizer, :amount, :paid, NOW(),
+                         :method, :payerName, :accountMask, :providerLabel, :detail)',
+                $detail + [
+                    ':id' => uuid(), ':registration' => $registrationId,
+                    ':event' => (string) $event['eventId'], ':participant' => $registration->getUserId(),
+                    ':organizer' => $organizerId, ':amount' => $this->decimal($amount), ':paid' => 'PAID',
+                ]
+            );
+
+            return;
+        }
+
+        $this->execute(
+            'UPDATE `ParticipantPayment`
+                SET `paymentStatus` = :paid, `paidAt` = NOW(), `amount` = :amount,
+                    `paymentMethod` = :method, `payerName` = :payerName,
+                    `accountMask` = :accountMask, `providerLabel` = :providerLabel,
+                    `methodDetailJson` = :detail
+              WHERE `participantPaymentId` = :id',
+            $detail + [
+                ':paid' => 'PAID', ':amount' => $this->decimal($amount),
+                ':id' => $existing['participantPaymentId'],
+            ]
+        );
+    }
+
+    /**
+     * The game as it stands right now, or an explanation of why this person
+     * cannot join it. Asked at checkout and asked again at payment, because
+     * the answer can change in between.
+     *
+     * @return array<string,mixed>
+     */
+    private function participantEventOrFail(string $eventId, string $userId): array
+    {
+        $event = $this->remote->eventDetails($eventId, $userId);
+
+        if ((string) ($event['host']['baseUserId'] ?? '') === $userId) {
+            throw new DomainException('The organizer cannot join their own event as a participant.');
+        }
+
+        if (!in_array((string) ($event['status'] ?? ''), ['PUBLISHED', 'FULL'], true)) {
+            throw new DomainException('This event is not accepting participant payments.');
+        }
+
+        $this->assertEventHasNotStarted($event);
+
+        return $event;
+    }
+
+    /** @param array<string,mixed> $event */
+    private function participantFee(array $event): float
+    {
+        return round((float) ($event['feePerParticipant'] ?? 0), 2);
     }
 
     /** @return array<string,mixed> */
@@ -376,16 +446,24 @@ final class PaymentFacade
         $event = $this->remote->eventDetails($eventId, $userId);
         $this->assertEventHasNotStarted($event);
 
+        $registration = $this->registrations->findForUserAndEvent($userId, $eventId);
+
+        if (!$registration instanceof EventRegistration || !$registration->isActive()) {
+            throw new DomainException('You are not registered for this event.');
+        }
+
         $row = $this->one(
-            'SELECT pp.*, er.`status` AS `registrationStatus`
-               FROM `ParticipantPayment` pp
-               JOIN `EventRegistration` er ON er.`eventRegistrationId` = pp.`eventRegistrationId`
-              WHERE pp.`eventId` = :event AND pp.`participantId` = :user LIMIT 1',
-            [':event' => $eventId, ':user' => $userId]
+            'SELECT * FROM `ParticipantPayment` WHERE `eventRegistrationId` = :id LIMIT 1',
+            [':id' => (string) $registration->getEventRegistrationId()]
         );
 
+        // A registration with no payment behind it - one made before fees
+        // existed, or through the Discovery service - still has to be leavable.
+        // There is nothing to refund, so the place is simply given back.
         if ($row === null) {
-            throw new DomainException('No participant payment exists for this event.');
+            $this->registrations->cancel($registration);
+
+            return;
         }
 
         $this->refundParticipantRow($row, 'Participant cancelled before the event started.');
@@ -576,11 +654,15 @@ final class PaymentFacade
                     ':refunded' => 'REFUNDED',
                 ]
             );
-            $this->execute(
-                'UPDATE `EventRegistration` SET `status` = :status
-                  WHERE `eventRegistrationId` = :id',
-                [':status' => 'CANCELLED', ':id' => $row['eventRegistrationId']]
-            );
+
+            // The registration is Discovery & Event Matchmaking's row, so it
+            // is released through that module's mapper rather than updated
+            // here. Already-cancelled rows are left alone.
+            $registration = $this->registrations->find((string) $row['eventRegistrationId']);
+
+            if ($registration instanceof EventRegistration && $registration->isActive()) {
+                $this->registrations->cancel($registration);
+            }
         });
     }
 
@@ -649,80 +731,6 @@ final class PaymentFacade
             }
 
             return $payment;
-        });
-    }
-
-    private function reserveParticipantPlace(string $eventId, string $userId, int $maximum): string
-    {
-        if ($maximum < 1) {
-            throw new DomainException('This event has no participant capacity.');
-        }
-
-        return Database::transaction(function () use ($eventId, $userId, $maximum): string {
-            // Locking the Event row serializes competing registrations for the
-            // same event, so two last-place checkouts cannot both reserve it.
-            $event = $this->one(
-                'SELECT `eventId` FROM `Event` WHERE `eventId` = :event FOR UPDATE',
-                [':event' => $eventId]
-            );
-
-            if ($event === null) {
-                throw new DomainException('The event does not exist.');
-            }
-
-            $registration = $this->one(
-                'SELECT * FROM `EventRegistration`
-                  WHERE `userId` = :user AND `eventId` = :event LIMIT 1',
-                [':user' => $userId, ':event' => $eventId]
-            );
-
-            if ($registration !== null && in_array(
-                (string) $registration['status'],
-                ['PENDING', 'CONFIRMED', 'ATTENDED'],
-                true
-            )) {
-                if ((string) $registration['status'] !== 'PENDING') {
-                    throw new DomainException('You are already registered for this event.');
-                }
-
-                return (string) $registration['eventRegistrationId'];
-            }
-
-            $count = $this->one(
-                'SELECT COUNT(*) AS `total` FROM `EventRegistration`
-                  WHERE `eventId` = :event AND `status` IN (:pending, :confirmed, :attended)',
-                [
-                    ':event' => $eventId, ':pending' => 'PENDING',
-                    ':confirmed' => 'CONFIRMED', ':attended' => 'ATTENDED',
-                ]
-            );
-
-            if ((int) ($count['total'] ?? 0) >= $maximum) {
-                throw new DomainException('This event is full.');
-            }
-
-            if ($registration === null) {
-                $registrationId = uuid();
-                $this->execute(
-                    'INSERT INTO `EventRegistration`
-                        (`eventRegistrationId`, `userId`, `eventId`, `status`)
-                     VALUES (:id, :user, :event, :status)',
-                    [
-                        ':id' => $registrationId, ':user' => $userId,
-                        ':event' => $eventId, ':status' => 'PENDING',
-                    ]
-                );
-
-                return $registrationId;
-            }
-
-            $registrationId = (string) $registration['eventRegistrationId'];
-            $this->execute(
-                'UPDATE `EventRegistration` SET `status` = :status WHERE `eventRegistrationId` = :id',
-                [':status' => 'PENDING', ':id' => $registrationId]
-            );
-
-            return $registrationId;
         });
     }
 

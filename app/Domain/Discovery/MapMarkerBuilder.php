@@ -69,11 +69,6 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
         return $this;
     }
 
-    public function addFriendSignal(int $friendsAttending): static
-    {
-        return $this;
-    }
-
     public function build(): EventFeedItem
     {
         if ($this->eventId === null || $this->latitude === null || $this->longitude === null) {

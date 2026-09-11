@@ -226,18 +226,6 @@ final class EventRegistrationMapper extends DataMapper
         return $registrations;
     }
 
-    /** @return string[] userIds of everyone active in this event, for the "friends attending" signal */
-    public function findActiveUserIds(string $eventId): array
-    {
-        $rows = $this->select(
-            'SELECT `userId` FROM `EventRegistration`
-              WHERE `eventId` = :eventId AND `status` IN (:confirmed, :attended)',
-            [':eventId' => $eventId, ':confirmed' => 'CONFIRMED', ':attended' => 'ATTENDED']
-        );
-
-        return array_map(static fn (array $r): string => (string) $r['userId'], $rows);
-    }
-
     private function accounts(): AccountMapper
     {
         return $this->accounts ??= new AccountMapper($this->pdo);

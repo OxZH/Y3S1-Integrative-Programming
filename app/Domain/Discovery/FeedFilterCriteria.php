@@ -8,7 +8,7 @@ namespace App\Domain\Discovery;
 /**
  * Event & Facility Management's own listUpcomingEvents already filters by
  * sport. Everything else here (minimum spaces left, a radius, sort by
- * distance/rating/friends) has no equivalent on that endpoint, so it is applied
+ * distance/rating) has no equivalent on that endpoint, so it is applied
  * to the array this module gets back, not as SQL - there is no local table to
  * put an ORDER BY against.
  *
@@ -20,7 +20,7 @@ namespace App\Domain\Discovery;
  */
 final class FeedFilterCriteria
 {
-    public const SORTS = ['date', 'distance', 'rating', 'friends'];
+    public const SORTS = ['date', 'distance', 'rating'];
 
     public function __construct(
         public readonly ?string $sport = null,

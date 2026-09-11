@@ -87,8 +87,10 @@ final class DiscoveryController extends Controller
             $this->redirect(url('discovery'));
         }
 
-        // Payment owns the PENDING -> CONFIRMED registration transition for
-        // both paid and free events, so a paid event cannot be joined directly.
+        // Every join goes through checkout. The place is taken there, at the
+        // moment the fee is paid (or at once, for a free game), by this module's
+        // own registration guard - see PaymentFacade::takePlace(). Nothing is
+        // written before that, so a checkout page left open holds no seat.
         $this->redirect(
             'payment.php?action=participant&eventId=' . rawurlencode($eventId)
         );

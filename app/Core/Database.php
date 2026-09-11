@@ -53,6 +53,17 @@ final class Database
     public static function transaction(callable $work): mixed
     {
         $pdo = self::getConnection();
+
+        // js part - already inside a transaction: run as part of it rather than
+        // open a second one, which PDO refuses. A mapper that guards its own
+        // write this way can then be called from a facade that is guarding a
+        // larger one - a paid registration is one such case, where the
+        // registration row and the payment row must land together or not at
+        // all. The outermost caller still owns the commit and the rollback.
+        if ($pdo->inTransaction()) {
+            return $work();
+        }
+
         $pdo->beginTransaction();
 
         try {

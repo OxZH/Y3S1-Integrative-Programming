@@ -144,18 +144,59 @@ INSERT INTO `Payment`
 -- ---------------------------------------------------------------------------
 --  Event registrations   (MODULE 5 - js)
 --  evt-005 rows carry ATTENDED / NO_SHOW, which is what the attendance rating reads.
+--  A registration is written at the moment its fee is paid, so there is no
+--  waiting state: a row is CONFIRMED, or it was and is now CANCELLED.
 -- ---------------------------------------------------------------------------
 INSERT INTO `EventRegistration`
     (`eventRegistrationId`, `userId`, `eventId`, `status`, `registerTime`, `eventInviteId`) VALUES
 ('reg-001', 'usr-002', 'evt-001', 'CONFIRMED', '2026-08-21 08:00:00', NULL),
 ('reg-002', 'usr-004', 'evt-001', 'CONFIRMED', '2026-08-21 12:30:00', NULL),
-('reg-003', 'usr-005', 'evt-001', 'PENDING',   '2026-08-23 19:45:00', NULL),
+('reg-003', 'usr-005', 'evt-001', 'CANCELLED', '2026-08-23 19:45:00', NULL),
 ('reg-004', 'usr-003', 'evt-002', 'CONFIRMED', '2026-08-22 10:05:00', 'inv-001'),
 ('reg-005', 'usr-005', 'evt-002', 'CONFIRMED', '2026-08-22 14:20:00', NULL),
 ('reg-006', 'usr-001', 'evt-005', 'ATTENDED',  '2026-08-08 09:00:00', NULL),
 ('reg-007', 'usr-003', 'evt-005', 'ATTENDED',  '2026-08-09 16:10:00', NULL),
 ('reg-008', 'usr-004', 'evt-005', 'NO_SHOW',   '2026-08-10 11:00:00', NULL),
 ('reg-009', 'usr-002', 'evt-004', 'CANCELLED', '2026-08-18 19:00:00', NULL);
+
+-- ---------------------------------------------------------------------------
+--  Participant payments   (MODULE 4 - zh)
+--  One per registration above, because every one of those games charges a fee
+--  and the registration row and the payment row are written together. A
+--  CANCELLED registration is the REFUNDED payment beside it; a NO_SHOW paid and
+--  did not turn up, so the fee stands.
+-- ---------------------------------------------------------------------------
+INSERT INTO `ParticipantPayment`
+    (`participantPaymentId`, `eventRegistrationId`, `eventId`, `participantId`, `organizerId`,
+     `amount`, `paymentMethod`, `payerName`, `accountMask`, `providerLabel`, `methodDetailJson`,
+     `paymentStatus`, `paidAt`) VALUES
+('ppay-001', 'reg-001', 'evt-001', 'usr-002', 'usr-001', 10.00, 'fpx',
+ 'Daniel Tan', '****8899', 'Maybank',
+ '{"bankName":"Maybank","accountHolder":"Daniel Tan","accountLast4":"8899"}', 'PAID', '2026-08-21 08:00:00'),
+('ppay-002', 'reg-002', 'evt-001', 'usr-004', 'usr-001', 10.00, 'card',
+ 'Wei Jie Lim', '**** **** **** 1881', 'Visa',
+ '{"holderName":"Wei Jie Lim","last4":"1881","brand":"Visa","expiryMonth":"03","expiryYear":"29"}', 'PAID', '2026-08-21 12:30:00'),
+('ppay-003', 'reg-003', 'evt-001', 'usr-005', 'usr-001', 10.00, 'card',
+ 'Nurul Hidayah', '**** **** **** 7710', 'Mastercard',
+ '{"holderName":"Nurul Hidayah","last4":"7710","brand":"Mastercard","expiryMonth":"11","expiryYear":"27"}', 'REFUNDED', '2026-08-23 19:45:00'),
+('ppay-004', 'reg-004', 'evt-002', 'usr-003', 'usr-002', 12.00, 'card',
+ 'Priya Kumar', '**** **** **** 0032', 'Visa',
+ '{"holderName":"Priya Kumar","last4":"0032","brand":"Visa","expiryMonth":"06","expiryYear":"28"}', 'PAID', '2026-08-22 10:05:00'),
+('ppay-005', 'reg-005', 'evt-002', 'usr-005', 'usr-002', 12.00, 'fpx',
+ 'Nurul Hidayah', '****2204', 'CIMB',
+ '{"bankName":"CIMB","accountHolder":"Nurul Hidayah","accountLast4":"2204"}', 'PAID', '2026-08-22 14:20:00'),
+('ppay-006', 'reg-006', 'evt-005', 'usr-001', 'usr-002', 10.00, 'card',
+ 'Aisyah Rahman', '**** **** **** 4242', 'Visa',
+ '{"holderName":"Aisyah Rahman","last4":"4242","brand":"Visa","expiryMonth":"12","expiryYear":"28"}', 'PAID', '2026-08-08 09:00:00'),
+('ppay-007', 'reg-007', 'evt-005', 'usr-003', 'usr-002', 10.00, 'card',
+ 'Priya Kumar', '**** **** **** 0032', 'Visa',
+ '{"holderName":"Priya Kumar","last4":"0032","brand":"Visa","expiryMonth":"06","expiryYear":"28"}', 'PAID', '2026-08-09 16:10:00'),
+('ppay-008', 'reg-008', 'evt-005', 'usr-004', 'usr-002', 10.00, 'fpx',
+ 'Wei Jie Lim', '****5560', 'Public Bank',
+ '{"bankName":"Public Bank","accountHolder":"Wei Jie Lim","accountLast4":"5560"}', 'PAID', '2026-08-10 11:00:00'),
+('ppay-009', 'reg-009', 'evt-004', 'usr-002', 'usr-001', 15.00, 'fpx',
+ 'Daniel Tan', '****8899', 'Maybank',
+ '{"bankName":"Maybank","accountHolder":"Daniel Tan","accountLast4":"8899"}', 'REFUNDED', '2026-08-18 19:00:00');
 
 -- ---------------------------------------------------------------------------
 --  Friend connections   (MODULE 3 - kw)

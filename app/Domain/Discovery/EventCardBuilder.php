@@ -27,7 +27,6 @@ final class EventCardBuilder implements EventFeedItemBuilder
     private ?float $rating = null;
     private ?float $recommendationScore = null;
     private ?string $recommendationReason = null;
-    private int $friendsAttending = 0;
 
     public function addCoreDetails(array $event): static
     {
@@ -78,13 +77,6 @@ final class EventCardBuilder implements EventFeedItemBuilder
         return $this;
     }
 
-    public function addFriendSignal(int $friendsAttending): static
-    {
-        $this->friendsAttending = $friendsAttending;
-
-        return $this;
-    }
-
     public function build(): EventFeedItem
     {
         if ($this->eventId === null) {
@@ -109,8 +101,7 @@ final class EventCardBuilder implements EventFeedItemBuilder
             feePerParticipant: $this->feePerParticipant,
             rating: $this->rating,
             recommendationScore: $this->recommendationScore,
-            recommendationReason: $this->recommendationReason,
-            friendsAttending: $this->friendsAttending
+            recommendationReason: $this->recommendationReason
         );
     }
 }

@@ -13,12 +13,9 @@ use App\Domain\Discovery\MapMarkerBuilder;
 use App\Domain\Discovery\RecommendationEngine;
 use App\Model\EventRegistration;
 use App\Model\EventRegistrationMapper;
-use App\NotFoundException;
 use App\Security\Auth;
-use App\Security\DiscoverySecurity;
 use App\Service\DiscoveryRemoteServices;
 use App\ServiceUnavailableException;
-use DomainException;
 
 /**
  * Orchestration only, the same role EventManagementFacade plays in the
@@ -64,10 +61,9 @@ final class DiscoveryFacade
 
         $events = $this->feed($criteria->sport, $viewerId);
 
-        // Both batched - one call for every facility id on the page, one for the
-        // viewer's whole friend list - rather than one call per event card.
-        $ratings   = $this->services->facilityRatings($this->facilityIdsOf($events));
-        $friendIds = $viewerId !== null ? $this->services->friendIds($viewerId) : [];
+        // Batched - one call for every facility id on the page, rather than one
+        // call per event card.
+        $ratings = $this->services->facilityRatings($this->facilityIdsOf($events));
 
         $items = [];
 
@@ -93,10 +89,7 @@ final class DiscoveryFacade
                 new EventCardBuilder(),
                 $event,
                 $distance,
-                $rating,
-                null,
-                null,
-                $this->friendsAttending((string) $event['eventId'], $friendIds)
+                $rating
             );
         }
 
@@ -198,33 +191,15 @@ final class DiscoveryFacade
     }
 
     // -- participation --------------------------------------------------------
-
-    /**
-     * Re-authorises against Event & Facility Management's own visibility rule at
-     * the moment of the write, then hands the atomic capacity guard to the
-     * mapper. See EventRegistrationMapper::registerIfSpaceAvailable() for why a
-     * plain recount is not enough on its own.
-     *
-     * @throws NotFoundException the event does not exist, or is not visible to this viewer right now
-     * @throws DomainException the event is full, or already joined
-     */
-    public function joinEvent(string $eventId, ?string $eventInviteId = null): EventRegistration
-    {
-        $viewer = Auth::requireLogin();
-
-        $event = $this->services->getEventDetails($eventId, $viewer->getBaseUserId());
-
-        if ($event === null) {
-            throw new NotFoundException('That event does not exist, or you do not have access to it.');
-        }
-
-        return $this->registrations->registerIfSpaceAvailable(
-            $eventId,
-            $viewer->getBaseUserId(),
-            (int) $event['maxParticipants'],
-            $eventInviteId
-        );
-    }
+    //
+    // Joining and leaving are not methods here. Every join goes through Venue
+    // Booking & Payment's checkout, and the place is taken at the moment the
+    // fee is paid - PaymentFacade::takePlace() calls this module's
+    // EventRegistrationMapper::registerIfSpaceAvailable() inside the payment
+    // transaction, so the row lock that keeps a full game full is held until
+    // the payment row is written too. Leaving is the same in reverse: the
+    // refund and EventRegistrationMapper::cancel() land together. This module
+    // still owns the table and the guard; it is simply not the entry point.
 
     /**
      * The signed-in player's live registration for one event, or null.
@@ -277,19 +252,6 @@ final class DiscoveryFacade
             'page'    => $page,
             'pages'   => $pages,
         ];
-    }
-
-    public function leaveEvent(string $eventRegistrationId): void
-    {
-        $registration = $this->registrations->find($eventRegistrationId);
-
-        if (!$registration instanceof EventRegistration) {
-            throw new NotFoundException('That registration does not exist.');
-        }
-
-        DiscoverySecurity::assertOwnsRegistration($registration);
-
-        $this->registrations->cancel($registration);
     }
 
     /** @return EventRegistration[] most recent first */
@@ -362,7 +324,6 @@ final class DiscoveryFacade
             return $factor * match ($sortBy) {
                 'distance' => ($a->distanceKm ?? PHP_FLOAT_MAX) <=> ($b->distanceKm ?? PHP_FLOAT_MAX),
                 'rating'   => ($b->rating ?? 0.0) <=> ($a->rating ?? 0.0),
-                'friends'  => $b->friendsAttending <=> $a->friendsAttending,
                 default    => strcmp($a->eventDate . $a->startTime, $b->eventDate . $b->startTime),
             };
         });
@@ -488,15 +449,5 @@ final class DiscoveryFacade
         }
 
         return $ids;
-    }
-
-    /** @param string[] $friendIds */
-    private function friendsAttending(string $eventId, array $friendIds): int
-    {
-        if ($friendIds === []) {
-            return 0;
-        }
-
-        return count(array_intersect($friendIds, $this->registrations->findActiveUserIds($eventId)));
     }
 }

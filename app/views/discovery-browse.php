@@ -9,7 +9,7 @@ use App\Domain\Discovery\EventFeedItem;
 /** @var string[] $sports the sports that currently have games */
 ?>
 <h1>Find a game</h1>
-<p class="lede">Filter by sport, open spots and how far away, then sort by date, distance, rating or who is going.</p>
+<p class="lede">Filter by sport, open spots and how far away, then sort by date, distance or rating.</p>
 
 <?php if (!$hasPosition): ?>
     <p class="small muted">
@@ -68,7 +68,6 @@ use App\Domain\Discovery\EventFeedItem;
         <option value="date" <?= $criteria->sortBy === 'date' ? 'selected' : '' ?>>Date</option>
         <option value="distance" <?= $criteria->sortBy === 'distance' ? 'selected' : '' ?>>Distance</option>
         <option value="rating" <?= $criteria->sortBy === 'rating' ? 'selected' : '' ?>>Rating</option>
-        <option value="friends" <?= $criteria->sortBy === 'friends' ? 'selected' : '' ?>>Friends going</option>
     </select>
 
     <button class="btn small" type="submit">Filter</button>
@@ -101,9 +100,6 @@ use App\Domain\Discovery\EventFeedItem;
                     </div>
                     <?php if ($event->rating !== null): ?>
                         <div><span>Rating</span><strong><?= e(number_format($event->rating, 1)) ?> &#9733;</strong></div>
-                    <?php endif; ?>
-                    <?php if ($event->friendsAttending > 0): ?>
-                        <div><span>Friends going</span><strong><?= e((string) $event->friendsAttending) ?></strong></div>
                     <?php endif; ?>
                 </div>
 

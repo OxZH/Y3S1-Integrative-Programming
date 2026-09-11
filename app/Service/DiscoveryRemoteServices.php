@@ -12,14 +12,14 @@ use App\ServiceUnavailableException;
  * App\Service\RemoteServices in the neighbouring module.
  *
  *   listUpcomingEvents  Event & Facility Management  the browse/map/recommend feed
- *   getEventDetails     Event & Facility Management  re-authorisation at the point of join
+ *   getEventDetails     Event & Facility Management  what an event is, as this viewer may see it
  *   getUserProfile      User Authentication          favourite sport + home location for recommendations
- *   listFriends         Social Networking            whose registrations count as "a friend is going"
  *   facilityRatings     Social Networking            star rating shown on the browse list, sortable
  *
  * getEventDetails is the important one: this module never re-implements Event &
- * Facility Management's Public/Friends-Only rule. It asks, fresh, every time a
- * join is attempted, and takes S or F at face value.
+ * Facility Management's Public/Friends-Only rule. It asks, with the viewer
+ * attached, and takes S or F at face value - a refusal means "not visible to
+ * this person right now", and a history row is marked unavailable accordingly.
  */
 final class DiscoveryRemoteServices
 {
@@ -106,44 +106,6 @@ final class DiscoveryRemoteServices
             'latitude'      => isset($data['approxLatitude']) ? (float) $data['approxLatitude'] : null,
             'longitude'     => isset($data['approxLongitude']) ? (float) $data['approxLongitude'] : null,
         ];
-    }
-
-    /**
-     * The "who is going" signal is decoration, so a failure here degrades to
-     * "no friend signal shown" rather than breaking the feed - same philosophy
-     * as facilityRatings() below.
-     *
-     * @return string[]
-     */
-    public function friendIds(string $baseUserId): array
-    {
-        // PAUSED until the Social Networking & Review module exposes
-        // listFriends. api/user.php answers areFriends but not this, so the call
-        // below returned "Unknown function: listFriends" on every feed load -
-        // 28 refusals in one afternoon, each costing an HTTP round trip to earn
-        // the empty list this now returns straight away.
-        //
-        // Nothing else changes. friendIds() already treated a refusal as "no
-        // friend signal", which is what the whole feed is built to tolerate, so
-        // the pages look the same as they did yesterday. Delete this return and
-        // the call below comes back exactly as it was.
-        return [];
-
-        /*
-        try {
-            $data = $this->client->call('friend', 'listFriends', ['baseUserId' => $baseUserId]);
-        } catch (ServiceUnavailableException $e) {
-            error_log('Friend service unavailable, hiding the friend signal: ' . $e->getMessage());
-
-            return [];
-        }
-
-        if ($this->client->refused($data) || !is_array($data['friendIds'] ?? null)) {
-            return [];
-        }
-
-        return array_values(array_filter($data['friendIds'], 'is_string'));
-        */
     }
 
     /**

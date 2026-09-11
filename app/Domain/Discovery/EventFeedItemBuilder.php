@@ -26,7 +26,5 @@ interface EventFeedItemBuilder
 
     public function addRecommendation(?float $score, ?string $reason): static;
 
-    public function addFriendSignal(int $friendsAttending): static;
-
     public function build(): EventFeedItem;
 }

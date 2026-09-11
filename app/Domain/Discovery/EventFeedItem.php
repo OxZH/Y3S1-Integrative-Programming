@@ -36,8 +36,7 @@ final class EventFeedItem
         public readonly ?float $feePerParticipant = null,
         public readonly ?float $rating = null,
         public readonly ?float $recommendationScore = null,
-        public readonly ?string $recommendationReason = null,
-        public readonly int $friendsAttending = 0
+        public readonly ?string $recommendationReason = null
     ) {
     }
 }
