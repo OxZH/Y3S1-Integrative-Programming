@@ -211,6 +211,15 @@ class Event extends Entity
         return $this->status->isPublished();
     }
 
+    // A draft is the one state where the details are still entirely the
+    // organiser's own business: nobody has been shown the game, nobody has
+    // joined it, and the venue has not been paid for. It is therefore the only
+    // state in which editing changes nothing anybody else is relying on.
+    public function isDraft()
+    {
+        return $this->status === EventStatus::DRAFT;
+    }
+
     public function hasBeenLive()
     {
         return $this->status->hasBeenLive();

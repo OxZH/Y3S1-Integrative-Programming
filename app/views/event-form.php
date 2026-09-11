@@ -1,12 +1,15 @@
 <?php
-// Event creation form. Author: Goh Jian Yu
+// Event creation and draft edit form. Author: Goh Jian Yu
 
 use App\Competitiveness;
 use App\EventVisibility;
 use App\FitnessRequirement;
 use App\Model\Facility;
 use App\SkillLevel;
-// Receives: $input, $errors, $venues, $ratings, $maxDate, $busy
+// Receives: $input, $errors, $venues, $ratings, $maxDate, $busy, and $event
+// when a draft is being edited rather than a new event created.
+
+$editing = ($event ?? null) !== null;
 
 $bad = static function (string $field) use ($errors): string {
     return isset($errors[$field]) ? 'bad' : '';
@@ -81,8 +84,12 @@ foreach ($venues as $venue) {
     ];
 }
 ?>
-<h1>Create an event</h1>
-<p class="lede">Set up the game, choose where it will be played, then pay for the venue to publish it.</p>
+<h1><?= $editing ? 'Edit ' . e($event->getName()) : 'Create an event' ?></h1>
+<p class="lede">
+    <?= $editing
+        ? 'Only a draft can be changed. Once the venue is booked and paid for, the details are fixed.'
+        : 'Set up the game, choose where it will be played, then pay for the venue to publish it.' ?>
+</p>
 
 <?php if ($errors !== []): ?>
     <div class="flash error">Please correct the highlighted fields.</div>
@@ -95,8 +102,12 @@ foreach ($venues as $venue) {
     </div>
 <?php else: ?>
 
-<form method="post" action="<?= e(url('event', 'store')) ?>" class="card">
+<form method="post" action="<?= e(url('event', $editing ? 'update' : 'store')) ?>" class="card">
     <?= $csrfField ?>
+
+    <?php if ($editing): ?>
+        <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
+    <?php endif; ?>
 
     <label for="name">Event name</label>
     <input class="<?= e($bad('name')) ?>" type="text" id="name" name="name" maxlength="150"
@@ -106,7 +117,9 @@ foreach ($venues as $venue) {
     <label for="facilityId">Venue</label>
     <select class="<?= e($bad('facilityId')) ?>" id="facilityId" name="facilityId" required
             data-venues="<?= e(json_encode($venueData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>">
-        <option value="">Choose a venue&hellip;</option>
+        <?php if (!$editing): ?>
+            <option value="">Choose a venue&hellip;</option>
+        <?php endif; ?>
         <?php foreach ($venues as $venue): ?>
             <?php
             $id     = (string) $venue->getFacilityId();
@@ -121,6 +134,12 @@ foreach ($venues as $venue) {
         <?php endforeach; ?>
     </select>
     <?= $err('facilityId') ?>
+    <?php if ($editing): ?>
+        <p class="small muted">
+            The venue cannot be changed. Cancel this draft and organise another one if the game
+            needs to move somewhere else.
+        </p>
+    <?php endif; ?>
 
     <?php
     // Not an input. The venue decides the sport, so this only reports what was
@@ -250,8 +269,12 @@ foreach ($venues as $venue) {
     </p>
 
     <div class="form-actions">
-        <button class="btn" type="submit">Continue to venue booking</button>
-        <a class="btn ghost" href="<?= e(url('event', 'mine')) ?>">Cancel</a>
+        <button class="btn" type="submit">
+            <?= $editing ? 'Save changes' : 'Continue to venue booking' ?>
+        </button>
+        <a class="btn ghost" href="<?= $editing
+            ? e(url('event', 'finalise', ['id' => (string) $event->getEventId()]))
+            : e(url('event', 'mine')) ?>">Cancel</a>
     </div>
 </form>
 

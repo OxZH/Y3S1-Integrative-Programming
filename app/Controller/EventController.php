@@ -10,6 +10,7 @@ use App\Domain\EventManagementFacade;
 use App\Domain\InviteTokens;
 use App\EventVisibility;
 use App\FitnessRequirement;
+use App\Model\Event;
 use App\NotFoundException;
 use App\Security\Auth;
 use App\Security\EventFacilitySecurity;
@@ -172,6 +173,92 @@ final class EventController extends Controller
         );
     }
 
+    // -- editing a draft ----------------------------------------------------
+
+    public function edit(): void
+    {
+        $eventId = $this->queryId();
+
+        if ($eventId === null) {
+            $this->redirect(url('event', 'mine'));
+        }
+
+        $event = $this->editableDraft($eventId);
+
+        $this->renderForm($this->formValues($event), [], $event);
+    }
+
+    public function update(): void
+    {
+        $this->requirePostWithCsrf();
+
+        $eventId = (string) ($_POST['eventId'] ?? '');
+
+        if ($eventId === '') {
+            $this->redirect(url('event', 'mine'));
+        }
+
+        $event = $this->editableDraft($eventId);
+
+        try {
+            $this->facade->updateEvent($eventId, $this->validated($_POST));
+        } catch (ValidationException $e) {
+            $this->renderForm($_POST, $e->getErrors(), $event);
+
+            return;
+        } catch (DomainException $e) {
+            // The venue is shut then, or the slot went to somebody else while
+            // this form was open. Either way it is the time that has to move.
+            $this->renderForm($_POST, ['startTime' => $e->getMessage()], $event);
+
+            return;
+        }
+
+        $this->flash('success', 'Your changes were saved.');
+        $this->redirect(url('event', 'finalise', ['id' => $eventId]));
+    }
+
+    // Load an event this user may actually edit. The facade refuses a
+    // non-draft as well, which is what protects the write; this is here so the
+    // organiser is told before being handed a form rather than after filling
+    // one in.
+    private function editableDraft(string $eventId): Event
+    {
+        EventFacilitySecurity::assertCanHostEvents();
+
+        $event = $this->facade->viewEvent($eventId);
+        EventFacilitySecurity::assertHostsEvent($event);
+
+        if (!$event->isDraft()) {
+            $this->flash('error', 'That event has already gone to the venue booking, so its details '
+                                . 'are fixed. Cancel it and organise another one instead.');
+            $this->redirect(url('event', 'show', ['id' => $eventId]));
+        }
+
+        return $event;
+    }
+
+    // The stored event in the shape the form reads, so a field the organiser
+    // does not touch comes back exactly as it was saved.
+    private function formValues(Event $event): array
+    {
+        return [
+            'eventId'            => (string) $event->getEventId(),
+            'facilityId'         => (string) $event->getLocation()?->getFacilityId(),
+            'name'               => $event->getName(),
+            'eventDate'          => $event->getEventDate()->format('Y-m-d'),
+            'startTime'          => hhmm($event->getStartTime()),
+            'endTime'            => hhmm($event->getEndTime()),
+            'minParticipants'    => (string) $event->getMinParticipants(),
+            'maxParticipants'    => (string) $event->getMaxParticipants(),
+            'skillLevel'         => $event->getSkillLevel()->value,
+            'fitnessRequirement' => $event->getFitnessRequirement()->value,
+            'competitiveness'    => $event->getCompetitiveness()->value,
+            'visibility'         => $event->getVisibility()->value,
+            'feePerParticipant'  => number_format($event->getFeePerParticipant(), 2, '.', ''),
+        ];
+    }
+
     public function finalise(): void
     {
         $eventId = $this->queryId();
@@ -318,13 +405,22 @@ final class EventController extends Controller
 
     // -----------------------------------------------------------------------
 
-    private function renderForm(array $input, array $errors): void
+    private function renderForm(array $input, array $errors, ?Event $event = null): void
     {
-        $venues    = $this->facade->listBookableFacilities();
+        // When editing, the only venue on offer is the one already chosen. The
+        // sport, the opening hours and the slot checks all hang off the venue,
+        // and updateEvent() does not move an event to a different one, so
+        // offering the full list would only invite a change that is then
+        // quietly ignored.
+        $venues = $event === null
+            ? $this->facade->listBookableFacilities()
+            : array_filter([$event->getLocation()]);
+
         $windowEnd = (new DateTimeImmutable('today ' . self::BOOKING_WINDOW))->format('Y-m-d');
 
         $this->view('event-form', [
-            'title'   => 'Create an event',
+            'title'   => $event === null ? 'Create an event' : 'Edit ' . $event->getName(),
+            'event'   => $event,
             'input'   => $input,
             'errors'  => $errors,
             'venues'  => $venues,

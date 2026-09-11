@@ -35,7 +35,7 @@ $routes = [
         'class'   => EventController::class,
         // js part - 'index' was the temporary Upcoming games listing, now removed.
         // Find a game is the browse page; everything else here is unchanged.
-        'actions' => ['mine', 'show', 'create', 'store', 'finalise',
+        'actions' => ['mine', 'show', 'create', 'store', 'edit', 'update', 'finalise',
                       'publish', 'cancel', 'complete', 'delete',
                       'invite', 'redeem', 'invites', 'createInvite', 'revokeInvite'],
     ],

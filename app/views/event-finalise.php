@@ -41,6 +41,11 @@ $ready    = $blocker === null;
         </form>
     <?php endif; ?>
 
+    <?php // Still a draft, so the organiser can still change their mind about the details. ?>
+    <?php if ($event->isDraft()): ?>
+        <a class="btn ghost" href="<?= e(url('event', 'edit', ['id' => $event->getEventId()])) ?>">Edit details</a>
+    <?php endif; ?>
+
     <a class="btn ghost" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">View event</a>
 
     <form method="post" action="<?= e(url('event', 'delete')) ?>" class="inline-form"

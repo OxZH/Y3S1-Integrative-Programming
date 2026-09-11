@@ -17,6 +17,7 @@ use App\Security\Auth;
 use App\Security\EventFacilitySecurity;
 use App\Service\RemoteServices;
 use DateTimeImmutable;
+use DomainException;
 
 // Facade over this module's subsystem: three mappers, four policy and factory
 // classes, four remote services, the ownership checks and the transaction
@@ -231,11 +232,23 @@ final class EventManagementFacade
         });
     }
 
+    // Drafts only. Once an event has gone to the venue booking it is no longer
+    // the organiser's alone to change: the Venue Booking module holds a payment
+    // against a particular slot, and after publication players have joined at a
+    // stated time and fee. Moving either underneath them is not an edit, it is
+    // a different game. The check sits here rather than in the controller so
+    // the REST endpoint and any later caller inherit it.
     public function updateEvent(string $eventId, array $validated): Event
     {
         $event = $this->requireEvent($eventId);
 
         EventFacilitySecurity::assertHostsEvent($event);
+
+        if (!$event->isDraft()) {
+            throw new DomainException(
+                'Only a draft can be edited. Cancel this event and organise another one instead.'
+            );
+        }
 
         $this->availability->assertAvailable(
             $event->getLocation(),

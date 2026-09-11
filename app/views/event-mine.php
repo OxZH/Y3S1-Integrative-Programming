@@ -56,6 +56,11 @@
                         <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">Open</a>
                         <a class="btn ghost small" href="<?= e(url('event', 'invites', ['id' => $event->getEventId()])) ?>">Links</a>
 
+                        <?php // A draft is the only state whose details are still the organiser's to change. ?>
+                        <?php if ($status->value === 'DRAFT'): ?>
+                            <a class="btn ghost small" href="<?= e(url('event', 'edit', ['id' => $event->getEventId()])) ?>">Edit</a>
+                        <?php endif; ?>
+
                         <?php if ($needsPayment): ?>
                             <a class="btn small"
                                href="payment.php?action=venue&amp;eventId=<?= e(urlencode((string) $event->getEventId())) ?>">
