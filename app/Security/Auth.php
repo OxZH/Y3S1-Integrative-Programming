@@ -130,4 +130,24 @@ final class Auth
 
         return $account;
     }
+
+    /**
+     * Where somebody belongs once they are signed in.
+     *
+     * A facility owner cannot organise a game, so Find a game is no use to
+     * them and they open on their own venues instead. Everyone else starts at
+     * Find a game.
+     *
+     * public/index.php applies the same rule to a bare address with no
+     * controller in it. This is the version for a redirect, where a URL is
+     * wanted rather than a controller and action.
+     */
+    public static function homeUrl(?Account $account = null): string
+    {
+        $account ??= self::user();
+
+        return $account !== null && $account->isFacilityOwner()
+            ? url('facility', 'mine')
+            : url('discovery');
+    }
 }

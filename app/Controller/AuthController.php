@@ -16,6 +16,7 @@ use App\Security\Auth;
 use App\Security\AuthEventLogger;
 use App\Security\PasswordPolicy;
 use App\Security\Validator;
+use App\Service\Mailer;
 use App\Sport;
 use App\UserType;
 use App\ValidationException;
@@ -46,7 +47,7 @@ final class AuthController extends Controller
     public function index(): void
     {
         if (Auth::check()) {
-            $this->redirect(url('profile'));
+            $this->redirect(Auth::homeUrl());
         }
 
         $this->view('auth-login', [
@@ -87,7 +88,10 @@ final class AuthController extends Controller
         $_SESSION['_last_login_at'] = $previous;
 
         $this->flash('success', 'Signed in as ' . $account->getUsername() . '.');
-        $this->redirect(url('profile'));
+
+        // A player lands on Find a game, an owner on their venues. Passing the
+        // account avoids a second lookup - Auth::user() would re-read the row.
+        $this->redirect(Auth::homeUrl($account));
     }
 
     public function logout(): void
@@ -111,7 +115,7 @@ final class AuthController extends Controller
     public function register(): void
     {
         if (Auth::check()) {
-            $this->redirect(url('profile'));
+            $this->redirect(Auth::homeUrl());
         }
 
         $this->view('auth-register', [
@@ -132,7 +136,7 @@ final class AuthController extends Controller
             Auth::login($account->getBaseUserId());
 
             $this->flash('success', 'Welcome, ' . $account->getUsername() . '. Your account is ready.');
-            $this->redirect(url('profile'));
+            $this->redirect(Auth::homeUrl($account));
         } catch (ValidationException $e) {
             $this->view('auth-register', [
                 'title'  => 'Create an account',
@@ -151,7 +155,7 @@ final class AuthController extends Controller
             'input'  => [],
             'errors' => [],
             'sent'   => false,
-            'demoLink' => null,
+            'fallbackLink' => null,
         ]);
     }
 
@@ -174,8 +178,13 @@ final class AuthController extends Controller
             'input'    => [],
             'errors'   => [],
             'sent'     => true,
-            // Debug builds only - stands in for opening the email.
-            'demoLink' => config('app.debug') ? ResetLinkDelivery::takeDemoLink() : null,
+            // Shown only when this machine has no mail server AND debugging is
+            // on. Once mail works the link belongs in the inbox and nowhere
+            // else - putting it on screen would let anyone who can reach the
+            // form reset an account without reading the email at all.
+            'fallbackLink' => config('app.debug') && !Mailer::isConfigured()
+                ? ResetLinkDelivery::takeFallbackLink()
+                : null,
         ]);
     }
 

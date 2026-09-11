@@ -4,7 +4,7 @@
 /** @var array<string,mixed> $input */
 /** @var array<string,string> $errors */
 /** @var bool $sent */
-/** @var string|null $demoLink */
+/** @var string|null $fallbackLink */
 
 use App\Security\PasswordPolicy;
 ?>
@@ -19,17 +19,15 @@ use App\Security\PasswordPolicy;
             If that address has an account, a reset link is on its way to it. The link
             works once and expires in <?= (int) PasswordPolicy::RESET_TTL_MINUTES ?> minutes.
         </p>
-        <p class="small muted">
-            We do not say whether the address is registered. Answering that would turn
-            this form into a way of finding out who has an account here.
-        </p>
-
-        <?php if ($demoLink !== null): ?>
+        <?php // Only when this copy of the site has no mail server configured -
+              // a teammate who has not set up .env would otherwise have no way
+              // through the flow at all. With mail working the link is never
+              // put on screen: it goes to the inbox and nowhere else. ?>
+        <?php if ($fallbackLink !== null): ?>
             <div class="banner">
-                <strong>Demo only.</strong> There is no mail server in this project, so the
-                link is shown here and also appended to <span class="mono">storage/mail.log</span>.
-                On a real build it goes to the inbox and nowhere else.
-                <p class="spaced-top"><a href="<?= e($demoLink) ?>">Open the reset link</a></p>
+                No mail server is set up on this machine, so the link is shown here
+                and written to <span class="mono">storage/mail.log</span>.
+                <p class="spaced-top"><a href="<?= e($fallbackLink) ?>">Open the reset link</a></p>
             </div>
         <?php endif; ?>
 

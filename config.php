@@ -3,6 +3,16 @@ $envFile = __DIR__ . '/.env';
 
 if (is_file($envFile)) {
     foreach (parse_ini_file($envFile, false, INI_SCANNER_RAW) ?: [] as $key => $value) {
+        // parse_ini_file only treats ';' as a comment, not '#'. Everyone writes
+        // .env comments with '#', so a line like
+        //     # set SP_MAIL_HOST=... to turn mail on
+        // arrives here as a key of its own, and one whose text happened to match
+        // a real name would quietly override it. Only well-formed names are
+        // taken; anything else was a comment.
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string) $key) !== 1) {
+            continue;
+        }
+
         if (getenv($key) === false) {
             putenv($key . '=' . $value);
         }
@@ -102,5 +112,28 @@ return [
     'payment' => [
         'currency'    => 'myr',
         'service_key' => $serviceKey,
+    ],
+
+    // Outgoing mail, used by the password reset. Everything comes from .env,
+    // which is not in the repository - a mail password does not belong in a
+    // file everyone can read.
+    //
+    // Leave SP_MAIL_HOST unset and nothing is sent: the reset link is written
+    // to storage/mail.log instead, which is how the demo runs without anyone
+    // needing mail credentials. See .env.example.
+    'mail' => [
+        'host'       => getenv('SP_MAIL_HOST') ?: '',
+        'port'       => (int) (getenv('SP_MAIL_PORT') ?: 587),
+        // 'tls' upgrades a plain connection with STARTTLS (port 587).
+        // 'ssl' is encrypted from the first byte (port 465).
+        'encryption' => getenv('SP_MAIL_ENCRYPTION') ?: 'tls',
+        'username'   => trim(getenv('SP_MAIL_USERNAME') ?: ''),
+        // Google shows an app password as "abcd efgh ijkl mnop" for readability,
+        // and it is the 16 characters without the spaces that actually work.
+        // Pasting it as displayed is the usual reason authentication fails, so
+        // the spaces come out here rather than catching everyone out.
+        'password'   => str_replace(' ', '', trim(getenv('SP_MAIL_PASSWORD') ?: '')),
+        'from'       => getenv('SP_MAIL_FROM') ?: 'no-reply@sportsplatform.my',
+        'from_name'  => getenv('SP_MAIL_FROM_NAME') ?: 'SportsPlatform',
     ],
 ];
