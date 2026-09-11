@@ -1,29 +1,63 @@
 <?php
 /**
- * Venue Booking & Payment web service. Author: Khor Zhi Hong
+ * Venue Booking & Payment web service (provider). Author: Khor Zhi Hong
  *
  * INTERFACE AGREEMENT
- * Protocol      JSON over HTTP POST, using the shared IFA S/F/E envelope
- * Source Module Venue Booking & Payment
- * Target Module Event & Facility Management
- * URL           /api/payment.php
  *
- * getBookingStatus
- *   Request:  requestId, timeStamp, function, eventId
- *   Success:  bookingId, bookingStatus, paymentStatus, amount
+ * Webservice Mechanism  RESTful, JSON over HTTP POST
+ * Protocol              HTTP + JSON  (shared IFA envelope: requestId, timeStamp, status S/F/E)
+ * Source Module         Venue Booking & Payment
+ * Target Module         Event & Facility Management
+ * URL                   /api/payment.php
+ * Function Name         getBookingStatus, getEventPaymentSummary,
+ *                       cancelEventPayments, settleEventPayout
  *
- * getEventPaymentSummary
- *   Request:  requestId, timeStamp, function, eventId
- *   Success:  venue, participants and payout totals
+ * Same wire format as Event (`/api/event.php`) and Facility (`/api/facility.php`):
+ * one POST URL, operation chosen by `function` in the JSON body. Not SOAP.
  *
- * cancelEventPayments
- *   Request:  requestId, timeStamp, function, eventId, reason; X-Service-Key
- *   Effect:   fully refunds participant fees only when called before event start;
- *             venue payments are always non-refundable
+ * ---------------------------------------------------------------------------
+ *  Shared request fields (every function)
+ * ---------------------------------------------------------------------------
+ *  Field       Type     M/O        Description                    Format
+ *  requestId   String   Mandatory  Unique id of the call          UUID, <= 36 chars
+ *  timeStamp   String   Mandatory  When the request was made      YYYY-MM-DD HH:MM:SS
+ *  function    String   Mandatory  Operation wanted               see below
+ *  eventId     String   Mandatory  Event the payment belongs to   UUID / seed id
+ *  sourceModule String  Optional   Caller's module name           for WebServiceLog
  *
- * settleEventPayout
- *   Request:  requestId, timeStamp, function, eventId; X-Service-Key
- *   Effect:   after COMPLETED, reports collected participant fees as settled
+ * ---------------------------------------------------------------------------
+ *  Shared response fields (every function)
+ * ---------------------------------------------------------------------------
+ *  Field       Type     M/O        Description                    Format
+ *  status      String   Mandatory  Result of the request          S / F / E
+ *  requestId   String   Mandatory  Echo of the request id
+ *  timeStamp   String   Mandatory  When the response was made     YYYY-MM-DD HH:MM:SS
+ *  message     String   Mandatory  Outcome in words
+ *  data        Object   Optional   Null unless status is S
+ *
+ * ---------------------------------------------------------------------------
+ *  FUNCTION: getBookingStatus
+ *    Description : Venue booking and payment status for an event.
+ *                  Jianyu uses this to decide whether an event may publish.
+ *    data on S   : bookingId, bookingStatus, paymentStatus, amount
+ *
+ *  FUNCTION: getEventPaymentSummary
+ *    Description : Venue fee, collected participant fees and payout state.
+ *    data on S   : eventId, venue {bookingStatus, paymentStatus, amount},
+ *                  participants {payments, collected, refunded},
+ *                  payout {amount, status}
+ *
+ *  FUNCTION: cancelEventPayments
+ *    Description : Refunds participant fees before the event starts.
+ *                  Venue fees are non-refundable.
+ *    Extra       : reason (String, Optional); header X-Service-Key (Mandatory)
+ *    data on S   : same shape as getEventPaymentSummary
+ *
+ *  FUNCTION: settleEventPayout
+ *    Description : After COMPLETED, reports collected participant fees as settled
+ *                  to the organizer.
+ *    Extra       : header X-Service-Key (Mandatory)
+ *    data on S   : eventId, organizerId, amount, status
  */
 
 declare(strict_types=1);
@@ -103,11 +137,11 @@ try {
         Ifa::respond(Ifa::success($requestId, $data, 'Participant fees settled to organizer.'));
     }
 
-    ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'Unknown function.');
+    ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'Unknown function: ' . $function);
     Ifa::respond(
         Ifa::fail(
             $requestId,
-            'Unknown function. Use getBookingStatus, getEventPaymentSummary, cancelEventPayments or settleEventPayout.'
+            'Unknown function. This endpoint offers getBookingStatus, getEventPaymentSummary, cancelEventPayments and settleEventPayout.'
         ),
         400
     );

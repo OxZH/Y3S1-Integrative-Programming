@@ -115,6 +115,7 @@ public/
   js/app.js             venue preview, confirm prompts, role fields
   api/facility.php      exposed service, IFA in the file header       (module 1)
   api/event.php         exposed service, IFA in the file header       (module 1)
+  api/payment.php       exposed service, IFA in the file header       (module 4)
   api/user.php          exposed service, IFA in the file header       (module 2)
   api/stub.php          stand-in for the teammate services not yet built
   booking.php           stand-in for the booking and payment screen
@@ -129,9 +130,11 @@ Exposed, on `POST /api/facility.php` and `POST /api/event.php`:
 `listUpcomingEvents`, `getEventsByFacility`. Full IFA tables are in each file's
 header comment.
 
-Venue Booking & Payment also exposes `POST /api/payment.php`:
-`getBookingStatus`, `getEventPaymentSummary`, `cancelEventPayments` and
-`settleEventPayout`. The two mutation functions require the shared
+Venue Booking & Payment also exposes `POST /api/payment.php` in the same
+RESTful JSON style as Event and Facility: one URL, operation chosen by
+`function` in the body, IFA envelope (`requestId`, `timeStamp`, `status` S/F/E).
+Functions: `getBookingStatus`, `getEventPaymentSummary`, `cancelEventPayments`
+and `settleEventPayout`. The two mutation functions require the shared
 `X-Service-Key` header. Their complete IFA is in the endpoint's header.
 
 The payment module is isolated from Jianyu's pages and controllers. Its own
@@ -151,6 +154,11 @@ when the participant or Event module cancels before the event's actual start
 date and time.
 
 ```
+curl -X POST http://localhost:8000/api/payment.php \
+  -H 'Content-Type: application/json' \
+  -d '{"requestId":"demo-pay-001","timeStamp":"2026-09-11 15:00:00",
+       "function":"getBookingStatus","eventId":"evt-001"}'
+
 curl -X POST http://localhost:8000/api/facility.php \
   -H 'Content-Type: application/json' \
   -d '{"requestId":"demo-001","timeStamp":"2026-08-25 14:30:00",
@@ -171,6 +179,13 @@ curl -X POST http://localhost:8000/api/user.php \
 bank account number masked, and rounds a player's coordinates to two decimal
 places — about a kilometre, enough to sort by distance and not enough to locate
 a person.
+
+Consumed, via `App\Service\PaymentRemoteServices` (module 4):
+
+| Function | From | Used for |
+|---|---|---|
+| `getEventDetails` | Event & Facility | checkout quote, host and fee |
+| `getFacilityDetails` | Event & Facility | venue hourly rate |
 
 Consumed, via `App\Service\RemoteServices` (module 1):
 

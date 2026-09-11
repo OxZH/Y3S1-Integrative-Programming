@@ -26,35 +26,6 @@ $isSelected = static function (string $name, string $value) use ($raw): bool {
     return $raw($name) === $value;
 };
 
-$historyBits = static function (array $payment): string {
-    $parts = [str_replace('_', ' ', (string) $payment['kind'])];
-    $methodLabel = PaymentMethodStrategyFactory::displayLabel(
-        isset($payment['paymentMethod']) ? (string) $payment['paymentMethod'] : null
-    );
-
-    if ($methodLabel !== '') {
-        $parts[] = $methodLabel;
-    }
-
-    foreach (['accountMask', 'providerLabel'] as $key) {
-        $value = trim((string) ($payment[$key] ?? ''));
-
-        if ($value !== '') {
-            $parts[] = $value;
-        }
-    }
-
-    $parts[] = $payment['direction'] === 'INCOMING' ? 'RECEIVED FROM' : 'PAID TO';
-    $parts[] = (string) $payment['counterparty'];
-    $parts[] = (string) $payment['paymentStatus'];
-
-    if (!empty($payment['createdAt'])) {
-        $parts[] = date('d M Y H:i', strtotime((string) $payment['createdAt']));
-    }
-
-    return implode(' · ', $parts);
-};
-
 $hideMethod = static function (string $code) use ($selectedMethod): bool {
     return $selectedMethod !== '' && $selectedMethod !== $code;
 };
@@ -280,6 +251,100 @@ for ($offset = 0; $offset <= 15; $offset++) {
     </div>
 
 <?php else: ?>
+    <?php
+    $historyQuery = (string) ($historyQuery ?? '');
+    $historySort = (string) ($historySort ?? 'date');
+    $historyDir = (string) ($historyDir ?? 'desc');
+    $historyPage = (int) ($historyPage ?? 1);
+    $historyPages = (int) ($historyPages ?? 1);
+    $historyTotal = (int) ($historyTotal ?? 0);
+    $payments = is_array($payments ?? null) ? $payments : [];
+
+    $defaultSaved = null;
+    $otherSaved = [];
+
+    foreach ($savedMethods as $saved) {
+        if ($defaultSaved === null && (int) ($saved['isDefault'] ?? 0) === 1) {
+            $defaultSaved = $saved;
+        } else {
+            $otherSaved[] = $saved;
+        }
+    }
+
+    if ($defaultSaved === null && $savedMethods !== []) {
+        $defaultSaved = $savedMethods[0];
+        $otherSaved = array_slice($savedMethods, 1);
+    }
+
+    $historyLink = static function (array $overrides) use ($historyQuery, $historySort, $historyDir): string {
+        $query = array_filter([
+            'q' => $overrides['q'] ?? $historyQuery,
+            'sort' => $overrides['sort'] ?? $historySort,
+            'dir' => $overrides['dir'] ?? $historyDir,
+            'page' => $overrides['page'] ?? null,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        if (($query['sort'] ?? 'date') === 'date' && ($query['dir'] ?? 'desc') === 'desc') {
+            unset($query['sort'], $query['dir']);
+        }
+
+        if ((int) ($query['page'] ?? 1) <= 1) {
+            unset($query['page']);
+        }
+
+        return 'payment.php' . ($query === [] ? '' : '?' . http_build_query($query));
+    };
+
+    $sortLink = static function (string $column, string $label) use ($historySort, $historyDir, $historyLink): string {
+        $nextDir = $historySort === $column
+            ? ($historyDir === 'asc' ? 'desc' : 'asc')
+            : (in_array($column, ['date', 'amount'], true) ? 'desc' : 'asc');
+        $mark = '';
+
+        if ($historySort === $column) {
+            $mark = $historyDir === 'asc' ? ' ↑' : ' ↓';
+        }
+
+        return '<a class="sort-link" href="' . e($historyLink([
+            'sort' => $column,
+            'dir' => $nextDir,
+            'page' => 1,
+        ])) . '">' . e($label . $mark) . '</a>';
+    };
+
+    $savedRow = static function (array $saved, bool $isDefault) use ($csrfField): void {
+        ?>
+        <div class="toolbar toolbar-flush">
+            <div>
+                <strong><?= e((string) $saved['label']) ?></strong>
+                <?php if ($isDefault): ?>
+                    <span class="pill live">Default</span>
+                <?php endif; ?>
+                <p class="small muted sub">
+                    <?= e(PaymentMethodStrategyFactory::displayLabel((string) $saved['paymentMethod'])) ?>
+                    · <?= e((string) $saved['accountMask']) ?>
+                    · <?= e((string) $saved['providerLabel']) ?>
+                </p>
+            </div>
+            <?php if (!$isDefault): ?>
+                <form method="post" action="payment.php?action=setDefaultSavedMethod">
+                    <?= $csrfField ?>
+                    <input type="hidden" name="savedPaymentMethodId"
+                           value="<?= e((string) $saved['savedPaymentMethodId']) ?>">
+                    <button class="btn ghost small" type="submit">Set default</button>
+                </form>
+            <?php endif; ?>
+            <form method="post" action="payment.php?action=deleteSavedMethod"
+                  data-confirm="Remove this saved payment method?">
+                <?= $csrfField ?>
+                <input type="hidden" name="savedPaymentMethodId"
+                       value="<?= e((string) $saved['savedPaymentMethodId']) ?>">
+                <button class="btn danger small" type="submit">Delete</button>
+            </form>
+        </div>
+        <?php
+    };
+    ?>
     <div class="page-head">
         <div>
             <h1>Payments</h1>
@@ -288,75 +353,121 @@ for ($offset = 0; $offset <= 15; $offset++) {
     </div>
 
     <h2>Saved methods</h2>
-    <?php if ($savedMethods === []): ?>
+    <?php if ($defaultSaved === null): ?>
         <p class="small muted">No saved methods yet. You can save one after the next demo payment.</p>
     <?php else: ?>
         <div class="card">
-            <?php foreach ($savedMethods as $saved): ?>
-                <div class="toolbar">
-                    <div>
-                        <strong><?= e((string) $saved['label']) ?></strong>
-                        <?php if ((int) ($saved['isDefault'] ?? 0) === 1): ?>
-                            <span class="pill live">Default</span>
-                        <?php endif; ?>
-                        <p class="small muted sub">
-                            <?= e(PaymentMethodStrategyFactory::displayLabel((string) $saved['paymentMethod'])) ?>
-                            · <?= e((string) $saved['accountMask']) ?>
-                            · <?= e((string) $saved['providerLabel']) ?>
-                        </p>
-                    </div>
-                    <?php if ((int) ($saved['isDefault'] ?? 0) !== 1): ?>
-                        <form method="post" action="payment.php?action=setDefaultSavedMethod">
-                            <?= $csrfField ?>
-                            <input type="hidden" name="savedPaymentMethodId"
-                                   value="<?= e((string) $saved['savedPaymentMethodId']) ?>">
-                            <button class="btn ghost small" type="submit">Set default</button>
-                        </form>
-                    <?php endif; ?>
-                    <form method="post" action="payment.php?action=deleteSavedMethod"
-                          data-confirm="Remove this saved payment method?">
-                        <?= $csrfField ?>
-                        <input type="hidden" name="savedPaymentMethodId"
-                               value="<?= e((string) $saved['savedPaymentMethodId']) ?>">
-                        <button class="btn danger small" type="submit">Delete</button>
-                    </form>
-                </div>
-            <?php endforeach; ?>
+            <?php $savedRow($defaultSaved, true); ?>
+            <?php if ($otherSaved !== []): ?>
+                <details class="advanced saved-others">
+                    <summary>Other methods (<?= e((string) count($otherSaved)) ?>)</summary>
+                    <?php foreach ($otherSaved as $saved): ?>
+                        <?php $savedRow($saved, false); ?>
+                    <?php endforeach; ?>
+                </details>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
     <h2>Transfer history</h2>
-    <?php if ($payments === []): ?>
-        <div class="empty"><p>No payments yet.</p></div>
-    <?php else: ?>
-        <div class="card">
-            <?php foreach ($payments as $payment): ?>
-                <div class="toolbar">
-                    <div>
-                        <strong>
-                            <?= $payment['direction'] === 'INCOMING' ? '+' : '-' ?>
-                            <?= e(money((float) $payment['amount'])) ?>
-                            · <?= e((string) $payment['name']) ?>
-                        </strong>
-                        <p class="small muted sub">
-                            <?= e($historyBits($payment)) ?>
-                        </p>
-                    </div>
-                    <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $payment['eventId']])) ?>">View event</a>
-                    <?php if (
-                        $payment['kind'] === 'PARTICIPANT_FEE'
-                        && $payment['direction'] === 'OUTGOING'
-                        && $payment['paymentStatus'] === 'PAID'
-                    ): ?>
-                        <form method="post" action="payment.php?action=cancelParticipant"
-                              data-confirm="Cancel registration and request a full refund?">
-                            <?= $csrfField ?>
-                            <input type="hidden" name="eventId" value="<?= e((string) $payment['eventId']) ?>">
-                            <button class="btn danger small" type="submit">Cancel and refund</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
+    <form method="get" action="payment.php" class="search-bar">
+        <label for="q">Search</label>
+        <div class="search-row">
+            <input type="search" id="q" name="q" value="<?= e($historyQuery) ?>"
+                   placeholder="Event, method, status, counterparty…">
+            <input type="hidden" name="sort" value="<?= e($historySort) ?>">
+            <input type="hidden" name="dir" value="<?= e($historyDir) ?>">
+            <button class="btn small" type="submit">Search</button>
+            <a class="btn ghost small" href="payment.php">Clear</a>
         </div>
+    </form>
+
+    <?php if ($historyTotal === 0): ?>
+        <div class="empty">
+            <p><?= $historyQuery === '' ? 'No payments yet.' : 'No payments match that search.' ?></p>
+        </div>
+    <?php else: ?>
+        <p class="small muted">
+            <?= e((string) $historyTotal) ?> record(s)
+            · page <?= e((string) $historyPage) ?> of <?= e((string) $historyPages) ?>
+        </p>
+        <div class="card card-table table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th><?= $sortLink('date', 'Date') ?></th>
+                        <th><?= $sortLink('event', 'Event') ?></th>
+                        <th><?= $sortLink('type', 'Type') ?></th>
+                        <th><?= $sortLink('method', 'Method') ?></th>
+                        <th><?= $sortLink('amount', 'Amount') ?></th>
+                        <th><?= $sortLink('status', 'Status') ?></th>
+                        <th><?= $sortLink('counterparty', 'Counterparty') ?></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($payments as $payment): ?>
+                        <?php
+                        $methodLabel = PaymentMethodStrategyFactory::displayLabel(
+                            isset($payment['paymentMethod']) ? (string) $payment['paymentMethod'] : null
+                        );
+                        $methodBits = array_filter([
+                            $methodLabel,
+                            trim((string) ($payment['accountMask'] ?? '')),
+                            trim((string) ($payment['providerLabel'] ?? '')),
+                        ]);
+                        ?>
+                        <tr>
+                            <td>
+                                <?= !empty($payment['createdAt'])
+                                    ? e(date('d M Y H:i', strtotime((string) $payment['createdAt'])))
+                                    : '—' ?>
+                            </td>
+                            <td><?= e((string) $payment['name']) ?></td>
+                            <td><?= e(str_replace('_', ' ', (string) $payment['kind'])) ?></td>
+                            <td><?= $methodBits === [] ? '—' : e(implode(' · ', $methodBits)) ?></td>
+                            <td>
+                                <?= $payment['direction'] === 'INCOMING' ? '+' : '-' ?>
+                                <?= e(money((float) $payment['amount'])) ?>
+                            </td>
+                            <td><?= e((string) $payment['paymentStatus']) ?></td>
+                            <td>
+                                <?= $payment['direction'] === 'INCOMING' ? 'From' : 'To' ?>
+                                <?= e((string) $payment['counterparty']) ?>
+                            </td>
+                            <td class="actions">
+                                <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $payment['eventId']])) ?>">View</a>
+                                <?php if (
+                                    $payment['kind'] === 'PARTICIPANT_FEE'
+                                    && $payment['direction'] === 'OUTGOING'
+                                    && $payment['paymentStatus'] === 'PAID'
+                                ): ?>
+                                    <form class="inline-form" method="post" action="payment.php?action=cancelParticipant"
+                                          data-confirm="Cancel registration and request a full refund?">
+                                        <?= $csrfField ?>
+                                        <input type="hidden" name="eventId" value="<?= e((string) $payment['eventId']) ?>">
+                                        <button class="btn danger small" type="submit">Refund</button>
+                                    </form>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($historyPages > 1): ?>
+            <nav class="pagination" aria-label="Payment history pages">
+                <?php if ($historyPage > 1): ?>
+                    <a class="btn ghost small" href="<?= e($historyLink(['page' => $historyPage - 1])) ?>">Previous</a>
+                <?php endif; ?>
+                <?php for ($page = 1; $page <= $historyPages; $page++): ?>
+                    <a class="btn small <?= $page === $historyPage ? '' : 'ghost' ?>"
+                       href="<?= e($historyLink(['page' => $page])) ?>"><?= e((string) $page) ?></a>
+                <?php endfor; ?>
+                <?php if ($historyPage < $historyPages): ?>
+                    <a class="btn ghost small" href="<?= e($historyLink(['page' => $historyPage + 1])) ?>">Next</a>
+                <?php endif; ?>
+            </nav>
+        <?php endif; ?>
     <?php endif; ?>
 <?php endif; ?>

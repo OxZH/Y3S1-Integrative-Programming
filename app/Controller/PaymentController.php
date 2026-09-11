@@ -17,6 +17,16 @@ final class PaymentController extends Controller
     private const PENDING_SAVE_KEY = 'pendingSavedPayment';
     private const CHECKOUT_INPUT_KEY = 'paymentCheckoutInput';
     private const PENDING_SAVE_TTL = 1800;
+    private const HISTORY_PAGE_SIZE = 10;
+    private const HISTORY_SORTS = [
+        'date' => 'createdAt',
+        'event' => 'name',
+        'type' => 'kind',
+        'method' => 'paymentMethod',
+        'amount' => 'amount',
+        'status' => 'paymentStatus',
+        'counterparty' => 'counterparty',
+    ];
 
     private PaymentFacade $payments;
 
@@ -33,9 +43,8 @@ final class PaymentController extends Controller
         $this->view('payment', [
             'title' => 'Payments',
             'mode' => 'dashboard',
-            'payments' => $this->payments->paymentsForUser($userId),
             'savedMethods' => $this->payments->savedMethodsForUser($userId),
-        ]);
+        ] + $this->historyViewData($userId));
     }
 
     public function venue(): void
@@ -372,6 +381,79 @@ final class PaymentController extends Controller
         return $kind === 'venue'
             ? url('event', 'finalise', ['id' => $eventId])
             : url('event', 'show', ['id' => $eventId]);
+    }
+
+    /** @return array<string,mixed> */
+    private function historyViewData(string $userId): array
+    {
+        $rows = $this->payments->paymentsForUser($userId);
+        $query = trim((string) ($_GET['q'] ?? ''));
+        $sort = (string) ($_GET['sort'] ?? 'date');
+
+        if (!isset(self::HISTORY_SORTS[$sort])) {
+            $sort = 'date';
+        }
+
+        $dir = strtolower((string) ($_GET['dir'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+        $filtered = $query === ''
+            ? $rows
+            : array_values(array_filter(
+                $rows,
+                fn (array $row): bool => $this->historyMatches($row, $query)
+            ));
+
+        usort($filtered, function (array $left, array $right) use ($sort, $dir): int {
+            $key = self::HISTORY_SORTS[$sort];
+            $a = $left[$key] ?? '';
+            $b = $right[$key] ?? '';
+            $compared = $sort === 'amount'
+                ? ((float) $a <=> (float) $b)
+                : strcasecmp((string) $a, (string) $b);
+
+            return $dir === 'asc' ? $compared : -$compared;
+        });
+
+        $total = count($filtered);
+        $pages = max(1, (int) ceil($total / self::HISTORY_PAGE_SIZE));
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+
+        if ($page > $pages) {
+            $page = $pages;
+        }
+
+        return [
+            'payments' => array_slice(
+                $filtered,
+                ($page - 1) * self::HISTORY_PAGE_SIZE,
+                self::HISTORY_PAGE_SIZE
+            ),
+            'historyQuery' => $query,
+            'historySort' => $sort,
+            'historyDir' => $dir,
+            'historyPage' => $page,
+            'historyPages' => $pages,
+            'historyTotal' => $total,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private function historyMatches(array $row, string $query): bool
+    {
+        $haystack = strtolower(implode(' ', [
+            (string) ($row['name'] ?? ''),
+            str_replace('_', ' ', (string) ($row['kind'] ?? '')),
+            PaymentMethodStrategyFactory::displayLabel(
+                isset($row['paymentMethod']) ? (string) $row['paymentMethod'] : null
+            ),
+            (string) ($row['accountMask'] ?? ''),
+            (string) ($row['providerLabel'] ?? ''),
+            (string) ($row['counterparty'] ?? ''),
+            (string) ($row['paymentStatus'] ?? ''),
+            (string) ($row['direction'] ?? ''),
+            (string) ($row['amount'] ?? ''),
+        ]));
+
+        return str_contains($haystack, strtolower($query));
     }
 
     /** @param array<string,string> $params */
