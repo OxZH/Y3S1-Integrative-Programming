@@ -81,6 +81,53 @@ enum Sport: string
     }
 }
 
+/**
+ * The bank a facility owner is paid out to.
+ *
+ * A fixed list for the same reason App\Sport is one: free text gave us
+ * "Maybank", "maybank" and "May Bank" as three spellings of one bank, and
+ * nothing downstream could match them. Picking from a list means the value is
+ * checked on the way in and stored one way.
+ *
+ * These are the licensed retail banks in Malaysia, spelled as the bank spells
+ * itself. Adding one is a single line here and nothing else changes.
+ *
+ * This is the OWNER'S payout bank, which is a different question from the bank
+ * a participant pays FROM at checkout - that list belongs to the payment
+ * module, in App\Domain\Payment\FpxPaymentStrategy.
+ */
+enum Bank: string
+{
+    case MAYBANK            = 'Maybank';
+    case CIMB               = 'CIMB Bank';
+    case PUBLIC_BANK        = 'Public Bank';
+    case RHB                = 'RHB Bank';
+    case HONG_LEONG         = 'Hong Leong Bank';
+    case AMBANK             = 'AmBank';
+    case BANK_ISLAM         = 'Bank Islam';
+    case BANK_RAKYAT        = 'Bank Rakyat';
+    case BSN                = 'Bank Simpanan Nasional';
+    case AFFIN              = 'Affin Bank';
+    case ALLIANCE           = 'Alliance Bank';
+    case OCBC               = 'OCBC Bank';
+    case HSBC               = 'HSBC Bank';
+    case STANDARD_CHARTERED = 'Standard Chartered';
+    case UOB                = 'UOB';
+    case AGROBANK           = 'Agrobank';
+    case MBSB               = 'MBSB Bank';
+
+    public function label(): string
+    {
+        return $this->value;
+    }
+
+    /** @return string[] the stored values, for a dropdown or a validator */
+    public static function values(): array
+    {
+        return array_map(static fn (self $b): string => $b->value, self::cases());
+    }
+}
+
 enum AccountStatus: string
 {
     case ACTIVE      = 'ACTIVE';

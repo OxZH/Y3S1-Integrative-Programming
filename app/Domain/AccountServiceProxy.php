@@ -89,10 +89,10 @@ final class AccountServiceProxy implements AccountServiceInterface
         return $this->real()->viewPublicProfile($requestedUserId, $currentUserId);
     }
 
-    /** @return \App\Model\User[] */
-    public function searchUsers(string $query, ?string $excludeId = null): array
+    /** @return \App\Model\Account[] players, plus facility owners when asked for */
+    public function searchUsers(string $query, ?string $excludeId = null, bool $includeOwners = false): array
     {
-        return $this->real()->searchUsers($query, $excludeId);
+        return $this->real()->searchUsers($query, $excludeId, $includeOwners);
     }
 
     /** @param array<string,mixed> $validated */

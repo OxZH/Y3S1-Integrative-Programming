@@ -44,15 +44,6 @@ $err = static fn (string $f): string => isset($errors[$f])
     </p>
 </form>
 
-<div class="card card-inset">
-    <p class="small muted flush">
-        A wrong email and a wrong password give the same message on purpose, so this
-        form cannot be used to find out which addresses are registered.
-        After <?= (int) PasswordPolicy::MAX_ATTEMPTS ?> failed attempts the account
-        locks for <?= (int) PasswordPolicy::LOCKOUT_MINUTES ?> minutes.
-    </p>
-</div>
-
 <?php if (config('app.debug')): ?>
     <div class="banner">
         <strong>Demo accounts</strong> &mdash; password <span class="mono">Password123!</span><br>

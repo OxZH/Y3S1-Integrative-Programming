@@ -28,8 +28,8 @@ interface AccountServiceInterface
     public function viewProfile(string $baseUserId): Account;
     public function viewPublicProfile(string $requestedUserId, string $currentUserId): Account;
 
-    /** @return \App\Model\User[] */
-    public function searchUsers(string $query, ?string $excludeId = null): array;
+    /** @return \App\Model\Account[] players, plus facility owners when asked for */
+    public function searchUsers(string $query, ?string $excludeId = null, bool $includeOwners = false): array;
 
     /** @param array<string,mixed> $validated */
     public function updateProfile(string $baseUserId, array $validated): Account;

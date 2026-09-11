@@ -40,9 +40,11 @@ INSERT INTO `BaseUser`
 INSERT INTO `Admin` (`baseUserId`, `adminId`) VALUES
 ('adm-001', 'STAFF-0001');
 
-INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`, `businessRegNum`) VALUES
-('own-001', 'Maybank',    '514012345678', 'SSM-202401001234'),
-('own-002', 'CIMB Bank',  '800987654321', 'SSM-202402005678');
+-- bankName must be one of App\Bank, or it will not match the dropdown when the
+-- owner next edits their profile.
+INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`) VALUES
+('own-001', 'Maybank',   '514012345678'),
+('own-002', 'CIMB Bank', '800987654321');
 
 -- latitude/longitude are what geocoding `location` produces. They are seeded
 -- here so the demo has them without calling OpenStreetMap 6 times on setup.

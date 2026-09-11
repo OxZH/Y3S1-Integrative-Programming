@@ -15,12 +15,6 @@
 </div>
 
 <div class="card">
-    <p class="small muted">
-        Email addresses are masked. An administrator needs to tell accounts apart,
-        which the masked form does; reading out a list of real addresses is not part
-        of the job.
-    </p>
-
     <table class="card-table">
         <thead>
             <tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Last sign-in</th><th></th></tr>

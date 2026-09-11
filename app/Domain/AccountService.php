@@ -198,10 +198,10 @@ final class AccountService implements AccountServiceInterface
         return $account;
     }
 
-    /** @return \App\Model\User[] */
-    public function searchUsers(string $query, ?string $excludeId = null): array
+    /** @return \App\Model\Account[] players, plus facility owners when asked for */
+    public function searchUsers(string $query, ?string $excludeId = null, bool $includeOwners = false): array
     {
-        return $this->accounts->searchUsers($query, $excludeId);
+        return $this->accounts->searchUsers($query, $excludeId, $includeOwners);
     }
 
     /** @param array<string,mixed> $validated */
@@ -446,8 +446,7 @@ final class AccountService implements AccountServiceInterface
                 $username,
                 $contact,
                 bankName: (string) ($validated['bankName'] ?? ''),
-                bankAccountNum: (string) ($validated['bankAccountNum'] ?? ''),
-                businessRegNum: (string) ($validated['businessRegNum'] ?? '')
+                bankAccountNum: (string) ($validated['bankAccountNum'] ?? '')
             );
         }
 
@@ -538,7 +537,6 @@ final class AccountService implements AccountServiceInterface
 
         if ($account instanceof FacilityOwner) {
             $account->setBankName((string) ($validated['bankName'] ?? $account->getBankName()));
-            $account->setBusinessRegNum((string) ($validated['businessRegNum'] ?? $account->getBusinessRegNum()));
 
             // Blank means "leave it alone". The form shows the number masked, so
             // submitting the masked value back must not overwrite the real one.

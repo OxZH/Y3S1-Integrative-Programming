@@ -31,8 +31,7 @@ final class FacilityOwner extends Account
         ?DateTimeImmutable $lastLoginAt = null,
         ?DateTimeImmutable $passwordChangedAt = null,
         private string $bankName = '',
-        private string $bankAccountNum = '',
-        private string $businessRegNum = ''
+        private string $bankAccountNum = ''
     ) {
         parent::__construct(
             $baseUserId,
@@ -50,11 +49,6 @@ final class FacilityOwner extends Account
     public function getBankName(): string
     {
         return $this->bankName;
-    }
-
-    public function getBusinessRegNum(): string
-    {
-        return $this->businessRegNum;
     }
 
     public function getBankAccountNum(): string
@@ -82,10 +76,5 @@ final class FacilityOwner extends Account
     public function setBankAccountNum(string $bankAccountNum): void
     {
         $this->bankAccountNum = $bankAccountNum;
-    }
-
-    public function setBusinessRegNum(string $businessRegNum): void
-    {
-        $this->businessRegNum = $businessRegNum;
     }
 }

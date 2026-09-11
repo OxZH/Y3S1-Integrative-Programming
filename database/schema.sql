@@ -95,14 +95,16 @@ CREATE TABLE `UserFavoriteSport` (            -- [+] Ivan: replaces User.favorit
 
 CREATE TABLE `FacilityOwner` (
     `baseUserId`     VARCHAR(36)  NOT NULL,
-    `bankName`       VARCHAR(100) NOT NULL,   -- [D]
+    `bankName`       VARCHAR(100) NOT NULL,   -- [D] one of App\Bank, picked from a dropdown
     `bankAccountNum` VARCHAR(50)  NOT NULL,   -- [D] store encrypted or tokenised, not raw
-    `businessRegNum` VARCHAR(50)  NOT NULL,   -- [D]
     PRIMARY KEY (`baseUserId`),
-    UNIQUE KEY `uq_FacilityOwner_businessRegNum` (`businessRegNum`),
     CONSTRAINT `fk_FacilityOwner_BaseUser`
         FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+-- businessRegNum was removed. Nothing read it: the payout routine
+-- (PaymentFacade::settleEventPayout) pays the event organiser and never looks at
+-- owner details, no web service returned it, and no other module referenced it.
+-- It was only ever displayed - including in full, to any signed-in visitor.
 
 CREATE TABLE `Admin` (
     `baseUserId` VARCHAR(36) NOT NULL,

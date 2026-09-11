@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Bank;
 use App\Core\Controller;
 use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
@@ -264,6 +265,9 @@ final class ProfileController extends Controller
             'reviewPages'   => $reviewData['reviewPages'],
             'isAdmin'       => $current->isAdmin(),
             'isPlayer'       => $current->isPlayer(),
+            // Both sides have to be players: isPlayer alone only says the
+            // VIEWER is one, which would offer "Add friend" on an owner's page.
+            'canBefriend'    => !$isSelf && $current->isPlayer() && $account->isPlayer(),
             'userRatings'    => $this->ratings->userRating($current->getBaseUserId(), $userId),
         ]);
     }
@@ -281,6 +285,15 @@ final class ProfileController extends Controller
         }
 
         $target = $this->accounts->viewPublicProfile($targetId, $current->getBaseUserId());
+
+        // Friendship is between players. FriendConnection's foreign keys point
+        // at `User`, so an owner could never be stored as one anyway - this
+        // turns that into a sentence instead of a database error.
+        if (!$target->isPlayer() || !$current->isPlayer()) {
+            $this->flash('error', 'Only players can be added as friends.');
+            $this->redirect(url('profile', 'showOther', ['id' => $targetId]));
+        }
+
         $created = (new FriendConnectionMapper())->sendRequest($current, $target);
 
         $this->flash(
@@ -294,7 +307,12 @@ final class ProfileController extends Controller
     {
         $current = Auth::requireLogin();
         $query = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
-        $users = $this->accounts->searchUsers($query, $current->getBaseUserId());
+
+        // Off unless the box is ticked, so the directory stays about people to
+        // play with and owners are something you opt into seeing.
+        $includeOwners = ($_GET['owners'] ?? '') === '1';
+
+        $users = $this->accounts->searchUsers($query, $current->getBaseUserId(), $includeOwners);
 
         $friendIds = [];
         foreach ((new FriendConnectionMapper())->findFriends($current) as $connection) {
@@ -305,10 +323,11 @@ final class ProfileController extends Controller
         }
 
         $this->view('profile-discover', [
-            'title'     => 'Discover users',
-            'query'     => $query,
-            'users'     => $users,
-            'friendIds' => $friendIds,
+            'title'         => 'Discover users',
+            'query'         => $query,
+            'users'         => $users,
+            'friendIds'     => $friendIds,
+            'includeOwners' => $includeOwners,
         ]);
     }
 
@@ -340,9 +359,9 @@ final class ProfileController extends Controller
 
         if ($account instanceof FacilityOwner) {
             $validator
-                ->required('bankName', 'Bank name')->text('bankName', 'Bank name', 2, 100)
-                ->required('businessRegNum', 'Business registration number')
-                ->text('businessRegNum', 'Business registration number', 4, 50)
+                // inList, not text: the bank is picked from App\Bank, so a value
+                // that was never on the dropdown cannot reach the database.
+                ->required('bankName', 'Bank')->inList('bankName', 'Bank', Bank::values())
                 // Optional: blank leaves the stored number alone, so the masked
                 // value shown on the form is never written back over the real one.
                 ->text('bankAccountNum', 'Bank account number', 5, 50);

@@ -5,6 +5,7 @@
 /** @var array<string,mixed> $input */
 /** @var array<string,string> $errors */
 
+use App\Bank;
 use App\Domain\ProfileImage;
 use App\Model\FacilityOwner;
 use App\Model\User;
@@ -72,10 +73,7 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
             <?php endforeach; ?>
         </select>
         <?= $err('favoriteSports') ?>
-        <p class="small muted">
-            Hold Ctrl (or Cmd) to pick more than one. Games in these sports are
-            recommended to you first.
-        </p>
+        <p class="small muted">Hold Ctrl (or Cmd) to pick more than one.</p>
 
         <div class="row">
             <div>
@@ -86,9 +84,8 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
                 <div class="small" id="locationConfirm" hidden></div>
                 <?= $err('location') ?>
                 <p class="small muted">
-                    Your map position is worked out from this address. It is never shown to
-                    anyone and is only used to measure how far away an event is - other
-                    players see the distance, never where you are.
+                    Your map position comes from this address. Others only see how far away
+                    you are, never where you are.
                 </p>
             </div>
             <div>
@@ -128,30 +125,25 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
     <?php if ($account instanceof FacilityOwner): ?>
         <h2 class="sub">Payout details</h2>
 
-        <div class="row">
-            <div>
-                <label for="bankName">Bank</label>
-                <input class="<?= e($bad('bankName')) ?>" type="text" id="bankName" name="bankName"
-                       maxlength="100" value="<?= $value('bankName', $account->getBankName()) ?>" required>
-                <?= $err('bankName') ?>
-            </div>
-            <div>
-                <label for="businessRegNum">Business registration no.</label>
-                <input class="<?= e($bad('businessRegNum')) ?>" type="text" id="businessRegNum" name="businessRegNum"
-                       maxlength="50" value="<?= $value('businessRegNum', $account->getBusinessRegNum()) ?>" required>
-                <?= $err('businessRegNum') ?>
-            </div>
-        </div>
+        <?php $chosenBank = $value('bankName', $account->getBankName()); ?>
+
+        <label for="bankName">Bank</label>
+        <select class="<?= e($bad('bankName')) ?>" id="bankName" name="bankName" required>
+            <option value="">Choose your bank</option>
+            <?php foreach (Bank::cases() as $bank): ?>
+                <option value="<?= e($bank->value) ?>" <?= $chosenBank === $bank->value ? 'selected' : '' ?>>
+                    <?= e($bank->label()) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <?= $err('bankName') ?>
 
         <label for="bankAccountNum">Bank account number</label>
         <input class="<?= e($bad('bankAccountNum')) ?>" type="text" id="bankAccountNum" name="bankAccountNum"
                maxlength="50" autocomplete="off"
                placeholder="Currently <?= e($account->getMaskedBankAccountNum()) ?> - leave blank to keep it">
         <?= $err('bankAccountNum') ?>
-        <p class="small muted">
-            The stored number is never sent to this page, so it cannot be read out of the
-            HTML. Leave the field empty to keep the one on file.
-        </p>
+        <p class="small muted">Leave it empty to keep the number on file.</p>
     <?php endif; ?>
 
     <div class="form-actions">

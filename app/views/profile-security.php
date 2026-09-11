@@ -28,10 +28,6 @@ $err = static fn (string $f): string => isset($errors[$f])
         <input class="<?= e($bad('currentPassword')) ?>" type="password" id="currentPassword"
                name="currentPassword" autocomplete="current-password" required>
         <?= $err('currentPassword') ?>
-        <p class="small muted">
-            Asked for even though you are already signed in, so a session left open on a
-            shared machine is not enough to take the account.
-        </p>
 
         <label for="newPassword">New password</label>
         <input class="<?= e($bad('newPassword')) ?>" type="password" id="newPassword"
@@ -79,7 +75,6 @@ $err = static fn (string $f): string => isset($errors[$f])
     <h2>Account activity</h2>
     <p class="small muted">
         Every sign-in, failed sign-in, password change and refused attempt on this account.
-        No password, reset link or session id is ever written here.
     </p>
 
     <?php if ($events === []): ?>

@@ -4,6 +4,7 @@
 /** @var array<string,mixed> $input */
 /** @var array<string,string> $errors */
 
+use App\Bank;
 use App\Security\PasswordPolicy;
 use App\Sport;
 use App\UserType;
@@ -88,7 +89,6 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
     <p class="small muted">
         At least <?= (int) PasswordPolicy::MIN_LENGTH ?> characters, using three of:
         lower case, upper case, a digit, a symbol. It must not contain your name or email.
-        Copying out of these two boxes is disabled, so the confirmation has to be typed.
     </p>
 
     <!-- Player fields -->
@@ -105,10 +105,7 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
             <?php endforeach; ?>
         </select>
         <?= $err('favoriteSports') ?>
-        <p class="small muted">
-            Pick as many as you like - hold Ctrl (or Cmd) to select more than one.
-            Games in these sports are recommended to you first.
-        </p>
+        <p class="small muted">Hold Ctrl (or Cmd) to pick more than one.</p>
 
         <div class="row">
             <div>
@@ -122,9 +119,8 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
                 <!-- Filled in by app.js once the address has been looked up. -->
                 <div class="small" id="locationConfirm" hidden></div>
                 <p class="small muted">
-                    Your address, or just the area you play in. We look it up on the map and
-                    ask you to confirm it. Other players only ever see how far away you are,
-                    never your address.
+                    Your address, or just the area you play in. Others only see how far
+                    away you are, never where you are.
                 </p>
                 <?= $err('location') ?>
             </div>
@@ -142,11 +138,19 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
     <div data-role-fields="<?= e(UserType::FACILITY_OWNER->value) ?>">
         <h2 class="sub">Payout details</h2>
         <p class="small muted">Needed so booking payments can reach you.</p>
-        <div class="row-3">
+        <?php $chosenBank = is_string($input['bankName'] ?? null) ? $input['bankName'] : ''; ?>
+
+        <div class="row">
             <div>
                 <label for="bankName">Bank</label>
-                <input class="<?= e($bad('bankName')) ?>" type="text" id="bankName" name="bankName"
-                       maxlength="100" placeholder="Maybank" value="<?= old($input, 'bankName') ?>">
+                <select class="<?= e($bad('bankName')) ?>" id="bankName" name="bankName">
+                    <option value="">Choose your bank</option>
+                    <?php foreach (Bank::cases() as $bank): ?>
+                        <option value="<?= e($bank->value) ?>" <?= $chosenBank === $bank->value ? 'selected' : '' ?>>
+                            <?= e($bank->label()) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
                 <?= $err('bankName') ?>
             </div>
             <div>
@@ -155,13 +159,6 @@ $latestBirthDate = (new DateTimeImmutable('today'))->modify('-3 years')->format(
                        name="bankAccountNum" maxlength="50" autocomplete="off"
                        value="<?= old($input, 'bankAccountNum') ?>">
                 <?= $err('bankAccountNum') ?>
-            </div>
-            <div>
-                <label for="businessRegNum">Business registration no.</label>
-                <input class="<?= e($bad('businessRegNum')) ?>" type="text" id="businessRegNum"
-                       name="businessRegNum" maxlength="50" placeholder="SSM-202401001234"
-                       value="<?= old($input, 'businessRegNum') ?>">
-                <?= $err('businessRegNum') ?>
             </div>
         </div>
     </div>

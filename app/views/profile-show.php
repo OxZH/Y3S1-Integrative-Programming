@@ -79,13 +79,6 @@ use App\Model\User;
             <p class="stat"><span class="sub-tight">Bank account</span><br>
                 <span class="mono"><?= e($account->getMaskedBankAccountNum()) ?></span>
             </p>
-            <p class="stat"><span class="sub-tight">Business registration</span><br>
-                <?= e($account->getBusinessRegNum()) ?>
-            </p>
-            <p class="small muted">
-                The account number is shown masked. The full value is never sent to the
-                browser and never leaves the server except to the payment module.
-            </p>
         <?php endif; ?>
 
         <?php if ($account instanceof Admin): ?>
@@ -98,11 +91,6 @@ use App\Model\User;
     <?php if ($account instanceof User): ?>
         <div class="card">
             <h2>Recently participated</h2>
-            <p class="small muted">
-                The event names below come from the Event &amp; Facility module's
-                <span class="mono">getEventDetails</span> web service, not from this
-                module's own tables.
-            </p>
 
             <?php if ($history === []): ?>
                 <p class="empty">No events joined yet.</p>

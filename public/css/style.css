@@ -582,8 +582,23 @@ select.bad {
     color: var(--muted);
 }
 
-/* A label sitting beside its control on one line, not above it. */
+/* A label sitting beside its control on one line, not above it.
+   The global `label` rule is display:block and the global `input` rule is
+   width:100%, which between them put a checkbox on its own row and pushed its
+   text underneath. Both are undone here. */
 .inline-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 0;
+    font-weight: 400;   /* it reads as a sentence, not as a field label */
+    cursor: pointer;
+}
+
+.inline-label input[type="checkbox"],
+.inline-label input[type="radio"] {
+    width: auto;
+    flex: 0 0 auto;
     margin: 0;
 }
 

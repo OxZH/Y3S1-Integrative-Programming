@@ -13,6 +13,7 @@
 /** @var int $reviewPages */
 /** @var bool $isAdmin */
 /** @var bool $isPlayer */
+/** @var bool $canBefriend */
 /** @var array{attitude:?int,attendance:?int}|null $userRatings */
 
 use App\Model\Admin;
@@ -29,21 +30,20 @@ use App\Model\User;
             </span>
         </p>
     </div>
-    <?php if (!$isSelf): ?>
+    <?php // Only drawn when there is a button to put in it. It used to render
+          // for everyone and sit empty on a facility owner's page. ?>
+    <?php if ($canBefriend): ?>
         <form method="post" action="<?= e(url('profile', 'sendFriendRequest')) ?>">
             <?= $csrfField ?? '' ?>
             <input type="hidden" name="userId" value="<?= e($account->getBaseUserId()) ?>">
 
-            <?php if ($isPlayer): ?>
-                <?php if ($connectionState === 'PENDING'): ?>
-                    <button class="btn ghost" type="submit" disabled>Friend request pending</button>
-                <?php elseif ($connectionState === 'ACCEPTED'): ?>
-                    <button class="btn ghost" type="submit" disabled>Friends</button>
-                <?php else: ?>
-                    <button class="btn" type="submit">Add friend</button>
-                <?php endif; ?>
+            <?php if ($connectionState === 'PENDING'): ?>
+                <button class="btn ghost" type="submit" disabled>Friend request pending</button>
+            <?php elseif ($connectionState === 'ACCEPTED'): ?>
+                <button class="btn ghost" type="submit" disabled>Friends</button>
+            <?php else: ?>
+                <button class="btn" type="submit">Add friend</button>
             <?php endif; ?>
-
         </form>
     <?php endif; ?>
     <?php if ($isSelf): ?>
@@ -74,8 +74,15 @@ use App\Model\User;
         </p>
 
         <?php if ($account instanceof User): ?>
-            <p class="stat"><span class="sub-tight">Favourite sport</span><br>
-                <?= e($account->getFavoriteSport() ?? 'Not set') ?>
+            <p class="stat"><span class="sub-tight">Favourite sports</span><br>
+                <?php $sports = $account->getFavoriteSports(); ?>
+                <?php if ($sports === []): ?>
+                    Not set
+                <?php else: ?>
+                    <?php foreach ($sports as $sport): ?>
+                        <span class="pill"><?= e($sport) ?></span>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </p>
             <p class="stat"><span class="sub-tight">Plays around</span><br>
                 <?= e($account->getLocation() ?? 'Not set') ?>
@@ -85,17 +92,12 @@ use App\Model\User;
             </p>
         <?php endif; ?>
 
-        <?php if ($account instanceof FacilityOwner): ?>
+        <?php // Payout details, for the owner's eyes only. They used to print for
+              // every signed-in visitor, which is what made this page look wrong. ?>
+        <?php if ($account instanceof FacilityOwner && $isSelf): ?>
             <p class="stat"><span class="sub-tight">Bank</span><br><?= e($account->getBankName()) ?></p>
             <p class="stat"><span class="sub-tight">Bank account</span><br>
                 <span class="mono"><?= e($account->getMaskedBankAccountNum()) ?></span>
-            </p>
-            <p class="stat"><span class="sub-tight">Business registration</span><br>
-                <?= e($account->getBusinessRegNum()) ?>
-            </p>
-            <p class="small muted">
-                The account number is shown masked. The full value is never sent to the
-                browser and never leaves the server except to the payment module.
             </p>
         <?php endif; ?>
 
@@ -109,11 +111,6 @@ use App\Model\User;
     <?php if ($account instanceof User): ?>
         <div class="card">
             <h2>Recently participated</h2>
-            <p class="small muted">
-                The event names below come from the Event &amp; Facility module's
-                <span class="mono">getEventDetails</span> web service, not from this
-                module's own tables.
-            </p>
 
             <?php if ($history === []): ?>
                 <p class="empty">No events joined yet.</p>
@@ -148,7 +145,10 @@ use App\Model\User;
     <?php endif; ?>
 </div>
 
-<?php if (!$isSelf && !$isAdmin): ?>
+<?php // Players only. UserRating.rateeId is a foreign key into `User`, so
+      // rating a facility owner could never be stored - and "attendance" is not
+      // a thing a venue owner has anyway. ?>
+<?php if (!$isSelf && !$isAdmin && $account->isPlayer()): ?>
     <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
         data-rating-widget>
         <?= $csrfField ?? '' ?>
@@ -254,7 +254,9 @@ use App\Model\User;
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if (!$isSelf && !$isAdmin): ?>
+    <?php // Same rule as the rating widget: Review.targetUserId is a foreign key
+          // into `User`, so a review of a facility owner cannot be stored. ?>
+    <?php if (!$isSelf && !$isAdmin && $account->isPlayer()): ?>
         <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
             <?= $csrfField ?? '' ?>
             <input type="hidden" name="targetType" value="user">

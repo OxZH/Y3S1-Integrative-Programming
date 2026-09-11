@@ -36,7 +36,7 @@ final class AccountMapper extends DataMapper
                                      WHERE s.baseUserId = b.baseUserId) AS favoriteSports,
                                    u.location, u.profilePicURL,
                                    u.birthDate, u.latitude, u.longitude,
-                                   o.bankName, o.bankAccountNum, o.businessRegNum,
+                                   o.bankName, o.bankAccountNum,
                                    a.adminId
                               FROM `BaseUser` b
                               LEFT JOIN `User`          u ON u.baseUserId = b.baseUserId
@@ -123,14 +123,36 @@ final class AccountMapper extends DataMapper
         return $accounts;
     }
 
-    /** @return User[] */
-    public function searchUsers(string $query, ?string $excludeId = null): array
+    /**
+     * Active accounts a signed-in person can look up by name.
+     *
+     * Facility owners are included only when asked for. They are worth finding
+     * - you may want to see who runs a venue - but they are not players, so
+     * they are off by default and the directory stays about people to play
+     * with. Administrators are never listed either way.
+     *
+     * @return Account[]
+     */
+    public function searchUsers(string $query, ?string $excludeId = null, bool $includeOwners = false): array
     {
-        $sql = self::SELECT . ' WHERE b.userType = :type AND b.accountStatus = :status';
-        $params = [
-            ':type'   => UserType::USER->value,
-            ':status' => AccountStatus::ACTIVE->value,
-        ];
+        $types = [UserType::USER->value];
+
+        if ($includeOwners) {
+            $types[] = UserType::FACILITY_OWNER->value;
+        }
+
+        // Built from the count, so the types stay bound values rather than
+        // being pasted into the statement.
+        $placeholders = [];
+        $params       = [':status' => AccountStatus::ACTIVE->value];
+
+        foreach ($types as $i => $type) {
+            $placeholders[] = ':type' . $i;
+            $params[':type' . $i] = $type;
+        }
+
+        $sql = self::SELECT . ' WHERE b.userType IN (' . implode(', ', $placeholders) . ')'
+             . ' AND b.accountStatus = :status';
 
         if ($query !== '') {
             $sql .= ' AND b.username LIKE :query';
@@ -142,10 +164,14 @@ final class AccountMapper extends DataMapper
             $params[':excludeId'] = $excludeId;
         }
 
-        /** @var User[] $users */
-        $users = $this->hydrateAll($this->select($sql . ' ORDER BY b.username LIMIT 50', $params));
+        // Players first, then owners, each alphabetically - so turning owners on
+        // adds to the bottom of the list instead of shuffling the whole thing.
+        $sql .= " ORDER BY FIELD(b.userType, '" . UserType::USER->value . "') DESC, b.username LIMIT 50";
 
-        return $users;
+        /** @var Account[] $accounts */
+        $accounts = $this->hydrateAll($this->select($sql, $params));
+
+        return $accounts;
     }
 
     public function emailTaken(string $email, ?string $exceptId = null): bool
@@ -357,8 +383,7 @@ final class AccountMapper extends DataMapper
             UserType::FACILITY_OWNER => new FacilityOwner(
                 ...$shared,
                 bankName:       (string) ($row['bankName'] ?? ''),
-                bankAccountNum: (string) ($row['bankAccountNum'] ?? ''),
-                businessRegNum: (string) ($row['businessRegNum'] ?? '')
+                bankAccountNum: (string) ($row['bankAccountNum'] ?? '')
             ),
             UserType::ADMIN => new Admin(
                 ...$shared,
@@ -411,13 +436,12 @@ final class AccountMapper extends DataMapper
 
         if ($account instanceof FacilityOwner) {
             $this->execute(
-                'INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`, `businessRegNum`)
-                 VALUES (:id, :bank, :acct, :reg)',
+                'INSERT INTO `FacilityOwner` (`baseUserId`, `bankName`, `bankAccountNum`)
+                 VALUES (:id, :bank, :acct)',
                 [
                     ':id'   => $account->getBaseUserId(),
                     ':bank' => $account->getBankName(),
                     ':acct' => $account->getBankAccountNum(),
-                    ':reg'  => $account->getBusinessRegNum(),
                 ]
             );
 
@@ -458,12 +482,11 @@ final class AccountMapper extends DataMapper
         if ($account instanceof FacilityOwner) {
             $this->execute(
                 'UPDATE `FacilityOwner`
-                    SET `bankName` = :bank, `bankAccountNum` = :acct, `businessRegNum` = :reg
+                    SET `bankName` = :bank, `bankAccountNum` = :acct
                   WHERE `baseUserId` = :id',
                 [
                     ':bank' => $account->getBankName(),
                     ':acct' => $account->getBankAccountNum(),
-                    ':reg'  => $account->getBusinessRegNum(),
                     ':id'   => $account->getBaseUserId(),
                 ]
             );

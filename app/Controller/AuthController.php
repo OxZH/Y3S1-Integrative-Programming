@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\AuthEventType;
+use App\Bank;
 use App\Core\Controller;
 use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
@@ -245,10 +246,11 @@ final class AuthController extends Controller
         // dropped rather than stored on the wrong table.
         if (($input['userType'] ?? '') === UserType::FACILITY_OWNER->value) {
             $validator
-                ->required('bankName', 'Bank name')->text('bankName', 'Bank name', 2, 100)
-                ->required('bankAccountNum', 'Bank account number')->text('bankAccountNum', 'Bank account number', 5, 50)
-                ->required('businessRegNum', 'Business registration number')
-                ->text('businessRegNum', 'Business registration number', 4, 50);
+                // inList, not text: the bank is picked from App\Bank, so a value
+                // that was never on the dropdown cannot reach the database.
+                ->required('bankName', 'Bank')->inList('bankName', 'Bank', Bank::values())
+                ->required('bankAccountNum', 'Bank account number')
+                ->text('bankAccountNum', 'Bank account number', 5, 50);
         } else {
             $validator
                 ->inListMultiple('favoriteSports', 'Favourite sports', Sport::values())
