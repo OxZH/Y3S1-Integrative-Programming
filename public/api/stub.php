@@ -2,14 +2,7 @@
 /*
 Stand-in for the teammate services this module consumes. Author: Goh Jian Yu
 Delete this file once the real modules are up.
-Functions: getUserContactInfo, getBookingStatus, getFacilityRatings, areFriends,
-           listFriends
-
-listFriends added for the Discovery & Event Matchmaking module (js): gives it
-one user's accepted connections, so it can work out which friends are already
-in an event without Discovery holding its own copy of the friendship rules.
-Delete this one function once Social Networking & Review System exposes its
-own real endpoint, same as getUserProfile above was replaced by api/user.php.
+Functions: getUserContactInfo, getBookingStatus, getFacilityRatings, areFriends
 */
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';

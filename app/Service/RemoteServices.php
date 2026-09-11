@@ -4,7 +4,9 @@
 namespace App\Service;
 
 use App\Model\Account;
+use App\Model\FriendConnectionMapper;
 use App\ServiceUnavailableException;
+use DomainException;
 
 // Every outbound call this module makes, in one place.
 //
@@ -17,10 +19,14 @@ use App\ServiceUnavailableException;
 final class RemoteServices
 {
     private ServiceClient $client;
+    private ?FriendConnectionMapper $friendConnections;
 
-    public function __construct(?ServiceClient $client = null)
-    {
-        $this->client = $client ?? new ServiceClient();
+    public function __construct(
+        ?ServiceClient $client = null,
+        ?FriendConnectionMapper $friendConnections = null
+    ) {
+        $this->client            = $client ?? new ServiceClient();
+        $this->friendConnections = $friendConnections;
     }
 
     // Contact details for a venue owner, falling back to the copy we already
@@ -63,6 +69,37 @@ final class RemoteServices
         return $this->client->refused($data) ? BookingStatus::missing() : BookingStatus::fromArray($data);
     }
 
+    public function cancelEventPayments(string $eventId, string $reason): void
+    {
+        $data = $this->client->call(
+            'booking',
+            'cancelEventPayments',
+            ['eventId' => $eventId, 'reason' => $reason],
+            $this->paymentHeaders()
+        );
+
+        if ($this->client->refused($data)) {
+            throw new DomainException('Participant payments could not be cancelled.');
+        }
+    }
+
+    /** @return array<string,mixed> */
+    public function settleEventPayout(string $eventId): array
+    {
+        $data = $this->client->call(
+            'booking',
+            'settleEventPayout',
+            ['eventId' => $eventId],
+            $this->paymentHeaders()
+        );
+
+        if ($this->client->refused($data)) {
+            throw new DomainException('The participant payout is not ready.');
+        }
+
+        return $data;
+    }
+
     // One call carrying every id on the page, not one call per row.
     // Ratings are decoration, so a failure here degrades to an empty column
     // rather than breaking the search page.
@@ -101,15 +138,16 @@ final class RemoteServices
     // security decision, so the caller must handle the failure and fail closed.
     public function areFriends(string $userA, string $userB): bool
     {
-        $data = $this->client->call('friend', 'areFriends', [
-            'requesterId' => $userA,
-            'addresseeId' => $userB,
-        ]);
+        $this->friendConnections ??= new FriendConnectionMapper();
 
-        if ($this->client->refused($data)) {
-            return false;
-        }
+        return $this->friendConnections->areFriends($userA, $userB);
+    }
 
-        return ($data['areFriends'] ?? false) === true;
+    /** @return string[] */
+    private function paymentHeaders(): array
+    {
+        $key = (string) config('services.booking.key', '');
+
+        return $key === '' ? [] : ['X-Service-Key: ' . $key];
     }
 }

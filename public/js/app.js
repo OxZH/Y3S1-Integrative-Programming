@@ -42,7 +42,7 @@
 
     function setUpVenuePreview() {
         var select = document.getElementById('facilityId');
-        var panel  = document.getElementById('venuePreview');
+        var panel = document.getElementById('venuePreview');
 
         if (!select || !panel) {
             return;
@@ -58,6 +58,7 @@
 
         var image  = panel.querySelector('[data-field="image"]');
         var link   = panel.querySelector('[data-field="link"]');
+        var sport  = document.getElementById('sportShown');
         var fields = ['name', 'address', 'rating', 'fee', 'hours'];
 
         function render() {
@@ -65,7 +66,18 @@
 
             if (!venue) {
                 panel.hidden = true;
+
+                // The sport belongs to the venue, so with no venue there is
+                // nothing to show.
+                if (sport) {
+                    sport.value = '';
+                }
+
                 return;
+            }
+
+            if (sport) {
+                sport.value = venue.sport || '';
             }
 
             fields.forEach(function (field) {
@@ -128,106 +140,6 @@
     }
 
     /* ----------------------------------------------------------------------
-       Suggestions under a text box, for the sport and the venue type.
-
-       The whole list arrives with the page in a data-suggest attribute, the
-       same way the venue preview gets its venues, so typing does not send a
-       request per letter. It can be done that way because the list is short: it
-       is one entry per sport, not one per event, so it stays about the same size
-       however many events the site ends up with.
-
-       Anything can still be typed in. If what is typed is not in the list, the
-       last chip offers to add it, which is only there to make that obvious -
-       the value in the box is what gets submitted either way.
-       ---------------------------------------------------------------------- */
-
-    function setUpSuggestions(box) {
-        var list;
-
-        try {
-            list = JSON.parse(box.getAttribute('data-suggest') || '[]');
-        } catch (error) {
-            return;
-        }
-
-        var panel = document.getElementById(box.id + 'Suggest');
-
-        if (!panel) {
-            return;
-        }
-
-        function choose(value) {
-            box.value = value;
-            panel.hidden = true;
-            box.focus();
-        }
-
-        function render() {
-            var typed = box.value.trim().toLowerCase();
-            var shown = 0;
-            var exact = false;
-
-            panel.innerHTML = '';
-
-            for (var i = 0; i < list.length; i++) {
-                var name = list[i];
-
-                if (name.toLowerCase() === typed) {
-                    exact = true;
-                }
-
-                if (typed !== '' && name.toLowerCase().indexOf(typed) === -1) {
-                    continue;
-                }
-
-                if (shown >= 8) {
-                    continue;
-                }
-
-                var chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'btn ghost small';
-                // textContent, not innerHTML: these came from what other people
-                // typed into their own events.
-                chip.textContent = name;
-                chip.addEventListener('click', pick(name));
-                panel.appendChild(chip);
-                shown++;
-            }
-
-            if (typed !== '' && !exact) {
-                var add = document.createElement('button');
-                add.type = 'button';
-                add.className = 'btn ghost small';
-                add.textContent = 'Add "' + box.value.trim() + '"';
-                add.addEventListener('click', pick(box.value.trim()));
-                panel.appendChild(add);
-                shown++;
-            }
-
-            panel.hidden = shown === 0;
-        }
-
-        // A separate function so the loop variable is not shared by every chip.
-        function pick(value) {
-            return function () {
-                choose(value);
-            };
-        }
-
-        box.addEventListener('input', render);
-        box.addEventListener('focus', render);
-
-        // Hiding on blur would fire before the click on a chip lands, so the
-        // panel closes only once the focus has gone somewhere outside it.
-        document.addEventListener('click', function (event) {
-            if (event.target !== box && !panel.contains(event.target)) {
-                panel.hidden = true;
-            }
-        });
-    }
-    
-    /* ----------------------------------------------------------------------
        Role fields on the registration form.  (Module 2 - Ivan)
 
        A player and a facility owner need different questions, so only the block
@@ -258,45 +170,233 @@
     }
 
     /* ----------------------------------------------------------------------
-       Keep the start time ahead of now.
+       Grey out the times that cannot be booked.
 
-       The date box already refuses any day before today, because the view
-       gives it a min. What it cannot do is notice that 09:00 is in the past
-       when it is already 21:00 today, so when today is the chosen day the
-       start time gets a min of the current time, and no min on any later day.
+       Which half hours are free depends on the venue and the date together, so
+       it cannot be worked out until both have been chosen. Rather than asking
+       the server on every change, the page arrives with the venue opening hours
+       and the slots already taken, and the work happens here. Those lists stay
+       small, because there is one entry per booking rather than per half hour.
 
-       The server checks the same thing in Validator::notInThePast(). This is
-       only so the box says no before the form is sent.
+       All of this is convenience. AvailabilityChecker and Validator check the
+       opening hours, the clashes and the past again on the server, so a
+       tampered dropdown gains nothing.
        ---------------------------------------------------------------------- */
 
-    function setUpPastTimeGuard() {
-        var date  = document.getElementById('eventDate');
-        var start = document.getElementById('startTime');
+    function setUpSlotGuard() {
+        var venueSelect = document.getElementById('facilityId');
+        var dateInput   = document.getElementById('eventDate');
+        var startSelect = document.getElementById('startTime');
+        var endSelect   = document.getElementById('endTime');
 
-        if (!date || !start) {
+        if (!venueSelect || !dateInput || !startSelect || !endSelect) {
             return;
         }
 
-        function pad(n) {
-            return (n < 10 ? '0' : '') + n;
+        var venues = {};
+        var busy   = [];
+
+        try {
+            venues = JSON.parse(venueSelect.getAttribute('data-venues') || '{}');
+            busy   = JSON.parse(startSelect.getAttribute('data-busy') || '[]');
+        } catch (error) {
+            return;
         }
 
-        function sync() {
-            var now   = new Date();
-            var today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+        // "14:30" or "14:30:00" as minutes since midnight, so every comparison
+        // below is plain arithmetic.
+        function toMinutes(text) {
+            var parts = String(text).split(':');
 
-            if (date.value === today) {
-                start.min = pad(now.getHours()) + ':' + pad(now.getMinutes());
-            } else {
-                start.removeAttribute('min');
+            return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+        }
+
+        function openWindows() {
+            var venue = venues[venueSelect.value];
+
+            if (!venue || !venue.opens || !venue.closes) {
+                return [];
+            }
+
+            var opens  = toMinutes(venue.opens);
+            var closes = toMinutes(venue.closes);
+
+            // A venue closing after midnight runs in two stretches. An event
+            // never crosses midnight, so it has to fit inside one of them.
+            if (closes > opens) {
+                return [[opens, closes]];
+            }
+
+            return [[opens, 24 * 60], [0, closes]];
+        }
+
+        function insideOpeningHours(from, to) {
+            var windows = openWindows();
+
+            for (var i = 0; i < windows.length; i++) {
+                if (from >= windows[i][0] && to <= windows[i][1]) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function clashes(from, to) {
+            for (var i = 0; i < busy.length; i++) {
+                var taken = busy[i];
+
+                if (taken.facilityId !== venueSelect.value) {
+                    continue;
+                }
+
+                if (String(taken.eventDate).slice(0, 10) !== dateInput.value) {
+                    continue;
+                }
+
+                // Two slots overlap when each starts before the other ends, so
+                // a court handed over exactly on the hour is not a clash.
+                if (from < toMinutes(taken.endTime) && to > toMinutes(taken.startTime)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Nothing earlier than now, but only when the chosen day is today.
+        function earliestAllowed() {
+            var now   = new Date();
+            var today = now.getFullYear() + '-'
+                      + ('0' + (now.getMonth() + 1)).slice(-2) + '-'
+                      + ('0' + now.getDate()).slice(-2);
+
+            if (dateInput.value !== today) {
+                return 0;
+            }
+
+            return (now.getHours() * 60) + now.getMinutes();
+        }
+
+        function refresh() {
+            var ready  = venueSelect.value !== '' && dateInput.value !== '';
+            var floor  = earliestAllowed();
+            var chosen = startSelect.value === '' ? null : toMinutes(startSelect.value);
+
+            Array.prototype.forEach.call(startSelect.options, function (option) {
+                if (option.value === '') {
+                    return;
+                }
+
+                var from = toMinutes(option.value);
+
+                // A start is offered only when at least one half hour is free
+                // from it, because nothing shorter can be booked.
+                option.disabled = !ready
+                    || from < floor
+                    || !insideOpeningHours(from, from + 30)
+                    || clashes(from, from + 30);
+            });
+
+            Array.prototype.forEach.call(endSelect.options, function (option) {
+                if (option.value === '') {
+                    return;
+                }
+
+                var to = toMinutes(option.value);
+
+                option.disabled = !ready
+                    || chosen === null
+                    || to <= chosen
+                    || !insideOpeningHours(chosen, to)
+                    || clashes(chosen, to);
+            });
+
+            // A time chosen before the venue or the date changed may no longer
+            // be on offer, so it is cleared instead of left sitting there.
+            if (startSelect.selectedIndex > -1 && startSelect.options[startSelect.selectedIndex].disabled) {
+                startSelect.value = '';
+            }
+
+            if (endSelect.selectedIndex > -1 && endSelect.options[endSelect.selectedIndex].disabled) {
+                endSelect.value = '';
             }
         }
 
-        date.addEventListener('change', sync);
+        venueSelect.addEventListener('change', refresh);
+        dateInput.addEventListener('change', refresh);
+        startSelect.addEventListener('change', refresh);
 
-        // A date may already be filled in, either from a failed save or from
-        // the browser restoring the form.
-        sync();
+        refresh();
+    }
+
+    /* ----------------------------------------------------------------------
+       Show the state that the postcode implies.
+
+       Pos Malaysia hands out postcodes by state, so the postcode already says
+       which state a venue is in and the owner is never asked. This fills the
+       read-only box as they type, purely so they can see it is right before
+       submitting.
+
+       FacilityController works the same thing out again from the postcode, so
+       nothing here is trusted. The ranges travel in a data attribute, the same
+       way the venue list does, to keep PHP out of this file.
+       ---------------------------------------------------------------------- */
+
+    function setUpStateFromPostcode() {
+        var postcode = document.getElementById('postcode');
+        var shown    = document.getElementById('stateShown');
+
+        if (!postcode || !shown) {
+            return;
+        }
+
+        var ranges;
+
+        try {
+            ranges = JSON.parse(postcode.getAttribute('data-postcode-states') || '{}');
+        } catch (error) {
+            return;
+        }
+
+        function stateFor(digits) {
+            var number = parseInt(digits, 10);
+
+            for (var state in ranges) {
+                if (!Object.prototype.hasOwnProperty.call(ranges, state)) {
+                    continue;
+                }
+
+                var blocks = ranges[state];
+
+                for (var i = 0; i < blocks.length; i++) {
+                    if (number >= blocks[i][0] && number <= blocks[i][1]) {
+                        return state;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function refresh() {
+            var typed = String(postcode.value).replace(/\D/g, '');
+
+            // Nothing to say until all five digits are in, or the box would
+            // read "not a postcode" while somebody is still typing one.
+            if (typed.length < 5) {
+                shown.value = '';
+                return;
+            }
+
+            shown.value = stateFor(typed) || 'Not a Malaysian postcode';
+        }
+
+        postcode.addEventListener('input', refresh);
+
+        // A postcode may already be filled in, on the edit form or after a
+        // save that failed.
+        refresh();
     }
 
     /* ----------------------------------------------------------------------
@@ -588,15 +688,170 @@
         setUpVenuePreview();
         setUpPickers();
         setUpRoleFields();
+        setUpSlotGuard();
+        setUpStateFromPostcode();
         setUpNoCopyFields();
         setUpPasswordReveal();
         setUpDropzones();
         setUpLocationConfirm();
-        setUpPastTimeGuard();
+    function setUpRatingWidgets() {
+        document.querySelectorAll('[data-rating-widget]').forEach(function (widget) {
+            var stars = widget.querySelectorAll('.rating-star:not([data-rating-star])');
+            var selectableStars = widget.querySelectorAll('[data-rating-star]');
+            var current = parseInt(widget.getAttribute('data-current-rating') || '0', 10);
 
-        var boxes = document.querySelectorAll('[data-suggest]');
+            function paint(value, preview) {
+                stars.forEach(function (star) {
+                    var selected = parseInt(star.value, 10) <= value;
+                    star.classList.toggle('is-preview', preview && selected);
+                    star.classList.toggle('is-selected', selected);
+                });
+            }
 
-        Array.prototype.forEach.call(boxes, setUpSuggestions);
+            stars.forEach(function (star) {
+                star.addEventListener('mouseenter', function () {
+                    paint(parseInt(star.value, 10), true);
+                });
+            });
+
+            if (selectableStars.length > 0) {
+                widget.querySelectorAll('[data-rating-group]').forEach(function (group) {
+                    var groupStars = group.querySelectorAll('[data-rating-star]');
+                    var valueInput = group.querySelector('[data-rating-value]');
+                    var groupCurrent = parseInt(group.getAttribute('data-current-rating') || '0', 10);
+
+                    function paintGroup(value, preview) {
+                        groupStars.forEach(function (star) {
+                            var selected = parseInt(star.getAttribute('data-rating-star'), 10) <= value;
+                            star.classList.toggle('is-preview', preview && selected);
+                            star.classList.toggle('is-selected', selected);
+                        });
+                    }
+
+                    groupStars.forEach(function (star) {
+                        star.addEventListener('mouseenter', function () {
+                            paintGroup(parseInt(star.getAttribute('data-rating-star'), 10), true);
+                        });
+                        star.addEventListener('click', function () {
+                            groupCurrent = parseInt(star.getAttribute('data-rating-star'), 10);
+                            valueInput.value = groupCurrent;
+                            paintGroup(groupCurrent, false);
+                        });
+                    });
+
+                    group.addEventListener('mouseleave', function () {
+                        paintGroup(groupCurrent, false);
+                    });
+                });
+            } else {
+                widget.addEventListener('mouseleave', function () {
+                    paint(current, false);
+                });
+            }
+        });
+    }
+
+    function setUpRemovalReasons() {
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-remove-review]');
+
+            if (!button) {
+                return;
+            }
+
+            var form = button.closest('[data-remove-review-form]');
+            if (!form) {
+                return;
+            }
+
+            event.preventDefault();
+
+            var overlay = document.createElement('div');
+            overlay.className = 'moderation-modal';
+            var box = document.createElement('div');
+            box.className = 'moderation-modal-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-modal', 'true');
+            box.setAttribute('aria-labelledby', 'moderationReasonTitle');
+
+            var heading = document.createElement('h2');
+            heading.id = 'moderationReasonTitle';
+            heading.textContent = 'Reason for removal';
+
+            var label = document.createElement('label');
+            label.htmlFor = 'moderationReason';
+            label.textContent = 'Select a reason';
+
+            var select = document.createElement('select');
+            select.id = 'moderationReason';
+            select.required = true;
+            [
+                ['', 'Choose a reason'],
+                ['abusive_language', 'Abusive language'],
+                ['spam_or_repetitive', 'Spam or repetitive content'],
+                ['personal_information', 'Personal information'],
+                ['other', 'Other policy violation']
+            ].forEach(function (optionData) {
+                var option = document.createElement('option');
+                option.value = optionData[0];
+                option.textContent = optionData[1];
+                select.appendChild(option);
+            });
+
+            var actions = document.createElement('div');
+            actions.className = 'button-row moderation-modal-actions';
+
+            var cancel = document.createElement('button');
+            cancel.className = 'btn ghost small';
+            cancel.type = 'button';
+            cancel.textContent = 'Cancel';
+
+            var confirm = document.createElement('button');
+            confirm.className = 'btn danger small';
+            confirm.type = 'button';
+            confirm.disabled = true;
+            confirm.textContent = 'Remove review';
+
+            actions.appendChild(cancel);
+            actions.appendChild(confirm);
+            box.appendChild(heading);
+            box.appendChild(label);
+            box.appendChild(select);
+            box.appendChild(actions);
+            overlay.appendChild(box);
+
+            document.body.appendChild(overlay);
+            select.addEventListener('change', function () {
+                confirm.disabled = select.value === '';
+            });
+
+            function close() {
+                overlay.remove();
+            }
+
+            cancel.addEventListener('click', close);
+            confirm.addEventListener('click', function () {
+                if (select.value === '') {
+                    return;
+                }
+
+                var reason = form.querySelector('[name="removalReason"]') || document.createElement('input');
+                reason.type = 'hidden';
+                reason.name = 'removalReason';
+                reason.value = select.value;
+                form.appendChild(reason);
+                form.submit();
+            });
+
+            select.focus();
+        });
+    }
+
+    function start() {
+        setUpVenuePreview();
+        setUpRoleFields();
+        setUpRemovalReasons();
+        setUpRatingWidgets();
     }
 
     if (document.readyState === 'loading') {
@@ -604,4 +859,7 @@
     } else {
         start();
     }
-}());
+
+}
+})();
+

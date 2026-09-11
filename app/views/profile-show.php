@@ -24,6 +24,7 @@ use App\Model\User;
     <?php if ($isSelf): ?>
         <div class="toolbar">
             <a class="btn" href="<?= e(url('profile', 'edit')) ?>">Edit profile</a>
+            <a class="btn ghost" href="payment.php">Payment history</a>
             <a class="btn ghost" href="<?= e(url('profile', 'security')) ?>">Password &amp; security</a>
         </div>
     <?php endif; ?>

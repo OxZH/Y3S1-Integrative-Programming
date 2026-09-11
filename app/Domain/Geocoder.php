@@ -70,6 +70,29 @@ class Geocoder
         'kuching'         => [1.5533, 110.3592],
     ];
 
+    // The middle of each state, for a city we do not recognise. Landing a venue
+    // in the right state is a few tens of kilometres out; the old behaviour of
+    // falling back to Kuala Lumpur put a Terengganu venue 350km from itself and
+    // ruined distance sorting for everything near it.
+    const STATE_CENTRES = [
+        'Perlis'          => [6.4449, 100.2048],
+        'Kedah'           => [6.1184, 100.3685],
+        'Penang'          => [5.4141, 100.3288],
+        'Kelantan'        => [6.1254, 102.2381],
+        'Terengganu'      => [5.3117, 103.1324],
+        'Pahang'          => [3.8077, 103.3260],
+        'Perak'           => [4.5975, 101.0901],
+        'Selangor'        => [3.0733, 101.5185],
+        'Kuala Lumpur'    => [3.1390, 101.6869],
+        'Putrajaya'       => [2.9264, 101.6964],
+        'Negeri Sembilan' => [2.7297, 101.9381],
+        'Melaka'          => [2.1896, 102.2501],
+        'Johor'           => [1.4927, 103.7414],
+        'Labuan'          => [5.2831, 115.2308],
+        'Sabah'           => [5.9804, 116.0735],
+        'Sarawak'         => [1.5533, 110.3592],
+    ];
+
     // Returns [latitude, longitude] for the address given.
     public static function locate($city, $state)
     {
@@ -87,13 +110,24 @@ class Geocoder
             return Geocoder::CITIES[$key];
         }
 
+        // The city is not one we know, so settle for the middle of its state.
+        // The state is derived from the postcode, so it is always one of the
+        // sixteen below.
+        if (isset(Geocoder::STATE_CENTRES[trim((string) $state)])) {
+            return Geocoder::STATE_CENTRES[trim((string) $state)];
+        }
+
         return Geocoder::FALLBACK;
     }
 
-    // True when the address was not recognised, so the form can say the pin is
-    // only a rough guess and offer to have it corrected.
+    // True when only the state was recognised, so the pin is the middle of a
+    // state rather than anywhere near the venue. The form uses this to suggest
+    // setting the exact position by hand.
     public static function isRough($city, $state)
     {
-        return Geocoder::locate($city, $state) === Geocoder::FALLBACK;
+        $found = Geocoder::locate($city, $state);
+
+        return !isset(Geocoder::CITIES[strtolower(trim((string) $city))])
+            && $found !== Geocoder::CITIES['kuala lumpur'];
     }
 }

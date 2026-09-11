@@ -11,6 +11,10 @@ use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\LocationController;
 use App\Controller\ProfileController;
+
+use App\Controller\ReviewController;
+use App\Controller\RatingController;
+use App\Controller\FriendsController;
 use App\Core\View;
 use App\NotFoundException;
 use App\ServiceUnavailableException;
@@ -20,18 +24,23 @@ use App\ServiceUnavailableException;
  * $_GET instead would make any public method on any autoloadable class
  * reachable from the address bar.
  */
+
 $routes = [
     'facility' => [
         'class'   => FacilityController::class,
-        'actions' => ['show', 'mine', 'create', 'store', 'edit', 'update', 'suspend', 'reactivate', 'delete'],
+        'actions' => ['search', 'show', 'mine', 'create', 'store', 'edit', 'update', 'suspend', 'reactivate', 'delete'],
     ],
     'event' => [
         'class'   => EventController::class,
         // js part - 'index' was the temporary Upcoming games listing, now removed.
         // Find a game is the browse page; everything else here is unchanged.
         'actions' => ['mine', 'show', 'create', 'store', 'finalise',
-                      'publish', 'cancel', 'delete',
+                      'publish', 'cancel', 'complete', 'delete',
                       'invite', 'invites', 'createInvite', 'revokeInvite'],
+    ],
+    'friends' => [
+        'class'   => FriendsController::class,
+        'actions' => ['mine', 'incoming', 'pending', 'respond'],
     ],
     // MODULE 2 - User Authentication & Profile Management (Ivan)
     'auth' => [
@@ -42,6 +51,14 @@ $routes = [
     'profile' => [
         'class'   => ProfileController::class,
         'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate'],
+    ],
+    'review' => [
+        'class'   => ReviewController::class,
+        'actions' => ['store', 'vote', 'moderate'],
+    ],
+    'rating' => [
+        'class'   => RatingController::class,
+        'actions' => ['store'],
     ],
     'admin' => [
         'class'   => AdminController::class,

@@ -189,9 +189,9 @@ final class EventManagementFacade
         return $this->facilities->listTypes();
     }
 
-    public function listSports(): array
+    public function busySlots(string $windowEnd): array
     {
-        return $this->events->listSports();
+        return $this->events->busyIntervals($windowEnd);
     }
 
     public function findOpenSlots(string $facilityId, DateTimeImmutable $date, int $slotHours = 1): array
@@ -214,6 +214,11 @@ final class EventManagementFacade
             (string) $validated['startTime'],
             (string) $validated['endTime']
         );
+
+        // The sport comes from the venue and never from the request. A badminton
+        // hall only hosts badminton, so there is nothing for the organiser to
+        // choose and nothing for anyone to tamper with.
+        $validated['sport'] = $facility->getType();
 
         $event = $this->factory->newEvent($validated, $host, $facility);
 
@@ -264,7 +269,23 @@ final class EventManagementFacade
 
         EventFacilitySecurity::assertHostsEvent($event);
 
+        $this->services->cancelEventPayments(
+            $eventId,
+            'Event cancelled by organizer before it started.'
+        );
         $event->cancel();
+        $this->events->update($event);
+
+        return $event;
+    }
+
+    public function completeEvent(string $eventId): Event
+    {
+        $event = $this->requireEvent($eventId);
+
+        EventFacilitySecurity::assertHostsEvent($event);
+        $event->complete();
+        $this->services->settleEventPayout($eventId);
         $this->events->update($event);
 
         return $event;
@@ -292,6 +313,10 @@ final class EventManagementFacade
         $counts = $this->events->countDependents($eventId);
 
         if ($counts['registrations'] > 0) {
+            $this->services->cancelEventPayments(
+                $eventId,
+                'Event cancelled by organizer before it started.'
+            );
             $event->cancel();
             $this->events->update($event);
 
@@ -299,6 +324,10 @@ final class EventManagementFacade
         }
 
         if ($counts['bookings'] > 0) {
+            $this->services->cancelEventPayments(
+                $eventId,
+                'Event cancelled by organizer before it started.'
+            );
             $event->cancel();
             $this->events->update($event);
 

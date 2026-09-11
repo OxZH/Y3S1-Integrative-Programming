@@ -75,16 +75,16 @@ INSERT INTO `UserFavoriteSport` (`baseUserId`, `sport`) VALUES
 --  fac-005 closes after it opens (22:00 to 02:00), which is allowed: the CHECK
 --  that used to forbid it has been dropped, because plenty of courts run late.
 --  fac-002 has no street name in its address, which is also allowed - only the
---  unit, the area and the postcode are required.
+--  unit and the area are required. The postcode is a field of its own.
 -- ---------------------------------------------------------------------------
 INSERT INTO `Facility`
-    (`facilityId`, `ownerId`, `name`, `imageUrl`, `addressLine`, `city`, `state`, `type`,
+    (`facilityId`, `ownerId`, `name`, `imageUrl`, `addressLine`, `postcode`, `city`, `state`, `type`,
      `bookingFee`, `operationalHrsStart`, `operationalHrsEnd`, `latitude`, `longitude`, `status`, `createdAt`) VALUES
-('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang, 53100', 'Setapak', 'Kuala Lumpur', 'Badminton Hall',  35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
-('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati, 53100', 'Setapak', 'Kuala Lumpur', 'Basketball Court',50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
-('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor',     'Futsal Court',    80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
-('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru, 41050','Klang',      'Selangor',     'Badminton Hall',  40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
-('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru, 41050', 'Klang', 'Selangor', 'Futsal Court', 60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
+('fac-001', 'own-001', 'SmashPoint Badminton Centre', 'https://a.storyblok.com/f/247285/1200x920/00b754ae09/steelpedia_architectural_design_skyarena_sports_complex_10.webp', 'No. 12, Taman Melawati, Jalan Genting Klang', '53100', 'Setapak', 'Kuala Lumpur', 'Badminton',      35.00, '08:00:00', '23:00:00', 3.2145000, 101.7268000, 'ACTIVE',  '2026-01-15 09:00:00'),
+('fac-002', 'own-001', 'SmashPoint Court 2 (Indoor)',  NULL, 'No. 14, Taman Melawati', '53100', 'Setapak', 'Kuala Lumpur', 'Basketball',     50.00, '09:00:00', '22:00:00', 3.2147000, 101.7271000, 'ACTIVE',  '2026-01-16 09:30:00'),
+('fac-003', 'own-002', 'Arena Klang Futsal',           'https://apicms.thestar.com.my/uploads/images/2023/06/09/2116926.webp', 'Lot 88, Bandar Baru Klang, Jalan Meru', '41050', 'Klang', 'Selangor',     'Futsal',          80.00, '10:00:00', '23:59:00', 3.0521000, 101.4381000, 'ACTIVE',  '2026-02-05 11:00:00'),
+('fac-004', 'own-002', 'Arena Klang Annex (New)',      NULL,                           'Lot 90, Bandar Baru Klang, Jalan Meru', '41050','Klang',      'Selangor',     'Badminton',      40.00, '08:00:00', '22:00:00', 3.0525000, 101.4386000, 'PENDING', '2026-08-20 16:45:00'),
+('fac-005', 'own-002', 'Arena Klang Late Night',      NULL, 'Lot 92, Bandar Baru Klang, Jalan Meru', '41050', 'Klang', 'Selangor', 'Futsal',       60.00, '22:00:00', '02:00:00', 3.0528000, 101.4390000, 'ACTIVE',  '2026-03-10 20:00:00');
 
 -- ---------------------------------------------------------------------------
 --  Events   (MODULE 1 - mine)
@@ -114,7 +114,7 @@ INSERT INTO `EventInvite`
 ('inv-003', 'evt-004', 'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f809', 'usr-001', '2026-08-18 18:05:00', NULL,                    NULL, 0, 1);
 
 -- ---------------------------------------------------------------------------
---  Bookings, payments, refunds   (MODULE 4 - zh)
+--  Bookings and payments   (MODULE 4 - zh)
 --  evt-003 intentionally has a booking with NO payment row: that is the 0..1.
 -- ---------------------------------------------------------------------------
 INSERT INTO `Booking`
@@ -126,15 +126,11 @@ INSERT INTO `Booking`
 ('bkg-005', 'evt-005', 'usr-002', 'CONFIRMED', 70.00, '2026-08-05 10:02:00');
 
 INSERT INTO `Payment`
-    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`, `stripePaymentIntentId`) VALUES
-('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card', 'PAID',     'pi_3QaSeed0000000001'),
-('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',  'PAID',     'pi_3QaSeed0000000002'),
-('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card', 'REFUNDED', 'pi_3QaSeed0000000004'),
-('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card', 'PAID',     'pi_3QaSeed0000000005');
-
-INSERT INTO `Refund`
-    (`refundId`, `paymentId`, `datetime`, `amount`, `reason`, `stripeRefundId`) VALUES
-('ref-001', 'pay-004', '2026-08-19 10:15:00', 105.00, 'Organiser cancelled more than 7 days before the event: full refund.', 're_3QaSeed0000000004');
+    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`) VALUES
+('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card', 'PAID'),
+('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',  'PAID'),
+('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card', 'REFUNDED'),
+('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card', 'PAID');
 
 -- ---------------------------------------------------------------------------
 --  Event registrations   (MODULE 5 - js)

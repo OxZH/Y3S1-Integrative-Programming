@@ -6,7 +6,7 @@ use App\EventVisibility;
 use App\FitnessRequirement;
 use App\Model\Facility;
 use App\SkillLevel;
-// Receives: $input, $errors, $venues, $ratings, $maxDate, $sports
+// Receives: $input, $errors, $venues, $ratings, $maxDate, $busy
 
 $bad = static function (string $field) use ($errors): string {
     return isset($errors[$field]) ? 'bad' : '';
@@ -33,6 +33,27 @@ $options = static function (array $cases, ?string $selected): string {
 
 $selectedVenue = (string) ($input['facilityId'] ?? '');
 
+// Every half hour of the day. Bookings are taken on the hour or the half hour
+// and nothing finer, which keeps a court from being left with a useless seven
+// minute gap between two games. app.js disables the ones that are outside the
+// venue's hours, already booked, or in the past.
+$halfHours = static function (string $selected): string {
+    $html = '';
+
+    for ($minutes = 0; $minutes < 24 * 60; $minutes += 30) {
+        $label = sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+
+        $html .= sprintf(
+            '<option value="%s" %s>%s</option>',
+            e($label),
+            $selected === $label ? 'selected' : '',
+            e($label)
+        );
+    }
+
+    return $html;
+};
+
 // Venue details for the preview panel. Handed to public/js/app.js through a
 // data attribute rather than an inline script, so no PHP ends up in the
 // JavaScript file and no JavaScript ends up in this view.
@@ -50,6 +71,12 @@ foreach ($venues as $venue) {
                      . ($venue->closesAfterMidnight() ? ' (next day)' : ''),
         'image'   => imageSrc($venue->getImageUrl()),
         'rating'  => starsText($rating),
+        'sport'   => $venue->getType(),
+
+        // the raw times, for the slot dropdowns. 'hours' above is the wording
+        // shown to the reader and is no use for arithmetic.
+        'opens'   => $venue->getOperationalHrsStart(),
+        'closes'  => $venue->getOperationalHrsEnd(),
         'url'     => url('facility', 'show', ['id' => $id]),
     ];
 }
@@ -76,14 +103,6 @@ foreach ($venues as $venue) {
            placeholder="Friday Night Doubles" value="<?= old($input, 'name') ?>" required>
     <?= $err('name') ?>
 
-    <label for="sport">Sport</label>
-    <input class="<?= e($bad('sport')) ?>" type="text" id="sport" name="sport" maxlength="50"
-           placeholder="Badminton" value="<?= old($input, 'sport') ?>" required autocomplete="off"
-           data-suggest="<?= e(json_encode($sports, JSON_UNESCAPED_UNICODE)) ?>">
-    <div class="chip-list suggest" id="sportSuggest" hidden></div>
-    <p class="small muted">Pick one that is already being played, or type a new one.</p>
-    <?= $err('sport') ?>
-
     <label for="facilityId">Venue</label>
     <select class="<?= e($bad('facilityId')) ?>" id="facilityId" name="facilityId" required
             data-venues="<?= e(json_encode($venueData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>">
@@ -102,6 +121,17 @@ foreach ($venues as $venue) {
         <?php endforeach; ?>
     </select>
     <?= $err('facilityId') ?>
+
+    <?php
+    // Not an input. The venue decides the sport, so this only reports what was
+    // decided. app.js fills it in from the same data the preview panel uses,
+    // and nothing is submitted, because the server reads the sport off the
+    // facility rather than off the request.
+    ?>
+    <label for="sportShown">Sport</label>
+    <input class="readonly-field" type="text" id="sportShown" value="" readonly
+           placeholder="Choose a venue first">
+    <p class="small muted">Set by the venue. A badminton hall only hosts badminton.</p>
 
     <div class="card card-inset venue-preview" id="venuePreview" hidden>
         <div class="venue-preview-inner">
@@ -139,19 +169,25 @@ foreach ($venues as $venue) {
         </div>
         <div>
             <label for="startTime">Start time</label>
-            <input class="<?= e($bad('startTime')) ?>" type="time" id="startTime" name="startTime"
-                   value="<?= old($input, 'startTime') ?>" required>
+            <select class="<?= e($bad('startTime')) ?>" id="startTime" name="startTime" required
+                    data-busy="<?= e(json_encode($busy, JSON_UNESCAPED_UNICODE)) ?>">
+                <option value="">Choose a time&hellip;</option>
+                <?= $halfHours(old($input, 'startTime')) ?>
+            </select>
             <?= $err('startTime') ?>
         </div>
         <div>
             <label for="endTime">End time</label>
-            <input class="<?= e($bad('endTime')) ?>" type="time" id="endTime" name="endTime"
-                   value="<?= old($input, 'endTime') ?>" required>
+            <select class="<?= e($bad('endTime')) ?>" id="endTime" name="endTime" required>
+                <option value="">Choose a time&hellip;</option>
+                <?= $halfHours(old($input, 'endTime')) ?>
+            </select>
             <?= $err('endTime') ?>
         </div>
     </div>
     <p class="form-note">
-        The slot has to sit inside the venue's opening hours and not overlap a game already booked there.
+        Times outside the venue's opening hours, already booked, or in the past are greyed out once a
+        venue and a date are chosen.
     </p>
 
     <div class="row">

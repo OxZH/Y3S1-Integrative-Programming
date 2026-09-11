@@ -16,7 +16,12 @@ use App\ServiceUnavailableException;
 // exception gets an obvious failure.
 final class ServiceClient
 {
-    public function call(string $service, string $function, array $params = []): array
+    public function call(
+        string $service,
+        string $function,
+        array $params = [],
+        array $headers = []
+    ): array
     {
         $url    = (string) config("services.$service.url", '');
         $target = (string) config("services.$service.module", $service);
@@ -37,7 +42,7 @@ final class ServiceClient
             (string) $request['timeStamp']
         );
 
-        [$body, $httpCode, $transportError] = $this->post($url, $request);
+        [$body, $httpCode, $transportError] = $this->post($url, $request, $headers);
 
         if ($transportError !== null) {
             ServiceLog::finish($requestId, Ifa::STATUS_ERROR, $httpCode ?: null, $transportError);
@@ -82,7 +87,7 @@ final class ServiceClient
         return ($data['__status'] ?? null) === Ifa::STATUS_FAIL;
     }
 
-    private function post(string $url, array $payload): array
+    private function post(string $url, array $payload, array $headers = []): array
     {
         $handle = curl_init($url);
 
@@ -93,7 +98,10 @@ final class ServiceClient
         curl_setopt_array($handle, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_SLASHES),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => array_merge(
+                ['Content-Type: application/json', 'Accept: application/json'],
+                array_values($headers)
+            ),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => (int) config('http.timeout', 5),
             CURLOPT_CONNECTTIMEOUT => (int) config('http.connect_timeout', 3),

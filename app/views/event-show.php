@@ -199,6 +199,17 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
             </form>
         <?php endif; ?>
 
+        <?php if (
+            in_array($status->value, ['PUBLISHED', 'FULL', 'ONGOING'], true)
+            && $event->isInThePast()
+        ): ?>
+            <form method="post" action="<?= e(url('event', 'complete')) ?>" class="inline-form">
+                <?= $csrfField ?>
+                <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
+                <button class="btn" type="submit">Complete and settle participant fees</button>
+            </form>
+        <?php endif; ?>
+
         <a class="btn ghost" href="<?= e(url('event', 'invites', ['id' => $event->getEventId()])) ?>">Manage invite links</a>
 
         <?php
@@ -214,7 +225,7 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
                 <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
                 <button class="btn danger" type="submit">Delete event</button>
             </form>
-        <?php elseif (!$status->isCancelled()): ?>
+        <?php elseif (!$status->isCancelled() && $status->value !== 'COMPLETED'): ?>
             <form method="post" action="<?= e(url('event', 'cancel')) ?>" class="inline-form"
                   data-confirm="Cancel this event? Anyone who joined will see that it is off.">
                 <?= $csrfField ?>

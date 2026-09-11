@@ -22,10 +22,10 @@
 --    username uniqueness enforceable in ONE place across all three roles.
 --
 --  ASSOCIATIONS THAT LOOK "MISSING"
---    Event.booking, Booking.payment, Payment.refund, User.reviews,
+--    Event.booking, Booking.payment, User.reviews,
 --    User.ratings, User.participationHistory and FacilityOwner.facilities are
 --    navigations, not columns. For each 1..0..1 pair the FK is placed on the
---    OPTIONAL side (Booking.eventId, Payment.bookingId, Refund.paymentId) so
+--    OPTIONAL side (Booking.eventId, Payment.bookingId) so
 --    there are no nullable FKs and no circular table dependency. The PHP
 --    entity classes still expose the properties exactly as drawn.
 -- ============================================================================
@@ -169,9 +169,10 @@ CREATE TABLE `Facility` (
     `ownerId`             VARCHAR(36)   NOT NULL,   -- [+] GAP 3: diagram only draws FacilityOwner -> List<Facility>; the reverse reference is needed by facility search
     `name`                VARCHAR(150)  NOT NULL,   -- [D]
     `imageUrl`            VARCHAR(500)  NULL,       -- [D]
-    `addressLine`         VARCHAR(255)  NOT NULL,   -- [D]
+    `addressLine`         VARCHAR(255)  NOT NULL,   -- [D] unit, area and street only
+    `postcode`            CHAR(5)       NOT NULL,   -- [+] its own field, not buried in addressLine: it decides the state, so it is asked for on its own and stored on its own
     `city`                VARCHAR(100)  NOT NULL,   -- [D]
-    `state`               VARCHAR(100)  NOT NULL,   -- [D]
+    `state`               VARCHAR(100)  NOT NULL,   -- [D] derived from postcode, never typed
     `type`                VARCHAR(50)   NOT NULL,   -- [D] e.g. Badminton Hall, Futsal Court
     `bookingFee`          DECIMAL(10,2) NOT NULL,   -- [D] diagram says double; money MUST be DECIMAL (binary floats cannot hold 0.10 exactly)
     `operationalHrsStart` TIME          NOT NULL,   -- [D]
@@ -185,6 +186,7 @@ CREATE TABLE `Facility` (
     CONSTRAINT `fk_Facility_owner`
         FOREIGN KEY (`ownerId`) REFERENCES `FacilityOwner`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Facility_fee`   CHECK (`bookingFee` >= 0),
+    CONSTRAINT `chk_Facility_postcode` CHECK (`postcode` REGEXP '^[0-9]{5}$'),
     CONSTRAINT `chk_Facility_lat`   CHECK (`latitude`  BETWEEN  -90 AND  90),
     CONSTRAINT `chk_Facility_lng`   CHECK (`longitude` BETWEEN -180 AND 180),
     KEY `idx_Facility_owner`  (`ownerId`),
@@ -312,33 +314,40 @@ CREATE TABLE `Payment` (
     `amount`                DECIMAL(10,2) NOT NULL,   -- [D] diagram says double -> DECIMAL
     `paymentDateTime`       DATETIME      NOT NULL,   -- [D]
     `paymentMethod`         VARCHAR(50)   NOT NULL,   -- [D] e.g. card, fpx
-    `paymentStatus`         ENUM('PENDING','PAID','FAILED',
-                                 'REFUNDED','PARTIALLY_REFUNDED')
-                            NOT NULL DEFAULT 'PENDING',  -- [+] zh: the refund routine branches on this
-    `stripePaymentIntentId` VARCHAR(255)  NULL,          -- [+] zh: Stripe reconciliation handle
+    `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
+                            NOT NULL DEFAULT 'PENDING',
     PRIMARY KEY (`paymentId`),
     UNIQUE KEY `uq_Payment_booking` (`bookingId`),
-    UNIQUE KEY `uq_Payment_stripe`  (`stripePaymentIntentId`),  -- idempotency: a replayed webhook cannot double-insert
     CONSTRAINT `fk_Payment_booking`
         FOREIGN KEY (`bookingId`) REFERENCES `Booking`(`bookingId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Payment_amount` CHECK (`amount` >= 0)
 ) ENGINE=InnoDB;
 
-CREATE TABLE `Refund` (
-    `refundId`       VARCHAR(36)   NOT NULL,   -- [D]
-    `paymentId`      VARCHAR(36)   NOT NULL,   -- [D] Payment 1 --has been-- 0..1 Refund
-    `datetime`       DATETIME      NOT NULL,   -- [D]
-    `amount`         DECIMAL(10,2) NOT NULL,   -- [+] the PENDING and PAID refund paths produce different amounts
-    `reason`         VARCHAR(255)  NULL,       -- [+]
-    `stripeRefundId` VARCHAR(255)  NULL,       -- [+]
-    PRIMARY KEY (`refundId`),
-    UNIQUE KEY `uq_Refund_payment` (`paymentId`),
-    UNIQUE KEY `uq_Refund_stripe`  (`stripeRefundId`),
-    CONSTRAINT `fk_Refund_payment`
-        FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`paymentId`) ON DELETE RESTRICT,
-    CONSTRAINT `chk_Refund_amount` CHECK (`amount` >= 0)
+CREATE TABLE `ParticipantPayment` (
+    `participantPaymentId`  VARCHAR(36)   NOT NULL,
+    `eventRegistrationId`   VARCHAR(36)   NOT NULL,
+    `eventId`               VARCHAR(36)   NOT NULL,
+    `participantId`         VARCHAR(36)   NOT NULL,
+    `organizerId`           VARCHAR(36)   NOT NULL,
+    `amount`                DECIMAL(10,2) NOT NULL,
+    `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
+                            NOT NULL DEFAULT 'PENDING',
+    `paidAt`                DATETIME      NULL,
+    `createdAt`             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updatedAt`             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`participantPaymentId`),
+    UNIQUE KEY `uq_ParticipantPayment_registration` (`eventRegistrationId`),
+    CONSTRAINT `fk_ParticipantPayment_registration`
+        FOREIGN KEY (`eventRegistrationId`) REFERENCES `EventRegistration`(`eventRegistrationId`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_ParticipantPayment_event`
+        FOREIGN KEY (`eventId`) REFERENCES `Event`(`eventId`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_ParticipantPayment_participant`
+        FOREIGN KEY (`participantId`) REFERENCES `User`(`baseUserId`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_ParticipantPayment_organizer`
+        FOREIGN KEY (`organizerId`) REFERENCES `User`(`baseUserId`) ON DELETE RESTRICT,
+    CONSTRAINT `chk_ParticipantPayment_amount` CHECK (`amount` >= 0),
+    KEY `idx_ParticipantPayment_event` (`eventId`, `paymentStatus`)
 ) ENGINE=InnoDB;
-
 
 -- ============================================================================
 --  MODULE 3 - Social Networking & Review System  (kw)

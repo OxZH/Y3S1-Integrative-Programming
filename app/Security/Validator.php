@@ -223,8 +223,12 @@ final class Validator
     // Pass false for $allowMidnight on an end time. 00:00 reads as "the start of
     // this day", so an event ending at midnight would finish before it began and
     // every duration calculated from it comes out negative.
-    public function time(string $field, string $label, bool $allowMidnight = true): self
-    {
+    public function time(
+        string $field,
+        string $label,
+        bool $allowMidnight = true,
+        bool $halfHoursOnly = false
+    ): self {
         $value = $this->raw($field);
 
         if ($value === null || $value === '') {
@@ -233,6 +237,14 @@ final class Validator
 
         if (preg_match('/^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/', $value, $m) !== 1) {
             return $this->fail($field, $label . ' must be a valid time.');
+        }
+
+        // Bookings are taken on the hour or the half hour and nothing finer,
+        // which stops a court being left with a useless seven minute gap
+        // between two games. The form only offers those, so reaching this
+        // means the value did not come from the form.
+        if ($halfHoursOnly && $m[2] !== '00' && $m[2] !== '30') {
+            return $this->fail($field, $label . ' must be on the hour or the half hour.');
         }
 
         if (!$allowMidnight && $m[1] === '00' && $m[2] === '00') {
@@ -289,12 +301,15 @@ final class Validator
 
     // A Malaysian street address, comma separated:
     //
-    //   1-2-2, Taman Setiawangsa, Jalan Genting Klang, 53300
-    //   ^ unit   ^ taman/building   ^ street (optional)  ^ postcode
+    //   1-2-2, Taman Setiawangsa, Jalan Genting Klang
+    //   ^ unit   ^ taman/building   ^ street (optional)
     //
-    // The unit, the area and the postcode are needed. The street is not: plenty
-    // of places are known only by their taman or their building name. So both
-    // three parts and four parts are accepted.
+    // The unit and the area are needed. The street is not: plenty of places are
+    // known only by their taman or their building name. So both two parts and
+    // three parts are accepted.
+    //
+    // The postcode used to be a fourth part here. It is asked for on its own
+    // now, checked by postcode() below, so this rule stops at the street.
     //
     // "No." and "Lot" are allowed in front of the number because that is how
     // most shoplots are written. Without this rule something like ?????12-3012
@@ -312,21 +327,40 @@ final class Validator
         $piece  = '(?:[A-Za-z]?\d+[A-Za-z]?|[A-Za-z])';
         $number = '(?:(?:No|Lot|Unit|Blok|Block)\.?\s*)?' . $piece . '(?:-' . $piece . ')*';
 
-        $words    = '[A-Za-z][A-Za-z0-9.\'\- ]+';
-        $comma    = '\s*,\s*';
-        $postcode = '\d{5}';
+        $words = '[A-Za-z][A-Za-z0-9.\'\- ]+';
+        $comma = '\s*,\s*';
 
         $pattern = '/^' . $number            // 1-2-2
                  . $comma . $words           // Taman Setiawangsa
                  . '(?:' . $comma . $words . ')?'   // Jalan Genting Klang, if there is one
-                 . $comma . $postcode        // 53300
                  . '$/';
 
         if (preg_match($pattern, $value) !== 1) {
             return $this->fail($field, $label . ' must look like "1-2-2, Taman Setiawangsa, '
-                                             . 'Jalan Genting Klang, 53300". The street name can be '
-                                             . 'left out, but the unit, the area and a 5 digit '
-                                             . 'postcode are needed.');
+                                             . 'Jalan Genting Klang". The street name can be left '
+                                             . 'out, but the unit and the area are needed. The '
+                                             . 'postcode goes in its own field.');
+        }
+
+        $this->clean[$field] = $value;
+
+        return $this;
+    }
+
+    // Five digits, which is the shape of every Malaysian postcode. Whether
+    // those five digits are a postcode Pos Malaysia actually hands out is a
+    // separate question, answered by Postcodes::stateFor(), because that is
+    // where the list of ranges lives.
+    public function postcode(string $field, string $label): self
+    {
+        $value = $this->raw($field);
+
+        if ($value === null || $value === '') {
+            return $this;
+        }
+
+        if (preg_match('/^\d{5}$/', $value) !== 1) {
+            return $this->fail($field, $label . ' must be 5 digits, for example 53300.');
         }
 
         $this->clean[$field] = $value;

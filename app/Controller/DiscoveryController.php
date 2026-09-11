@@ -8,9 +8,11 @@ namespace App\Controller;
 use App\Core\Controller;
 use App\Domain\Discovery\FeedFilterCriteria;
 use App\Domain\DiscoveryFacade;
+use App\Domain\PaymentFacade;
 use App\NotFoundException;
 use App\Security\Auth;
 use DomainException;
+use RuntimeException;
 
 final class DiscoveryController extends Controller
 {
@@ -67,34 +69,39 @@ final class DiscoveryController extends Controller
 
         $eventId = (string) ($_POST['eventId'] ?? '');
 
-        try {
-            $this->facade->joinEvent($eventId);
-            $this->flash('success', 'You have joined this game.');
-        } catch (NotFoundException $e) {
-            $this->flash('error', $e->getMessage());
-        } catch (DomainException $e) {
-            $this->flash('error', $e->getMessage());
+        if ($eventId === '') {
+            $this->redirect(url('discovery'));
         }
 
-        $this->redirect(url('event', 'show', ['id' => $eventId]));
+        // Payment owns the PENDING -> CONFIRMED registration transition for
+        // both paid and free events, so a paid event cannot be joined directly.
+        $this->redirect(
+            'payment.php?action=participant&eventId=' . rawurlencode($eventId)
+        );
     }
 
     public function leave(): void
     {
         $this->requirePostWithCsrf();
+        $eventId = (string) ($_POST['eventId'] ?? '');
 
         try {
-            $this->facade->leaveEvent((string) ($_POST['eventRegistrationId'] ?? ''));
-            $this->flash('success', 'You are no longer registered for this game.');
-        } catch (NotFoundException $e) {
+            if ($eventId === '') {
+                throw new NotFoundException('That event is no longer available.');
+            }
+
+            (new PaymentFacade())->cancelParticipantPayment(
+                $eventId,
+                Auth::requireLogin()->getBaseUserId()
+            );
+            $this->flash('success', 'Your registration was cancelled. Any eligible fee was refunded.');
+        } catch (NotFoundException | DomainException | RuntimeException $e) {
             $this->flash('error', $e->getMessage());
         }
 
         // Leaving from an event's own page returns to it, so the button that was
         // pressed is still on screen; from the participation list it returns
         // there. Only an id travels, and it is only ever put back into a URL.
-        $eventId = (string) ($_POST['eventId'] ?? '');
-
         $this->redirect($eventId !== ''
             ? url('event', 'show', ['id' => $eventId])
             : url('discovery', 'mine'));

@@ -16,6 +16,7 @@ $assetVersion = static function (string $relative) use ($assets): string {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +24,7 @@ $assetVersion = static function (string $relative) use ($assets): string {
     <link rel="stylesheet" href="<?= e($assetVersion('css/style.css')) ?>">
     <script src="<?= e($assetVersion('js/app.js')) ?>" defer></script>
 </head>
+
 <body>
 
 <header class="site-header">
@@ -36,6 +38,9 @@ $assetVersion = static function (string $relative) use ($assets): string {
             <a href="<?= e(url('discovery')) ?>">Find a game</a>
             <a href="<?= e(url('discovery', 'map')) ?>">Map</a>
             <!-- /js part -->
+            <?php // Venue search. Open to anyone, since a player may want to see
+                  // where games can be held before organising one. ?>
+            <a href="<?= e(url('facility', 'search')) ?>">Find a venue</a>
             <?php if ($currentUser !== null): ?>
                 <?php if ($currentUser->isFacilityOwner()): ?>
                     <a href="<?= e(url('facility', 'mine')) ?>">My venues</a>
@@ -51,8 +56,7 @@ $assetVersion = static function (string $relative) use ($assets): string {
                 <?php if ($currentUser->isAdmin()): ?>
                     <a href="<?= e(url('admin', 'accounts')) ?>">Accounts</a>
                 <?php endif; ?>
-            <?php endif; ?>
-        </nav>
+            </nav>
 
         <div class="session">
             <?php if ($currentUser !== null): ?>
@@ -66,16 +70,16 @@ $assetVersion = static function (string $relative) use ($assets): string {
                 <a class="btn small" href="<?= e(url('auth', 'register')) ?>">Register</a>
             <?php endif; ?>
         </div>
-    </div>
-</header>
+    </header>
 
-<main class="page">
-    <?php foreach (($flash ?? []) as $note): ?>
-        <div class="flash <?= e($note['type']) ?>"><?= e($note['message']) ?></div>
-    <?php endforeach; ?>
+    <main class="page">
+        <?php foreach (($flash ?? []) as $note): ?>
+            <div class="flash <?= e($note['type']) ?>"><?= e($note['message']) ?></div>
+        <?php endforeach; ?>
 
-    <?= $content ?>
-</main>
+        <?= $content ?>
+    </main>
 
 </body>
+
 </html>

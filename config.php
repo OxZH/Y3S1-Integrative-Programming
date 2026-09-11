@@ -1,4 +1,13 @@
 <?php
+$envFile = __DIR__ . '/.env';
+
+if (is_file($envFile)) {
+    foreach (parse_ini_file($envFile, false, INI_SCANNER_RAW) ?: [] as $key => $value) {
+        if (getenv($key) === false) {
+            putenv($key . '=' . $value);
+        }
+    }
+}
 // Application configuration. Author: Goh Jian Yu, Ooi Kean Wei, Ng Jing Siang, Khor Zhi Hong, Ivan Lim Tze Yang
 
 // Worked out from the request, so the same file runs under Apache at
@@ -22,6 +31,8 @@ if (getenv('SP_BASE_URL') === false && isset($_SERVER['HTTP_HOST'], $_SERVER['SC
 // `php -S` it must point somewhere else: that server is single threaded, so a
 // page calling its own host waits on a request it is itself blocking.
 $stubBase = getenv('SP_STUB_BASE') ?: $baseUrl;
+$serviceKey = getenv('SP_PAYMENT_SERVICE_KEY')
+    ?: hash('sha256', 'local-payment-service|' . __DIR__);
 
 return [
     'db' => [
@@ -55,9 +66,21 @@ return [
             'module' => 'Event & Facility Management',
             'url'    => $stubBase . '/api/event.php',
         ],
+
         'booking' => [
             'module' => 'Venue Booking & Payment',
-            'url'    => $stubBase . '/api/stub.php',
+            'url'    => $baseUrl . '/api/payment.php',
+            'key'    => $serviceKey,
+        ],
+        // Consumed BY module 2: the participation history on a profile asks the
+        // Event & Facility module to describe each event the user joined.
+        'event' => [
+            'module' => 'Event & Facility Management',
+            'url'    => $baseUrl . '/api/event.php',
+        ],
+        'facility' => [
+            'module' => 'Event & Facility Management',
+            'url'    => $baseUrl . '/api/facility.php',
         ],
         'rating' => [
             'module' => 'Social Networking & Review System',
@@ -72,5 +95,10 @@ return [
     'http' => [
         'timeout'         => 5,
         'connect_timeout' => 3,
+    ],
+
+    'payment' => [
+        'currency'    => 'myr',
+        'service_key' => $serviceKey,
     ],
 ];

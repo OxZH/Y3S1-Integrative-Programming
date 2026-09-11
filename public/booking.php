@@ -8,6 +8,15 @@ back over the web service, then returns to event&a=finalise.
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
+$eventId = $_GET['eventId'] ?? $_POST['eventId'] ?? '';
+
+if (is_string($eventId) && $eventId !== '') {
+    header('Location: payment.php?action=venue&eventId=' . rawurlencode($eventId));
+} else {
+    header('Location: index.php?c=event&a=mine');
+}
+exit;
+
 use App\AuthorizationException;
 use App\Core\Database;
 use App\Core\View;

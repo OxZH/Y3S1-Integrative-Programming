@@ -8,6 +8,7 @@ use App\Core\DataMapper;
 use App\Core\Entity;
 use App\EventStatus;
 use App\EventVisibility;
+use App\FacilityStatus;
 use App\FitnessRequirement;
 use App\SkillLevel;
 use DateTimeImmutable;
@@ -216,14 +217,25 @@ final class EventMapper extends DataMapper
         ];
     }
 
-    // Every sport already used, for the suggestions under the sport box on the
-    // event form. There are only ever a handful of these however many events
-    // exist, because it is one row per sport and not one per event.
-    public function listSports(): array
+    // Every slot already taken at a bookable venue inside the booking window,
+    // with no event names or hosts attached. The event form ships this with the
+    // page so the time dropdowns can grey out what is gone, which is the same
+    // information the venue page already publishes as its free slots.
+    public function busyIntervals(string $windowEnd): array
     {
-        $rows = $this->select('SELECT DISTINCT `sport` AS v FROM `Event` ORDER BY `sport`');
-
-        return array_map(function ($r) { return $r['v']; }, $rows);
+        return $this->select(
+            'SELECT e.`facilityId`, e.`eventDate`, e.`startTime`, e.`endTime`
+               FROM `Event` e
+               JOIN `Facility` f ON f.`facilityId` = e.`facilityId`
+              WHERE f.`status` = :active
+                AND e.`status` <> :cancelled
+                AND e.`eventDate` BETWEEN CURDATE() AND :windowEnd',
+            [
+                ':active'    => FacilityStatus::ACTIVE->value,
+                ':cancelled' => EventStatus::CANCELLED->value,
+                ':windowEnd' => $windowEnd,
+            ]
+        );
     }
 
     private function facilities(): FacilityMapper

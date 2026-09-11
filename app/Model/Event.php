@@ -255,6 +255,19 @@ class Event extends Entity
         $this->status = EventStatus::CANCELLED;
     }
 
+    public function complete()
+    {
+        if (!$this->isInThePast()) {
+            throw new DomainException('An event can only be completed after its end time.');
+        }
+
+        if (!in_array($this->status, [EventStatus::PUBLISHED, EventStatus::FULL, EventStatus::ONGOING], true)) {
+            throw new DomainException('Only a live event can be completed.');
+        }
+
+        $this->status = EventStatus::COMPLETED;
+    }
+
     // $changes comes from the Validator, so only fields that passed are in it
     public function updateDetails(array $changes)
     {

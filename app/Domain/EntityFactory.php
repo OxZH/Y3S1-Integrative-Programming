@@ -25,6 +25,7 @@ final class EntityFactory
             uuid(),
             (string) $validated['name'],
             (string) $validated['addressLine'],
+            (string) $validated['postcode'],
             (string) $validated['city'],
             (string) $validated['state'],
             (string) $validated['type'],

@@ -227,9 +227,46 @@ enum RegistrationStatus: string
     {
         return $this === self::CONFIRMED || $this === self::ATTENDED;
     }
-
     public function label(): string
     {
         return $this === self::NO_SHOW ? 'No show' : ucfirst(strtolower($this->value));
+        return ucfirst(strtolower($this->value));
+    }
+}
+
+// kw part
+        
+enum FriendState: string
+{
+    case PENDING   = 'PENDING';
+    case ACCEPTED  = 'ACCEPTED';
+    case REJECTED  = 'REJECTED';
+    case REMOVED   = 'REMOVED';
+
+    public function isPending(): bool
+    {
+        return $this === self::PENDING;
+    }
+}
+
+enum ModerationStatus: string
+{
+    case VISIBLE   = 'VISIBLE';
+    case HIDDEN    = 'HIDDEN';
+    case REMOVED   = 'REMOVED';
+
+    public function isVisible(): bool
+    {
+        return $this === self::VISIBLE;
+    }
+
+    public function isRemoved(): bool
+    {
+        return $this === self::REMOVED;
+    }
+
+    public function label(): string
+    {
+        return ucfirst(strtolower($this->value));
     }
 }

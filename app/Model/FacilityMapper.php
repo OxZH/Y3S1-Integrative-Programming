@@ -27,7 +27,7 @@ final class FacilityMapper extends DataMapper
     protected function columns(): array
     {
         return [
-            'facilityId', 'ownerId', 'name', 'imageUrl', 'addressLine', 'city', 'state',
+            'facilityId', 'ownerId', 'name', 'imageUrl', 'addressLine', 'postcode', 'city', 'state',
             'type', 'bookingFee', 'operationalHrsStart', 'operationalHrsEnd',
             'latitude', 'longitude', 'status', 'createdAt',
         ];
@@ -39,6 +39,7 @@ final class FacilityMapper extends DataMapper
             (string) $row['facilityId'],
             (string) $row['name'],
             (string) $row['addressLine'],
+            (string) $row['postcode'],
             (string) $row['city'],
             (string) $row['state'],
             (string) $row['type'],
@@ -77,6 +78,7 @@ final class FacilityMapper extends DataMapper
             'name'                => $entity->getName(),
             'imageUrl'            => $entity->getImageUrl(),
             'addressLine'         => $entity->getAddressLine(),
+            'postcode'            => $entity->getPostcode(),
             'city'                => $entity->getCity(),
             'state'               => $entity->getState(),
             'type'                => $entity->getType(),
@@ -107,14 +109,19 @@ final class FacilityMapper extends DataMapper
         $params = [':status' => FacilityStatus::ACTIVE->value];
 
         if ($criteria->keyword !== null) {
-            // Three placeholders for one value: with emulated prepares off, a
+            // Four placeholders for one value: with emulated prepares off, a
             // repeated placeholder name leaves the statement a parameter short.
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $criteria->keyword) . '%';
 
-            $where[] = '(f.`name` LIKE :kw1 OR f.`addressLine` LIKE :kw2 OR f.`city` LIKE :kw3)';
+            // The postcode is searched too. It used to be part of addressLine,
+            // so typing one still has to find the venue now that it lives in a
+            // column of its own.
+            $where[] = '(f.`name` LIKE :kw1 OR f.`addressLine` LIKE :kw2 '
+                     . 'OR f.`city` LIKE :kw3 OR f.`postcode` LIKE :kw4)';
             $params[':kw1'] = $like;
             $params[':kw2'] = $like;
             $params[':kw3'] = $like;
+            $params[':kw4'] = $like;
         }
 
         if ($criteria->city !== null) {

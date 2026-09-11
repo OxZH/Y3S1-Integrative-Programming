@@ -38,6 +38,12 @@ Every seeded account uses the password `Password123!`:
 
 Or register a new account at **Register**.
 
+### Internal Demo Payments
+
+No external payment account, API key, Composer package or Webhook is required.
+The payment page simulates Card, FPX and E-wallet payments and records the
+result in MySQL. No real money is charged or transferred.
+
 ### Other ways to run it
 
 Copying the whole project into `htdocs` also works, at
@@ -103,6 +109,27 @@ Exposed, on `POST /api/facility.php` and `POST /api/event.php`:
 `getFacilityDetails`, `searchFacilities`, `getEventDetails`,
 `listUpcomingEvents`, `getEventsByFacility`. Full IFA tables are in each file's
 header comment.
+
+Venue Booking & Payment also exposes `POST /api/payment.php`:
+`getBookingStatus`, `getEventPaymentSummary`, `cancelEventPayments` and
+`settleEventPayout`. The two mutation functions require the shared
+`X-Service-Key` header. Their complete IFA is in the endpoint's header.
+
+The payment module is isolated from Jianyu's pages and controllers. Its own
+entry points are:
+
+```
+payment.php
+payment.php?action=venue&eventId=<eventId>
+payment.php?action=participant&eventId=<eventId>
+```
+
+When integrating, Jianyu only needs to redirect a newly-created event to the
+venue URL above. On event cancellation call `cancelEventPayments`; after the
+Event module changes an event to `COMPLETED`, call `settleEventPayout`.
+Venue payments are non-refundable. Participant fees receive a full refund only
+when the participant or Event module cancels before the event's actual start
+date and time.
 
 ```
 curl -X POST http://localhost:8000/api/facility.php \
