@@ -259,6 +259,30 @@ CREATE TABLE `EventInvite` (                      -- [+] GAP 2: generate shareab
     KEY `idx_EventInvite_event` (`eventId`)
 ) ENGINE=InnoDB;
 
+-- [+] jy: who an invite link has actually let in.
+--     The token proves nothing on its own after the request that redeemed it.
+--     Every later check - the event page, and the getEventDetails call the
+--     Discovery module makes when somebody joins - asks "may this viewer see
+--     this event" with no token in hand, because that call arrives over HTTP
+--     with no session. Without a row here a non-friend is admitted for exactly
+--     one request, has a use spent, and is turned away on the next page.
+--     baseUserId points at BaseUser rather than User so that a venue owner
+--     opening a link is refused politely instead of dying on a foreign key.
+CREATE TABLE `EventInviteGrant` (
+    `eventInviteId` VARCHAR(36) NOT NULL,
+    `baseUserId`    VARCHAR(36) NOT NULL,
+    `eventId`       VARCHAR(36) NOT NULL,   -- kept here so a visibility check is one indexed read and not a join
+    `grantedAt`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`eventInviteId`, `baseUserId`),   -- opening the same link twice is not a second admission
+    KEY `idx_EventInviteGrant_viewer` (`eventId`, `baseUserId`),
+    CONSTRAINT `fk_EventInviteGrant_invite`
+        FOREIGN KEY (`eventInviteId`) REFERENCES `EventInvite`(`eventInviteId`) ON DELETE CASCADE,
+    CONSTRAINT `fk_EventInviteGrant_user`
+        FOREIGN KEY (`baseUserId`)    REFERENCES `BaseUser`(`baseUserId`)       ON DELETE CASCADE,
+    CONSTRAINT `fk_EventInviteGrant_event`
+        FOREIGN KEY (`eventId`)       REFERENCES `Event`(`eventId`)            ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 
 -- ============================================================================
 --  MODULE 5 - Discovery & Event Matchmaking  (js)

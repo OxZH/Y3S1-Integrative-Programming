@@ -322,6 +322,18 @@ final class Validator
             return $this;
         }
 
+        // The postcode has a field of its own, and the town and the state are
+        // worked out from it. A second copy typed in here can therefore only
+        // ever disagree with the first, which is how a venue ends up displayed
+        // as "Taman XYZ, 11100 Tanjung Bungah, Penang, 11100 Batu Ferringhi,
+        // Penang". Refused rather than quietly stripped, because guessing which
+        // of the two the owner meant is worse than asking them.
+        if (preg_match('/\b\d{5}\b/', $value) === 1) {
+            return $this->fail($field, 'Leave the postcode out of the ' . strtolower($label)
+                                     . '. It has a field of its own, and the town and the state '
+                                     . 'are taken from it.');
+        }
+
         // One piece of a unit number: 12, 12A, A7, or a bare block letter such
         // as the A in A-3-7, which is how most condo units are written.
         $piece  = '(?:[A-Za-z]?\d+[A-Za-z]?|[A-Za-z])';
@@ -330,16 +342,20 @@ final class Validator
         $words = '[A-Za-z][A-Za-z0-9.\'\- ]+';
         $comma = '\s*,\s*';
 
-        $pattern = '/^' . $number            // 1-2-2
-                 . $comma . $words           // Taman Setiawangsa
-                 . '(?:' . $comma . $words . ')?'   // Jalan Genting Klang, if there is one
+        // The unit number is optional. A good many venues are a named building
+        // or a stretch of road with no unit to quote, so "Jalan Kampung, Taman
+        // Desa" has to be as acceptable as "1-2-2, Taman Setiawangsa, Jalan
+        // Genting Klang".
+        $pattern = '/^(?:' . $number . $comma . ')?'   // 1-2-2, if there is one
+                 . $words                              // Taman Setiawangsa
+                 . '(?:' . $comma . $words . ')*'      // Jalan Genting Klang, and any more
                  . '$/';
 
         if (preg_match($pattern, $value) !== 1) {
-            return $this->fail($field, $label . ' must look like "1-2-2, Taman Setiawangsa, '
-                                             . 'Jalan Genting Klang". The street name can be left '
-                                             . 'out, but the unit and the area are needed. The '
-                                             . 'postcode goes in its own field.');
+            return $this->fail($field, $label . ' should read like "Jalan Kampung, Taman Desa" '
+                                             . 'or "1-2-2, Taman Setiawangsa, Jalan Genting '
+                                             . 'Klang". Separate the parts with commas. A unit '
+                                             . 'number is optional.');
         }
 
         $this->clean[$field] = $value;

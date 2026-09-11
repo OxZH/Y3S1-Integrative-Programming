@@ -189,15 +189,25 @@ $canTakePart = Auth::user()?->isPlayer() ?? false;
                         <h3><?= e($review->getTitle()) ?></h3>
                         <p><?= nl2br(e($review->getComment())) ?></p>
                         <div class="review-footer">
-                            <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
-                                <?= $csrfField ?? '' ?>
-                                <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
-                                <input type="hidden" name="targetType" value="facility">
-                                <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
-                                <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
-                                <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
+                            <?php
+                            // A vote is recorded against the voter, and ReviewVote.voterId is a
+                            // foreign key into the member table. A venue owner has no row there,
+                            // so offering them the buttons only leads to a failed insert. The
+                            // tally is still worth showing to everybody.
+                            ?>
+                            <?php if ($canTakePart): ?>
+                                <form method="post" action="<?= e(url('review', 'vote')) ?>" class="button-row">
+                                    <?= $csrfField ?? '' ?>
+                                    <input type="hidden" name="reviewId" value="<?= e($review->getReviewId()) ?>">
+                                    <input type="hidden" name="targetType" value="facility">
+                                    <input type="hidden" name="targetId" value="<?= e($facility->getFacilityId()) ?>">
+                                    <button class="btn ghost small" type="submit" name="vote" value="1">Upvote</button>
+                                    <button class="btn ghost small" type="submit" name="vote" value="-1">Downvote</button>
+                                    <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
+                                </form>
+                            <?php else: ?>
                                 <span class="small muted"><?= (int) $review->getVotes() ?> votes</span>
-                            </form>
+                            <?php endif; ?>
                             <time class="small muted" datetime="<?= e($review->getReviewTimestamp()->format(DATE_ATOM)) ?>">
                                 <?= e($review->getReviewTimestamp()->format('j M Y, H:i')) ?>
                             </time>

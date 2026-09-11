@@ -3,6 +3,7 @@
 
 namespace App\Domain;
 
+use App\AuthorizationException;
 use App\Core\Database;
 use App\FacilityStatus;
 use App\Model\Event;
@@ -56,7 +57,7 @@ final class EventManagementFacade
 
         $this->availability = new AvailabilityChecker($this->events);
         $this->publication  = new PublicationPolicy($this->services);
-        $this->visibility   = new VisibilityPolicy($this->services);
+        $this->visibility   = new VisibilityPolicy($this->services, $this->invites);
         $this->factory      = new EntityFactory();
         $this->tokens       = new InviteTokens();
     }
@@ -396,7 +397,10 @@ final class EventManagementFacade
         $this->invites->update($invite);
     }
 
-    // The token is spent before the event is returned, so a race cannot let two people in.
+    // The token is spent before the event is returned, so a race cannot let two
+    // people through a single-use link. The admission is then written down,
+    // because the token only exists during this one request and every check
+    // after it has none to offer.
     public function redeemInvite(string $token): Event
     {
         $invite = $this->invites->findByToken($token);
@@ -405,13 +409,32 @@ final class EventManagementFacade
             throw new NotFoundException('That invite link is not valid.');
         }
 
-        $event = $this->requireEvent($invite->getEventId());
+        $event  = $this->requireEvent($invite->getEventId());
+        $userId = Auth::id();
 
-        if (!$this->visibility->isVisibleTo($event, Auth::id(), $invite)) {
+        // Nobody to admit. Spending a use on a visitor who cannot join anyway
+        // would burn the link for the person it was meant for.
+        if ($userId === null) {
+            throw new AuthorizationException('Please sign in first, then open the invite link again.');
+        }
+
+        // Already let in by this link, or another one for the same game. Coming
+        // back to it is not a second admission and does not cost a second use.
+        if ($this->invites->holdsGrant((string) $event->getEventId(), $userId)) {
+            return $event;
+        }
+
+        if (!$this->visibility->isVisibleTo($event, $userId, $invite)) {
             throw new NotFoundException('That invite link is no longer valid.');
         }
 
-        $this->invites->recordUse($invite);
+        // recordUse re-checks the cap inside the UPDATE, so two people opening
+        // the last use at the same moment cannot both get through.
+        if (!$this->invites->recordUse($invite)) {
+            throw new NotFoundException('That invite link is no longer valid.');
+        }
+
+        $this->invites->grant($invite, $userId);
 
         return $event;
     }

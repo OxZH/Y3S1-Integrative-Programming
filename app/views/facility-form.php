@@ -58,9 +58,12 @@ $err = static function (string $field) use ($errors): string {
 
     <label for="addressLine">Street address</label>
     <input class="<?= e($bad('addressLine')) ?>" type="text" id="addressLine" name="addressLine" maxlength="255"
-           placeholder="1-2-2, Taman Setiawangsa, Jalan Genting Klang"
+           placeholder="Jalan Kampung, Taman Desa"
            value="<?= $value('addressLine', $facility?->getAddressLine()) ?>" required>
-    <p class="small muted">Unit, area and street, separated by commas. The street can be left out.</p>
+    <p class="small muted">
+        Area and street, separated by commas, with a unit number in front if the venue has one.
+        Leave out the postcode, the town and the state, since those come from the field below.
+    </p>
     <?= $err('addressLine') ?>
 
     <div class="row-3">

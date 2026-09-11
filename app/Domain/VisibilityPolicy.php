@@ -5,6 +5,7 @@ namespace App\Domain;
 
 use App\Model\Event;
 use App\Model\EventInvite;
+use App\Model\EventInviteMapper;
 use App\Service\RemoteServices;
 use App\ServiceUnavailableException;
 
@@ -14,8 +15,16 @@ use App\ServiceUnavailableException;
 //   1 the host always sees their own event, in any state
 //   2 an event that never went live is nobody else's business
 //   3 a public event that went live is visible to everyone
-//   4 a friends-only event that went live needs an accepted friendship, or a
-//     usable invite link for that event
+//   4 a friends-only event that went live needs an accepted friendship, an
+//     invite link already redeemed by this viewer, or a usable invite link
+//     being redeemed right now
+//
+// The middle of those three is what makes an invite link worth anything. A
+// token is only in hand during the request that redeems it, and every check
+// after that one - the event page, and the getEventDetails call the Discovery
+// module makes when somebody joins - has no token to offer, the latter because
+// it arrives over HTTP with no session. Reading the redemption back from
+// EventInviteGrant is what carries the admission past the first request.
 //
 // Rule 2 asks whether the event was ever live, not whether it is live now. It
 // used to ask isPublished(), which is true of PUBLISHED alone, and that quietly
@@ -37,8 +46,10 @@ use App\ServiceUnavailableException;
 // to prevent.
 final class VisibilityPolicy
 {
-    public function __construct(private RemoteServices $services)
-    {
+    public function __construct(
+        private RemoteServices $services,
+        private ?EventInviteMapper $invites = null
+    ) {
     }
 
     public function isVisibleTo(Event $event, ?string $viewerId, ?EventInvite $invite = null): bool
@@ -63,6 +74,14 @@ final class VisibilityPolicy
 
         if ($viewerId === null || $hostId === null) {
             return false;
+        }
+
+        // An invite this viewer has already redeemed. Checked before the friend
+        // service because it is a local read, and because somebody let in by a
+        // link should not lose the game if the Social module is down.
+        if ($this->invites !== null
+            && $this->invites->holdsGrant((string) $event->getEventId(), $viewerId)) {
+            return true;
         }
 
         try {

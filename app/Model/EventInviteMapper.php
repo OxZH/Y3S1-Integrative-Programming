@@ -105,4 +105,43 @@ final class EventInviteMapper extends DataMapper
 
         return false;
     }
+
+    // Writes down that this person was let in by this link. INSERT IGNORE
+    // rather than a read followed by a write, because the primary key already
+    // says one row per link per person and the database is better placed than
+    // PHP to enforce it. A repeat returns false, which is how redeemInvite()
+    // knows not to spend a second use on somebody already admitted.
+    public function grant(EventInvite $invite, string $baseUserId): bool
+    {
+        $affected = $this->execute(
+            'INSERT IGNORE INTO `EventInviteGrant` (`eventInviteId`, `baseUserId`, `eventId`)
+                  VALUES (:invite, :user, :event)',
+            [
+                ':invite' => $invite->getEventInviteId(),
+                ':user'   => $baseUserId,
+                ':event'  => $invite->getEventId(),
+            ]
+        );
+
+        return $affected === 1;
+    }
+
+    // Asked on every visibility check for a friends-only event, so it is a
+    // single indexed lookup on (eventId, baseUserId) and never a join.
+    //
+    // Deliberately not tied to the invite still being usable. A link that has
+    // since been used up or expired does not throw out the people it already
+    // let in; revoking the event, or the invite row itself, is what does that.
+    public function holdsGrant(string $eventId, string $baseUserId): bool
+    {
+        $row = $this->selectOne(
+            'SELECT 1 AS `found`
+               FROM `EventInviteGrant`
+              WHERE `eventId` = :event AND `baseUserId` = :user
+              LIMIT 1',
+            [':event' => $eventId, ':user' => $baseUserId]
+        );
+
+        return $row !== null;
+    }
 }
