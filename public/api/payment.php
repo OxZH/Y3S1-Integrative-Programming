@@ -64,7 +64,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
-use App\Domain\PaymentFacade;
+use App\Domain\PaymentService;
 use App\Service\Ifa;
 use App\Service\ServiceLog;
 
@@ -93,16 +93,16 @@ try {
         throw new DomainException('eventId is mandatory.');
     }
 
-    $facade = new PaymentFacade();
+    $payments = new PaymentService();
 
     if ($function === 'getBookingStatus') {
-        $data = $facade->getBookingStatus($eventId);
+        $data = $payments->getBookingStatus($eventId);
         ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
         Ifa::respond(Ifa::success($requestId, $data, 'Booking status retrieved.'));
     }
 
     if ($function === 'getEventPaymentSummary') {
-        $data = $facade->eventPaymentSummary($eventId);
+        $data = $payments->eventPaymentSummary($eventId);
         ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
         Ifa::respond(Ifa::success($requestId, $data, 'Payment summary retrieved.'));
     }
@@ -122,8 +122,8 @@ try {
             $reason = is_string($request['reason'] ?? null) && trim($request['reason']) !== ''
                 ? trim($request['reason'])
                 : 'Event cancelled by organizer.';
-            $facade->cancelEventPayments($eventId, $reason);
-            $data = $facade->eventPaymentSummary($eventId);
+            $payments->cancelEventPayments($eventId, $reason);
+            $data = $payments->eventPaymentSummary($eventId);
             ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
             Ifa::respond(Ifa::success(
                 $requestId,
@@ -132,7 +132,7 @@ try {
             ));
         }
 
-        $data = $facade->settleEventPayout($eventId);
+        $data = $payments->settleEventPayout($eventId);
         ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
         Ifa::respond(Ifa::success($requestId, $data, 'Participant fees settled to organizer.'));
     }

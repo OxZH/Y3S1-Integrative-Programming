@@ -24,7 +24,7 @@ use App\ServiceUnavailableException;
  * boundary. This class is architecture, not the graded design pattern - that is
  * the Builder in App\Domain\Discovery.
  */
-final class DiscoveryFacade
+final class DiscoveryService
 {
     private DiscoveryRemoteServices $services;
     private EventRegistrationMapper $registrations;
@@ -194,7 +194,7 @@ final class DiscoveryFacade
     //
     // Joining and leaving are not methods here. Every join goes through Venue
     // Booking & Payment's checkout, and the place is taken at the moment the
-    // fee is paid - PaymentFacade::takePlace() calls this module's
+    // fee is paid - PaymentService::takePlace() calls this module's
     // EventRegistrationMapper::registerIfSpaceAvailable() inside the payment
     // transaction, so the row lock that keeps a full game full is held until
     // the payment row is written too. Leaving is the same in reverse: the

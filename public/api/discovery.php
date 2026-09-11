@@ -57,7 +57,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
 use App\Domain\Discovery\EventFeedItem;
-use App\Domain\DiscoveryFacade;
+use App\Domain\DiscoveryService;
 use App\Service\Ifa;
 use App\Service\ServiceLog;
 
@@ -97,7 +97,7 @@ function feedItemToArray(EventFeedItem $item): array
 }
 
 try {
-    $facade = new DiscoveryFacade();
+    $discovery = new DiscoveryService();
 
     if ($function === 'getParticipationHistory') {
         $userId = $request['userId'] ?? null;
@@ -113,7 +113,7 @@ try {
             ? $request['viewerId']
             : null;
 
-        $registrations = $facade->participationHistoryFor(
+        $registrations = $discovery->participationHistoryFor(
             $userId,
             $viewerId,
             min(50, max(1, (int) ($request['limit'] ?? 10)))
@@ -137,7 +137,7 @@ try {
         }
 
         $limit  = min(100, max(1, (int) ($request['limit'] ?? 10)));
-        $events = array_map('feedItemToArray', $facade->recommendedEvents($userId, $limit));
+        $events = array_map('feedItemToArray', $discovery->recommendedEvents($userId, $limit));
 
         ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
 

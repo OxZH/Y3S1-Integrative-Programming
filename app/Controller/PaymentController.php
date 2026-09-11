@@ -7,7 +7,7 @@ namespace App\Controller;
 
 use App\Core\Controller;
 use App\Domain\Payment\PaymentMethodStrategyFactory;
-use App\Domain\PaymentFacade;
+use App\Domain\PaymentService;
 use App\Security\Auth;
 use DomainException;
 use RuntimeException;
@@ -28,11 +28,11 @@ final class PaymentController extends Controller
         'counterparty' => 'counterparty',
     ];
 
-    private PaymentFacade $payments;
+    private PaymentService $payments;
 
     public function __construct()
     {
-        $this->payments = new PaymentFacade();
+        $this->payments = new PaymentService();
     }
 
     public function index(): void

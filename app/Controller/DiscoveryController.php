@@ -7,8 +7,8 @@ namespace App\Controller;
 
 use App\Core\Controller;
 use App\Domain\Discovery\FeedFilterCriteria;
-use App\Domain\DiscoveryFacade;
-use App\Domain\PaymentFacade;
+use App\Domain\DiscoveryService;
+use App\Domain\PaymentService;
 use App\NotFoundException;
 use App\Security\Auth;
 use DomainException;
@@ -16,11 +16,11 @@ use RuntimeException;
 
 final class DiscoveryController extends Controller
 {
-    private DiscoveryFacade $facade;
+    private DiscoveryService $discovery;
 
     public function __construct()
     {
-        $this->facade = new DiscoveryFacade();
+        $this->discovery = new DiscoveryService();
     }
 
     public function index(): void
@@ -34,7 +34,7 @@ final class DiscoveryController extends Controller
         $joined = [];
 
         if ($viewerId !== null) {
-            foreach ($this->facade->myParticipation() as $registration) {
+            foreach ($this->discovery->myParticipation() as $registration) {
                 if ($registration->isActive()) {
                     $joined[$registration->getEventId()] = true;
                 }
@@ -43,16 +43,16 @@ final class DiscoveryController extends Controller
 
         $this->view('discovery-browse', [
             'title'       => 'Find a game',
-            'events'      => $this->facade->browseEvents($criteria, $viewerId),
+            'events'      => $this->discovery->browseEvents($criteria, $viewerId),
             'joined'      => $joined,
             'criteria'    => $criteria,
             'input'       => $_GET,
             // The filter offers the sports that actually have games, so it can
             // never be set to something that returns an empty page.
-            'sports'      => $this->facade->availableSports($viewerId),
+            'sports'      => $this->discovery->availableSports($viewerId),
             // Distance filtering measures from the player's own saved position,
             // so the form says as much when there is not one to measure from.
-            'hasPosition' => $this->facade->hasKnownPosition($viewerId),
+            'hasPosition' => $this->discovery->hasKnownPosition($viewerId),
         ]);
     }
 
@@ -63,7 +63,7 @@ final class DiscoveryController extends Controller
 
         $this->view('discovery-map', [
             'title'   => 'Map',
-            'markers' => $this->facade->mapMarkers(Auth::id(), $latitude, $longitude),
+            'markers' => $this->discovery->mapMarkers(Auth::id(), $latitude, $longitude),
         ]);
     }
 
@@ -73,7 +73,7 @@ final class DiscoveryController extends Controller
 
         $this->view('discovery-recommended', [
             'title'  => 'Recommended for you',
-            'events' => $this->facade->recommendedEvents((string) Auth::id()),
+            'events' => $this->discovery->recommendedEvents((string) Auth::id()),
         ]);
     }
 
@@ -89,7 +89,7 @@ final class DiscoveryController extends Controller
 
         // Every join goes through checkout. The place is taken there, at the
         // moment the fee is paid (or at once, for a free game), by this module's
-        // own registration guard - see PaymentFacade::takePlace(). Nothing is
+        // own registration guard - see PaymentService::takePlace(). Nothing is
         // written before that, so a checkout page left open holds no seat.
         $this->redirect(
             'payment.php?action=participant&eventId=' . rawurlencode($eventId)
@@ -106,7 +106,7 @@ final class DiscoveryController extends Controller
                 throw new NotFoundException('That event is no longer available.');
             }
 
-            (new PaymentFacade())->cancelParticipantPayment(
+            (new PaymentService())->cancelParticipantPayment(
                 $eventId,
                 Auth::requireLogin()->getBaseUserId()
             );
@@ -129,7 +129,7 @@ final class DiscoveryController extends Controller
 
         $this->view('discovery-mine', [
             'title'         => 'My participation',
-            'registrations' => $this->facade->myParticipation(),
+            'registrations' => $this->discovery->myParticipation(),
         ]);
     }
 }

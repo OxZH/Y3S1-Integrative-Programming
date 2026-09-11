@@ -98,7 +98,7 @@ app/
   Domain/               EventManagementFacade + its policies          (module 1)
                         AccountService, AccountServiceProxy,
                         ResetLinkDelivery                             (module 2)
-                        PaymentFacade + Payment/ strategies           (module 4)
+                        PaymentService + Payment/ strategies           (module 4)
   Service/              IFA envelope, log, HTTP client, RemoteServices
                         ParticipationHistory                          (module 2)
   Security/             Auth, Csrf, Validator (shared)

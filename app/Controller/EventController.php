@@ -5,7 +5,7 @@ namespace App\Controller;
 
 use App\Competitiveness;
 use App\Core\Controller;
-use App\Domain\DiscoveryFacade; // js part
+use App\Domain\DiscoveryService; // js part
 use App\Domain\EventManagementFacade;
 use App\Domain\InviteTokens;
 use App\EventVisibility;
@@ -66,7 +66,7 @@ final class EventController extends Controller
         $event  = $this->facade->viewEvent($eventId);
         $isHost = Auth::id() !== null && $event->isHostedBy((string) Auth::id());
 
-        $discovery = new DiscoveryFacade(); // js part
+        $discovery = new DiscoveryService(); // js part
 
         $this->view('event-show', [
             'title'        => $event->getName(),

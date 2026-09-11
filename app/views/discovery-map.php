@@ -7,7 +7,7 @@ use App\Domain\Discovery\EventFeedItem;
 
 // Only venue/event coordinates - which are already public information - ever go
 // into this payload. A user's own location is never sent to the browser as raw
-// latitude/longitude; see App\Domain\DiscoveryFacade::distanceTo(), which turns
+// latitude/longitude; see App\Domain\DiscoveryService::distanceTo(), which turns
 // it into a rounded km figure server-side and discards the coordinates.
 $markerData = array_map(static fn (EventFeedItem $m): array => [
     'id'       => $m->eventId,

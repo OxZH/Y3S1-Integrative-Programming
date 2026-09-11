@@ -26,7 +26,7 @@ use RuntimeException;
  * full, so the place is taken through it, inside the same transaction as the
  * payment row, and this class never writes EventRegistration directly.
  */
-final class PaymentFacade
+final class PaymentService
 {
     public const MAX_SAVED_METHODS = 5;
 

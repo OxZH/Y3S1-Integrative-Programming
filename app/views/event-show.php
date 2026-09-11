@@ -89,7 +89,7 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
             <a class="btn" href="<?= e(url('auth')) ?>">Sign in to join this game</a>
         <?php elseif ($isHost): ?>
             <?php
-            // PaymentFacade refuses to register the organiser as a participant,
+            // PaymentService refuses to register the organiser as a participant,
             // so offering them the button only produced an error every time.
             // The count beside it is the players who joined, which does not
             // include the organiser.
@@ -147,7 +147,7 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
                 <tr><th>#</th><th>Player</th><th>Joined</th></tr>
             </thead>
             <tbody>
-                <?php $rank = ($playerPage['page'] - 1) * App\Domain\DiscoveryFacade::PLAYERS_PER_PAGE; ?>
+                <?php $rank = ($playerPage['page'] - 1) * App\Domain\DiscoveryService::PLAYERS_PER_PAGE; ?>
                 <?php foreach ($playerPage['players'] as $registration): ?>
                     <?php $player = $registration->getUser(); ?>
                     <tr>

@@ -30,7 +30,7 @@ isProject: false
 
 ## 数据库与领域层
 - 尽量复用现有 `Booking`、`Payment`、`Refund`，只在 [database/schema.sql](database/schema.sql) 增加必要的 `ParticipantPayment`、`ConnectAccount`、`Transfer` 和 `StripeWebhookEvent`；不拆成大量细表。
-- 不为每张付款表建立独立 Entity 和 Mapper。只增加一个 `PaymentFacade` 集中处理 PDO 查询、状态变化、transaction、退款和 payout，降低文件数量。
+- 不为每张付款表建立独立 Entity 和 Mapper。只增加一个 `PaymentService` 集中处理 PDO 查询、状态变化、transaction、退款和 payout，降低文件数量。
 - 所有金额由服务器根据 Event/Facility API 计算并保存快照；Stripe ID、Webhook event ID 和 IFA `requestId` 用于幂等，防止重复扣款、退款或转账。
 
 ## Stripe Test Mode
@@ -59,5 +59,5 @@ isProject: false
 - 完成前验证重复 Webhook、重复 API 请求、Event 取消全额退款及异常信息；只保留业务代码和必要说明。
 
 ## 文件数量控制
-- 主要新增文件控制在约 6 个：`PaymentFacade`、`StripeService`、`PaymentController`、共用 payment view、`api/payment.php`、`api/stripe-webhook.php`。
+- 主要新增文件控制在约 6 个：`PaymentService`、`StripeService`、`PaymentController`、共用 payment view、`api/payment.php`、`api/stripe-webhook.php`。
 - 其余只修改现有 `schema.sql`、`config.php`、`RemoteServices.php`、front controller、`booking.php` 和必要 CSS/README；不增加 Repository、DTO、Factory、多个小 Service 或测试文件。
