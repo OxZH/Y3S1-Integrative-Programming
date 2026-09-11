@@ -331,87 +331,111 @@
     }
 
     /* ----------------------------------------------------------------------
-       Show the state that the postcode implies.
+       Fill in the town and the state from the postcode.
 
-       Pos Malaysia hands out postcodes by state, so the postcode already says
-       which state a venue is in and the owner is never asked. This fills the
-       read-only box as they type, purely so they can see it is right before
-       submitting.
+       Pos Malaysia gives every postcode one post town in one state, so the
+       owner types five digits and both boxes fill themselves. They are
+       read-only, and nothing in them is submitted.
 
-       FacilityController works the same thing out again from the postcode, so
-       nothing here is trusted. The ranges travel in a data attribute, the same
-       way the venue list does, to keep PHP out of this file.
+       The list is fetched from public/data/postcodes.json, which is the very
+       file FacilityController reads. One copy means the box on the form and the
+       row in the database can never disagree about what a postcode means. It is
+       a static file rather than a lookup endpoint, so the browser caches it and
+       asks for it once.
+
+       None of this is a check. The server looks the postcode up again and
+       ignores whatever the browser sends for city and state, so a tampered
+       field has nothing to tamper with.
        ---------------------------------------------------------------------- */
 
     function setUpStateFromPostcode() {
         var postcode = document.getElementById('postcode');
-        var shown    = document.getElementById('stateShown');
+        var cityBox  = document.getElementById('cityShown');
+        var stateBox = document.getElementById('stateShown');
 
-        if (!postcode || !shown) {
+        if (!postcode || !cityBox || !stateBox) {
             return;
         }
 
-        var ranges;
+        var source = postcode.getAttribute('data-postcode-source');
 
-        try {
-            ranges = JSON.parse(postcode.getAttribute('data-postcode-states') || '{}');
-        } catch (error) {
+        if (!source) {
             return;
         }
 
-        function stateFor(digits) {
-            var number = parseInt(digits, 10);
+        var places = null;
+        var asked  = false;
 
-            for (var state in ranges) {
-                if (!Object.prototype.hasOwnProperty.call(ranges, state)) {
-                    continue;
-                }
-
-                var blocks = ranges[state];
-
-                for (var i = 0; i < blocks.length; i++) {
-                    if (number >= blocks[i][0] && number <= blocks[i][1]) {
-                        return state;
-                    }
-                }
-            }
-
-            return null;
+        function show(city, state) {
+            cityBox.value  = city;
+            stateBox.value = state;
         }
 
         function refresh() {
             var typed = String(postcode.value).replace(/\D/g, '');
 
-            // Nothing to say until all five digits are in, or the box would
-            // read "not a postcode" while somebody is still typing one.
+            // Nothing to say until all five digits are in, or the boxes would
+            // read "not found" while somebody is still typing.
             if (typed.length < 5) {
-                shown.value = '';
+                show('', '');
+
                 return;
             }
 
-            shown.value = stateFor(typed) || 'Not a Malaysian postcode';
+            if (places === null) {
+                // The file is still on its way. refresh() runs again when it
+                // lands, so this only means "not yet".
+                show('Looking up…', '');
+
+                return;
+            }
+
+            var found = Object.prototype.hasOwnProperty.call(places, typed) ? places[typed] : null;
+
+            if (found === null) {
+                show('No such postcode', '');
+
+                return;
+            }
+
+            show(found[0], found[1]);
         }
 
-        postcode.addEventListener('input', refresh);
+        function load() {
+            if (asked) {
+                return;
+            }
 
-        // A postcode may already be filled in, on the edit form or after a
-        // save that failed.
-        refresh();
+            asked = true;
+
+            window.fetch(source, { credentials: 'same-origin' })
+                .then(function (response) {
+                    return response.ok ? response.json() : null;
+                })
+                .then(function (rows) {
+                    places = rows || {};
+                    refresh();
+                })
+                .catch(function () {
+                    // The server still fills both in on save, so a failed
+                    // fetch costs the preview and nothing else.
+                    places = {};
+                    show('', '');
+                });
+        }
+
+        postcode.addEventListener('input', function () {
+            load();
+            refresh();
+        });
+
+        // A postcode may already be filled in, on the edit form or after a save
+        // that failed, in which case the boxes beside it are already correct
+        // and only need refreshing once the list arrives.
+        if (String(postcode.value).replace(/\D/g, '').length === 5) {
+            load();
+        }
     }
-
-    /* ----------------------------------------------------------------------
-       Stop a password being copied out of the box.  (Module 2 - Ivan)
-
-       The confirm box exists so a typo in the password is caught before the
-       account is created. Copying the first box into the second defeats that -
-       the two match, and both are wrong. Blocking copy, cut and drag means the
-       confirmation is actually typed.
-
-       Worth being honest about what this is: a nudge, not a security control.
-       Anyone determined can read the value from the developer tools. It is on
-       the sign-up form only, never on sign-in, where blocking paste would just
-       break password managers for no benefit.
-       ---------------------------------------------------------------------- */
 
     function setUpNoCopyFields() {
         var fields = document.querySelectorAll('[data-no-copy]');
@@ -684,6 +708,87 @@
         box.addEventListener('blur', check);
     }
 
+    /* ----------------------------------------------------------------------
+       Copy to clipboard.
+
+       An invite link is 64 hex characters on the end of a URL, which nobody is
+       going to select accurately by hand. The button carries the value in a
+       data attribute and the work happens here, because the Content Security
+       Policy allows no inline handler.
+
+       Delegated from the document, so links generated after the page loaded
+       would work too without anything being wired up again.
+       ---------------------------------------------------------------------- */
+
+    function setUpCopyButtons() {
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-copy]');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+
+            var value = button.getAttribute('data-copy') || '';
+            var label = button.querySelector('.copy-label');
+
+            function done(ok) {
+                if (!label) {
+                    return;
+                }
+
+                label.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+                button.classList.toggle('is-copied', ok);
+
+                window.setTimeout(function () {
+                    label.textContent = 'Copy';
+                    button.classList.remove('is-copied');
+                }, 1500);
+            }
+
+            // The clipboard API needs a secure context. localhost counts as one,
+            // so this is the path that runs in the demo, but a plain http host
+            // on the network does not - hence the fallback below.
+            if (window.navigator.clipboard && window.navigator.clipboard.writeText) {
+                window.navigator.clipboard.writeText(value).then(function () {
+                    done(true);
+                }, function () {
+                    done(selectFallback(value));
+                });
+
+                return;
+            }
+
+            done(selectFallback(value));
+        });
+    }
+
+    // Puts the text in a box off screen and selects it. execCommand('copy') is
+    // deprecated and may do nothing, so if it fails the text is left selected
+    // and the button says to press Ctrl+C.
+    function selectFallback(value) {
+        var box = document.createElement('textarea');
+
+        box.value = value;
+        box.setAttribute('readonly', 'readonly');
+        box.className = 'offscreen-copy';
+        document.body.appendChild(box);
+        box.select();
+
+        var copied = false;
+
+        try {
+            copied = document.execCommand('copy');
+        } catch (error) {
+            copied = false;
+        }
+
+        document.body.removeChild(box);
+
+        return copied;
+    }
+
     function start() {
         setUpVenuePreview();
         setUpPickers();
@@ -694,6 +799,11 @@
         setUpPasswordReveal();
         setUpDropzones();
         setUpLocationConfirm();
+        setUpRatingWidgets();
+        setUpRemovalReasons();
+        setUpCopyButtons();
+    }
+
     function setUpRatingWidgets() {
         document.querySelectorAll('[data-rating-widget]').forEach(function (widget) {
             var stars = widget.querySelectorAll('.rating-star:not([data-rating-star])');
@@ -847,19 +957,10 @@
         });
     }
 
-    function start() {
-        setUpVenuePreview();
-        setUpRoleFields();
-        setUpRemovalReasons();
-        setUpRatingWidgets();
-    }
-
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', start);
     } else {
         start();
     }
-
-}
 })();
 

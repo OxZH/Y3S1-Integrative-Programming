@@ -28,9 +28,23 @@ final class DiscoveryController extends Controller
         $criteria = FeedFilterCriteria::fromArray($_GET);
         $viewerId = Auth::id();
 
+        // Which of these the viewer is already in, so a card can say so instead
+        // of inviting them to join something twice. A cancelled registration
+        // does not count, which is what isActive() is for.
+        $joined = [];
+
+        if ($viewerId !== null) {
+            foreach ($this->facade->myParticipation() as $registration) {
+                if ($registration->isActive()) {
+                    $joined[$registration->getEventId()] = true;
+                }
+            }
+        }
+
         $this->view('discovery-browse', [
             'title'       => 'Find a game',
             'events'      => $this->facade->browseEvents($criteria, $viewerId),
+            'joined'      => $joined,
             'criteria'    => $criteria,
             'input'       => $_GET,
             // The filter offers the sports that actually have games, so it can

@@ -30,8 +30,7 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
             . "object-src 'none'; "
             . "base-uri 'self'; "
             . "frame-ancestors 'none'; "
-            . "form-action 'self'; "
-            . "require-trusted-types-for 'script'"
+            . "form-action 'self'"
     );
 }
 

@@ -1,27 +1,35 @@
 <?php
-// Consumes the Event & Facility service to build a user's activity history. Author: Ivan Lim Tze Yang
+// Consumes the Discovery service to build a user's activity history. Author: Ivan Lim Tze Yang
 
 declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Core\Database;
 use App\ServiceUnavailableException;
 
 /**
- * Module 2's outbound web service call.
+ * Module 2's outbound web service call for the "Recently Participated History"
+ * tab.
  *
- * The "Recently Participated History" tab needs an event's name, sport and date.
- * Module 2 does not own any of that, and must not read module 1's tables to get
- * it, so it asks: one getEventDetails call per event the user registered for,
- * through the agreed IFA envelope.
+ * Module 2 owns none of this. Which events somebody joined lives in
+ * EventRegistration, which belongs to Discovery & Event Matchmaking, and what
+ * each event actually is belongs to Event & Facility Management. So it asks
+ * rather than reads: one getParticipationHistory call, through the agreed IFA
+ * envelope, and the answer comes back already joined up.
  *
- * What is read locally is only the join rows - which events this user signed up
- * for, and when - because that is the link between an account and an event, and
- * the id is all that is needed to ask the question.
+ * This used to read EventRegistration directly with SQL and then make one
+ * getEventDetails call per row. That was a module boundary crossed for the
+ * registration rows and N+1 HTTP calls for the rest. Discovery already does
+ * both halves in one call, including the visibility check, so there is nothing
+ * left here to do by hand.
+ *
+ * viewerId is the person looking at the page, not the person the page is about.
+ * That distinction matters on somebody else's profile: the history shown there
+ * has to be what the visitor is allowed to see, and Discovery decides that with
+ * the viewerId it is given.
  *
  * The history is a display, not a security decision, so a module that is down
- * degrades to a row marked unavailable rather than an error page.
+ * degrades to an empty list rather than an error page.
  */
 final class ParticipationHistory
 {
@@ -33,93 +41,82 @@ final class ParticipationHistory
     }
 
     /**
-     * @return array<int,array{eventId:string,status:string,registeredAt:string,name:string,sport:string,eventDate:string,available:bool}>
+     * @return array<int,array{eventId:string,status:string,registeredAt:string,
+     *         name:string,sport:string,eventDate:string,available:bool}>
      */
-    public function forUser(string $baseUserId, int $limit = 10): array
+    public function forUser(string $baseUserId, ?string $viewerId = null, int $limit = 10): array
     {
-        $registrations = $this->registrationsFor($baseUserId, $limit);
-        $history       = [];
+        try {
+            $data = $this->client->call('discovery', 'getParticipationHistory', [
+                'userId'   => $baseUserId,
+                'viewerId' => $viewerId,
+                'limit'    => max(1, min(50, $limit)),
+            ]);
+        } catch (ServiceUnavailableException $e) {
+            error_log('Participation history: ' . $e->getMessage());
 
-        foreach ($registrations as $registration) {
-            $history[] = $this->describe($registration, $baseUserId);
+            return [];
+        }
+
+        // A refusal is a real answer rather than a fault, and there is nothing
+        // partial to show from one call, so the tab is simply empty.
+        if ($this->client->refused($data) || !is_array($data['registrations'] ?? null)) {
+            return [];
+        }
+
+        $history = [];
+
+        foreach ($data['registrations'] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $history[] = $this->row($row);
         }
 
         return $history;
     }
 
     /**
-     * The local half: which events, and how the user's registration stands.
+     * One row of the response, in the shape the view already expects.
      *
-     * @return array<int,array{eventId:string,status:string,registeredAt:string}>
+     * @param array<string,mixed> $row
+     * @return array{eventId:string,status:string,registeredAt:string,
+     *         name:string,sport:string,eventDate:string,available:bool}
      */
-    private function registrationsFor(string $baseUserId, int $limit): array
+    private function row(array $row): array
     {
-        // LIMIT cannot be a bound parameter, so the value is forced into range.
-        $safeLimit = max(1, min(50, $limit));
+        $available = ($row['available'] ?? false) === true;
 
-        $statement = Database::getConnection()->prepare(
-            'SELECT `eventId`, `status`, `registerTime`
-               FROM `EventRegistration`
-              WHERE `userId` = :id
-              ORDER BY `registerTime` DESC
-              LIMIT ' . $safeLimit
-        );
-        $statement->execute([':id' => $baseUserId]);
+        $common = [
+            'eventId'      => $this->text($row, 'eventId', ''),
+            'status'       => $this->text($row, 'status', '-'),
+            'registeredAt' => $this->text($row, 'registerTime', '-'),
+        ];
 
-        $rows = [];
-
-        foreach ($statement->fetchAll() as $row) {
-            $rows[] = [
-                'eventId'      => (string) $row['eventId'],
-                'status'       => (string) $row['status'],
-                'registeredAt' => (string) $row['registerTime'],
+        // Discovery marks a row unavailable when the viewer may no longer see
+        // that event, and sends no details with it. The row still appears,
+        // because the person really did join it.
+        if (!$available) {
+            return $common + [
+                'name'      => 'Event details unavailable',
+                'sport'     => '-',
+                'eventDate' => '-',
+                'available' => false,
             ];
         }
 
-        return $rows;
-    }
-
-    /**
-     * The remote half: ask module 1 what the event actually is.
-     *
-     * @param array{eventId:string,status:string,registeredAt:string} $registration
-     * @return array{eventId:string,status:string,registeredAt:string,name:string,sport:string,eventDate:string,available:bool}
-     */
-    private function describe(array $registration, string $viewerId): array
-    {
-        $unavailable = $registration + [
-            'name'      => 'Event details unavailable',
-            'sport'     => '-',
-            'eventDate' => '-',
-            'available' => false,
-        ];
-
-        try {
-            // viewerId is part of the agreed request: it asks module 1 to decide
-            // visibility for this particular person, now. A friends-only event
-            // this user has since lost access to comes back refused, and the row
-            // reads "unavailable" - the answer is not cached or assumed here.
-            $data = $this->client->call('event', 'getEventDetails', [
-                'eventId'  => $registration['eventId'],
-                'viewerId' => $viewerId,
-            ]);
-        } catch (ServiceUnavailableException $e) {
-            error_log('Participation history: ' . $e->getMessage());
-
-            return $unavailable;
-        }
-
-        // A refusal is a real answer - the event may have been deleted, or this
-        // user may no longer be allowed to see it. Either way, not an error.
-        if ($this->client->refused($data)) {
-            return $unavailable;
-        }
-
-        return $registration + [
-            'name'      => is_scalar($data['name'] ?? null) ? (string) $data['name'] : 'Untitled event',
-            'sport'     => is_scalar($data['sport'] ?? null) ? (string) $data['sport'] : '-',
-            'eventDate' => is_scalar($data['eventDate'] ?? null) ? (string) $data['eventDate'] : '-',
+        return $common + [
+            'name'      => $this->text($row, 'eventName', 'Untitled event'),
+            'sport'     => $this->text($row, 'sport', '-'),
+            'eventDate' => $this->text($row, 'eventDate', '-'),
             'available' => true,
         ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private function text(array $row, string $key, string $fallback): string
+    {
+        return is_scalar($row[$key] ?? null) ? (string) $row[$key] : $fallback;
     }
 }

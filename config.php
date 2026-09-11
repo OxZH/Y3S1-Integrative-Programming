@@ -60,13 +60,6 @@ return [
             'url'    => $stubBase . '/api/user.php',
         ],
 
-        // Consumed BY module 2: the participation history on a profile asks the
-        // Event & Facility module to describe each event the user joined.
-        'event' => [
-            'module' => 'Event & Facility Management',
-            'url'    => $stubBase . '/api/event.php',
-        ],
-
         'booking' => [
             'module' => 'Venue Booking & Payment',
             'url'    => $baseUrl . '/api/payment.php',
@@ -82,13 +75,22 @@ return [
             'module' => 'Event & Facility Management',
             'url'    => $baseUrl . '/api/facility.php',
         ],
+
+        // Consumed BY module 2: the participation history on a profile asks the
+        // Discovery module for the events a user joined, already joined up with
+        // what each event is and filtered for what the viewer may see.
+        'discovery' => [
+            'module' => 'Discovery & Event Matchmaking',
+            'url'    => $baseUrl . '/api/discovery.php',
+        ],
+
         'rating' => [
             'module' => 'Social Networking & Review System',
-            'url'    => $stubBase . '/api/stub.php',
+            'url'    => $baseUrl . '/api/facility.php',
         ],
         'friend' => [
             'module' => 'Social Networking & Review System',
-            'url'    => $stubBase . '/api/stub.php',
+            'url'    => $baseUrl . '/api/user.php',
         ],
     ],
 

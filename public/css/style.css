@@ -122,6 +122,102 @@ img {
     color: var(--brand);
 }
 
+/* Hover menus in the header.
+
+   Four or five links deep, the bar had stopped being a way around and become a
+   list of everything, so related pages sit under a heading that opens on hover.
+   No JavaScript: :hover shows the menu and :focus-within does the same for
+   anybody arriving by keyboard, so tabbing through the heading opens it.
+
+   A group whose heading is also a link means clicking rather than hovering
+   still goes somewhere, which matters on a touch screen where there is no
+   hover at all. */
+
+.nav-group {
+    position: relative;
+}
+
+/* The padding matters. It makes the group taller than its text, so the menu
+   below can start flush against it and the pointer never crosses a gap on its
+   way down. */
+.nav-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 0;
+}
+
+.nav-caret {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+}
+
+.nav-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: -12px;
+    min-width: 190px;
+    padding: 6px 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    box-shadow: 0 10px 28px rgb(28 36 49 / 12%);
+    z-index: 30;
+}
+
+.nav-group:hover .nav-menu,
+.nav-group:focus-within .nav-menu {
+    display: block;
+}
+
+.site-nav .nav-menu a {
+    display: block;
+    padding: 7px 14px;
+    white-space: nowrap;
+}
+
+.site-nav .nav-menu a:hover {
+    background: var(--bg);
+}
+
+/* Narrow screens have no room to hang a menu off a heading, and no hover to
+   open it with, so every group is laid out flat instead. */
+@media (max-width: 700px) {
+    .nav-menu {
+        display: block;
+        position: static;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+        background: none;
+    }
+
+    .nav-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+    }
+
+    .nav-head {
+        display: none;
+    }
+
+    .site-nav .nav-menu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+    }
+
+    .site-nav .nav-menu a {
+        padding: 0;
+    }
+}
+
 .session {
     display: flex;
     align-items: center;
@@ -1021,4 +1117,91 @@ td.actions {
     background: var(--warn-bg);
     border-color: var(--warn-line);
     color: var(--warn-ink);
+}
+
+
+/* 14 -- map (Discovery & Event Matchmaking) ------------------------------- */
+
+/* Leaflet measures its container when the map is created, so the height has to
+   come from the stylesheet rather than being set later. */
+.map-canvas {
+    height: 520px;
+    border-radius: 12px;
+}
+
+/* The View button and the Joined tag share a row on a browse card, so they are
+   centred against each other rather than sitting on different baselines.
+   Deliberately div.actions and not .actions: the listing tables put the same
+   class on a <td>, and display:flex stops a cell being a cell, which pulls
+   every row's buttons out of line with the row they belong to. */
+div.actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* An invite link is long, so its box takes whatever room the toolbar has left
+   rather than the fixed width the filter controls use. */
+.wide-field {
+    flex: 1 1 320px;
+    min-width: 220px;
+}
+
+/* A map pin lists every game at that venue, so the popup holds a short list
+   rather than one event's details. */
+.map-popup-list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.map-popup-list li + li {
+    margin-top: 6px;
+}
+
+.map-popup-detail {
+    color: var(--muted);
+}
+
+/* 15 -- copy to clipboard ------------------------------------------------- */
+
+/* The link and its button share a line. The flex lives here, inside the cell,
+   because putting it on the <td> would stop the cell being a cell. */
+.copy-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.copy-text {
+    word-break: break-all;
+}
+
+/* Never squeezed by a long link, and never wrapped mid-button. */
+.copy-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.copy-icon {
+    width: 13px;
+    height: 13px;
+    fill: currentColor;
+}
+
+/* Held for a moment after a successful copy, so the reader sees it worked. */
+.copy-btn.is-copied {
+    color: var(--success-ink);
+    border-color: var(--success-ink);
+}
+
+/* The fallback copy box. Off screen rather than display:none, because a hidden
+   textarea cannot be selected and so cannot be copied from. */
+.offscreen-copy {
+    position: fixed;
+    top: -1000px;
+    left: -1000px;
+    opacity: 0;
 }

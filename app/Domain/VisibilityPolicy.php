@@ -12,10 +12,24 @@ use App\ServiceUnavailableException;
 // endpoint and the invite route cannot disagree.
 //
 //   1 the host always sees their own event, in any state
-//   2 an unpublished event is nobody else's business
-//   3 a published public event is visible to everyone
-//   4 a published friends-only event needs an accepted friendship, or a usable
-//     invite link for that event
+//   2 an event that never went live is nobody else's business
+//   3 a public event that went live is visible to everyone
+//   4 a friends-only event that went live needs an accepted friendship, or a
+//     usable invite link for that event
+//
+// Rule 2 asks whether the event was ever live, not whether it is live now. It
+// used to ask isPublished(), which is true of PUBLISHED alone, and that quietly
+// hid a game from the very people who played in it the moment its host marked
+// it complete. The Discovery module's participation history asks this module to
+// describe each past game, so those rows came back as "unavailable" with no
+// name - the one thing a history of past games exists to show. A cancelled
+// event was hidden the same way, which defeated cancelling rather than deleting
+// so that players "can see that it is off".
+//
+// Widening this does not put finished games into the browse listings. What
+// appears there is decided by EventMapper::findPublishedUpcoming(), which asks
+// the database for published future events only. This class answers a different
+// question, which is whether a given person may see a given event at all.
 //
 // Rule 4 needs the Social Networking module. If it cannot answer this returns
 // false: hiding a private event during an outage is a mild inconvenience,
@@ -35,7 +49,7 @@ final class VisibilityPolicy
             return true;
         }
 
-        if (!$event->isPublished()) {
+        if (!$event->hasBeenLive()) {
             return false;
         }
 

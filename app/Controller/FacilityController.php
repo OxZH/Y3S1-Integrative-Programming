@@ -116,7 +116,7 @@ final class FacilityController extends Controller
             'facility' => null,
             'input'    => [],
             'errors'   => [],
-            'sports'   => Sports::ALL,
+            'sports'   => Sports::all(),
         ]);
     }
 
@@ -140,7 +140,7 @@ final class FacilityController extends Controller
                 'facility' => null,
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
-                'sports'   => Sports::ALL,
+                'sports'   => Sports::all(),
             ]);
         }
     }
@@ -162,7 +162,7 @@ final class FacilityController extends Controller
             'facility' => $facility,
             'input'    => [],
             'errors'   => [],
-            'sports'   => Sports::ALL,
+            'sports'   => Sports::all(),
         ]);
     }
 
@@ -202,7 +202,7 @@ final class FacilityController extends Controller
                 'facility' => $this->facade->getFacility($facilityId),
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
-                'sports'   => Sports::ALL,
+                'sports'   => Sports::all(),
                 ]);
         }
     }
@@ -251,14 +251,16 @@ final class FacilityController extends Controller
     {
         $clean = (new Validator($input))
             ->required('name', 'Venue name')->text('name', 'Venue name', 2, 150)
+                ->hasLetter('name', 'Venue name')
             ->required('addressLine', 'Address')->text('addressLine', 'Address', 5, 255)
                 ->address('addressLine', 'Address')
             ->required('postcode', 'Postcode')->postcode('postcode', 'Postcode')
-            ->required('city', 'City')->text('city', 'City', 2, 100)
-                ->placeName('city', 'City')
+            // City and state are deliberately absent. Both come from the
+            // postcode below, so asking for them would only invite a
+            // combination that does not exist.
             // The venue's sport. Chosen from a list rather than typed, because every
             // event held here takes its sport from this field.
-            ->required('type', 'Sport')->inList('type', 'Sport', Sports::ALL)
+            ->required('type', 'Sport')->inList('type', 'Sport', Sports::all())
             ->required('bookingFee', 'Booking fee')->decimal('bookingFee', 'Booking fee', 0, 99999.99)
             // No check that closing is after opening. Plenty of venues run past
             // midnight, eg open 22:00 and close 02:00, so both orders are valid.
@@ -272,22 +274,27 @@ final class FacilityController extends Controller
             ->longitude('longitude', 'Longitude')
             ->validate();
 
-        // The state is never asked for. Pos Malaysia allocates postcodes by
-        // state, so the postcode the owner already gave says which state this
-        // is. Deriving it means a Kedah address can no longer be filed under
-        // Terengganu, and it checks the postcode at the same time, because five
-        // digits outside every range are not a Malaysian postcode.
+        // Neither the city nor the state is taken from the request. Pos
+        // Malaysia gives each postcode one post town in one state, so the
+        // postcode decides both, and the form shows them back as read-only
+        // rather than asking. Whatever arrived in city or state is discarded
+        // unread, which is why a hand-written POST cannot file a Kedah venue
+        // under Terengganu however it is crafted.
+        //
+        // A postcode the list does not know is refused outright. That is the
+        // same check as "is this a real Malaysian postcode", so there is no
+        // separate rule for it.
         if (isset($clean['postcode'])) {
-            $state = Postcodes::stateFor($clean['postcode']);
+            $place = Postcodes::lookup($clean['postcode']);
 
-            if ($state === null) {
+            if ($place === null) {
                 throw new ValidationException([
-                    'postcode' => 'That postcode does not belong to any Malaysian state. '
-                                . 'Please check it.',
+                    'postcode' => 'No Malaysian postcode matches those five digits. Please check it.',
                 ]);
             }
 
-            $clean['state'] = $state;
+            $clean['city']  = $place['city'];
+            $clean['state'] = $place['state'];
         }
 
         if (!isset($clean['latitude']) || !isset($clean['longitude'])) {

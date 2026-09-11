@@ -36,7 +36,6 @@ final class ProfileController extends Controller
     private const MINIMUM_AGE_YEARS = 3;
 
     private AccountServiceInterface $accounts;
-    private AccountServiceInterface $accounts;
     private RemoteServices $services;
     private ReviewService $reviews;
     private RatingService $ratings;
@@ -64,9 +63,11 @@ final class ProfileController extends Controller
 
         $history = [];
 
-        // Only players join events, so only they have a history to show.
+        // Only players join events, so only they have a history to show. The
+        // second argument is who is looking, not who the page is about, so the
+        // Discovery module can hide a game this visitor may not see.
         if ($account instanceof User) {
-            $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
+            $history = (new ParticipationHistory())->forUser($account->getBaseUserId(), Auth::id());
         }
 
         $isSelf = $account->getBaseUserId() === $current->getBaseUserId();
@@ -240,9 +241,11 @@ final class ProfileController extends Controller
             : (new FriendConnectionMapper())->connectionState($current->getBaseUserId(), $userId);
         $history = [];
 
-        // Only players join events, so only they have a history to show.
+        // Only players join events, so only they have a history to show. The
+        // second argument is who is looking, not who the page is about, so the
+        // Discovery module can hide a game this visitor may not see.
         if ($account instanceof User) {
-            $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
+            $history = (new ParticipationHistory())->forUser($account->getBaseUserId(), Auth::id());
         }
 
         $reviewData = $this->reviews->page('user', $userId, $page, $current->isAdmin());

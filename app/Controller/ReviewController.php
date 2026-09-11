@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\AuthorizationException;
 use App\Core\Controller;
 use App\Security\Auth;
 use App\Service\ReviewService;
@@ -35,6 +36,15 @@ final class ReviewController extends Controller
     {
         $this->requirePostWithCsrf();
         $current = Auth::requireLogin();
+
+        // Note for KW. Same reasoning as RatingController: a venue owner
+        // reviewing venues is a conflict of interest, the form is no longer
+        // shown to them, and the check is repeated here because hiding a form
+        // stops nobody from posting to it.
+        if (!$current->isPlayer()) {
+            throw new AuthorizationException('Only a member account can write a review.');
+        }
+
         $targetType = is_string($_POST['targetType'] ?? null) ? $_POST['targetType'] : '';
         $targetId = is_string($_POST['targetId'] ?? null) ? $_POST['targetId'] : '';
         $title = is_string($_POST['reviewTitle'] ?? null) ? $_POST['reviewTitle'] : '';

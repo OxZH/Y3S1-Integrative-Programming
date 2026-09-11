@@ -21,6 +21,7 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
     private ?string $sport = null;
     private ?string $eventDate = null;
     private ?string $startTime = null;
+    private ?string $venueName = null;
     private ?float $latitude = null;
     private ?float $longitude = null;
     private ?int $spacesLeft = null;
@@ -40,6 +41,11 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
         if (is_array($facility)) {
             $this->latitude  = isset($facility['latitude']) ? (float) $facility['latitude'] : null;
             $this->longitude = isset($facility['longitude']) ? (float) $facility['longitude'] : null;
+
+            // Several games at one venue sit on the same coordinates, so a pin
+            // is a venue and opens with everything happening there. That makes
+            // the venue's name the one thing the popup has to be titled with.
+            $this->venueName = isset($facility['name']) ? (string) $facility['name'] : null;
         }
 
         return $this;
@@ -81,6 +87,7 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
             eventDate: (string) $this->eventDate,
             startTime: (string) $this->startTime,
             endTime: '',
+            venueName: $this->venueName,
             latitude: $this->latitude,
             longitude: $this->longitude,
             distanceKm: $this->distanceKm,

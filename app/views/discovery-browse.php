@@ -22,6 +22,24 @@ use App\Domain\Discovery\EventFeedItem;
     </p>
 <?php endif; ?>
 
+<?php
+// Friends-only games are not on this page at all, so somebody sent a link to
+// one has nowhere to redeem it except the link itself. That is fine when they
+// click it there and then, and no use at all once it has been copied into a
+// note for later. This box takes it either way, the whole address or just the
+// code on the end. Event & Facility Management owns the token and decides
+// whether it is still good.
+?>
+<?php if (App\Security\Auth::check()): ?>
+    <form method="post" action="<?= e(url('event', 'redeem')) ?>" class="card toolbar">
+        <?= $csrfField ?? '' ?>
+        <label class="inline-label" for="inviteToken">Invited to a private game?</label>
+        <input class="wide-field" type="text" id="inviteToken" name="token"
+               placeholder="Paste the invite link you were sent">
+        <button class="btn small" type="submit">Open invite</button>
+    </form>
+<?php endif; ?>
+
 <form method="get" action="index.php" class="card toolbar">
     <input type="hidden" name="c" value="discovery">
     <input type="hidden" name="a" value="index">
@@ -102,6 +120,14 @@ use App\Domain\Discovery\EventFeedItem;
                 ?>
                 <div class="actions">
                     <a class="btn small" href="<?= e(url('event', 'show', ['id' => $event->eventId])) ?>">View</a>
+                    <?php
+                    // Said here rather than only on the event's own page, so a
+                    // player scanning the list can see at a glance which games
+                    // they are already in.
+                    ?>
+                    <?php if (isset($joined[$event->eventId])): ?>
+                        <span class="pill">Joined</span>
+                    <?php endif; ?>
                 </div>
 
                 <?php

@@ -102,6 +102,20 @@ function starsText(?float $rating): string
          . ' ' . number_format($rating, 1);
 }
 
+// A file under public/, addressed the way the browser needs it. The file's
+// modified time is appended so an edited stylesheet or script is fetched again
+// instead of a stale copy being served from the cache.
+//
+// The layout keeps its own copy of this for the two assets it loads. A view that
+// needs one, such as the map and its Leaflet files, uses this.
+function asset(string $relative): string
+{
+    $path = dirname(__DIR__) . '/public/' . ltrim($relative, '/');
+
+    return rtrim((string) config('app.base_url'), '/') . '/' . ltrim($relative, '/')
+         . '?v=' . (is_file($path) ? (string) filemtime($path) : '1');
+}
+
 // Turns a stored image value into something the browser can load. An uploaded
 // photo is kept as a path relative to the app, so the app still works whatever
 // folder it is served from; an outside link is kept whole.

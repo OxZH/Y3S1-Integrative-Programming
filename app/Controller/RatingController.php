@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\AuthorizationException;
 use App\Core\Controller;
 use App\Security\Auth;
 use App\Service\RatingService;
@@ -20,6 +21,15 @@ final class RatingController extends Controller
     {
         $this->requirePostWithCsrf();
         $current = Auth::requireLogin();
+
+        // Note for KW. A venue owner scoring venues while running venues of
+        // their own is a conflict of interest, so the venue page no longer
+        // offers them the widget. Repeated here because a hidden form is not a
+        // control, the request can still be sent by hand.
+        if (!$current->isPlayer()) {
+            throw new AuthorizationException('Only a member account can leave a rating.');
+        }
+
         $targetType = is_string($_POST['targetType'] ?? null) ? $_POST['targetType'] : '';
         $targetId = is_string($_POST['targetId'] ?? null) ? $_POST['targetId'] : '';
         $rating = filter_var($_POST['rating'] ?? null, FILTER_VALIDATE_INT);

@@ -211,6 +211,11 @@ class Event extends Entity
         return $this->status->isPublished();
     }
 
+    public function hasBeenLive()
+    {
+        return $this->status->hasBeenLive();
+    }
+
     public function isFriendsOnly()
     {
         return $this->visibility === EventVisibility::FRIENDS_ONLY;

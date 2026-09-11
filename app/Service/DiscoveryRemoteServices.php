@@ -117,6 +117,19 @@ final class DiscoveryRemoteServices
      */
     public function friendIds(string $baseUserId): array
     {
+        // PAUSED until the Social Networking & Review module exposes
+        // listFriends. api/user.php answers areFriends but not this, so the call
+        // below returned "Unknown function: listFriends" on every feed load -
+        // 28 refusals in one afternoon, each costing an HTTP round trip to earn
+        // the empty list this now returns straight away.
+        //
+        // Nothing else changes. friendIds() already treated a refusal as "no
+        // friend signal", which is what the whole feed is built to tolerate, so
+        // the pages look the same as they did yesterday. Delete this return and
+        // the call below comes back exactly as it was.
+        return [];
+
+        /*
         try {
             $data = $this->client->call('friend', 'listFriends', ['baseUserId' => $baseUserId]);
         } catch (ServiceUnavailableException $e) {
@@ -130,6 +143,7 @@ final class DiscoveryRemoteServices
         }
 
         return array_values(array_filter($data['friendIds'], 'is_string'));
+        */
     }
 
     /**

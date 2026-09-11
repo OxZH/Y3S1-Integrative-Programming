@@ -25,13 +25,21 @@ $hours = hhmm($facility->getOperationalHrsStart()) . '–' . hhmm($facility->get
 if ($facility->closesAfterMidnight()) {
     $hours .= ' (next day)';
 }
+
+// Whether this visitor is a player, which is who the three controls below are
+// for. A venue owner cannot organise a game at all, and rating or reviewing a
+// venue while running venues of their own is a conflict of interest, so none of
+// the three is offered to them. Reading other people's reviews stays open to
+// everyone. Hiding a control is only tidiness; RatingController, ReviewController
+// and the event facade each refuse the same thing again on the server.
+$canTakePart = Auth::user()?->isPlayer() ?? false;
 ?>
 <div class="page-head">
     <div>
         <h1><?= e($facility->getName()) ?></h1>
         <p class="lede-flush"><?= e($facility->getFullAddress()) ?></p>
     </div>
-    <?php if (Auth::check() && !$isAdmin): ?>
+    <?php if ($canTakePart): ?>
         <form class="rating-widget" method="post" action="<?= e(url('rating', 'store')) ?>"
             data-rating-widget data-current-rating="<?= e((string) ($currentRating ?? 0)) ?>">
             <?= $csrfField ?? '' ?>
@@ -144,9 +152,11 @@ if ($facility->closesAfterMidnight()) {
 <?php endif; ?>
 
 <?php if (Auth::check()): ?>
-    <a class="btn" href="<?= e(url('event', 'create', ['facilityId' => $facility->getFacilityId()])) ?>">
-        Create an event here
-    </a>
+    <?php if ($canTakePart): ?>
+        <a class="btn" href="<?= e(url('event', 'create', ['facilityId' => $facility->getFacilityId()])) ?>">
+            Create an event here
+        </a>
+    <?php endif; ?>
 
     <section class="reviews-section">
         <div class="page-head">
@@ -231,7 +241,7 @@ if ($facility->closesAfterMidnight()) {
             <?php endif; ?>
         <?php endif; ?>
 
-        <?php if (!$isAdmin): ?>
+        <?php if ($canTakePart): ?>
             <form method="post" action="<?= e(url('review', 'store')) ?>" class="card review-form">
                 <?= $csrfField ?? '' ?>
                 <input type="hidden" name="targetType" value="facility">

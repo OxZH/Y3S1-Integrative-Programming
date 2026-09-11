@@ -87,6 +87,16 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
     <div class="card toolbar toolbar-flush">
         <?php if (!App\Security\Auth::check()): ?>
             <a class="btn" href="<?= e(url('auth')) ?>">Sign in to join this game</a>
+        <?php elseif ($isHost): ?>
+            <?php
+            // PaymentFacade refuses to register the organiser as a participant,
+            // so offering them the button only produced an error every time.
+            // The count beside it is the players who joined, which does not
+            // include the organiser.
+            ?>
+            <span class="small muted">
+                You are organising this game, so you are not listed among the players who joined.
+            </span>
         <?php elseif ($myRegistration !== null): ?>
             <form method="post" action="<?= e(url('discovery', 'leave')) ?>" class="inline-form"
                   data-confirm="Leave this game? Your spot goes back to whoever wants it.">

@@ -368,6 +368,28 @@ final class Validator
         return $this;
     }
 
+    // At least one letter somewhere in the value. Names are otherwise left free,
+    // because a venue really can be called "Court 8" or "PJ21 Sports Hall" and a
+    // game really can be called "5v5 @ 8pm". What this refuses is a name made
+    // only of digits and punctuation, such as ".,.12,3.,12.3,213123", which
+    // tells a reader nothing about what they are looking at.
+    public function hasLetter(string $field, string $label): self
+    {
+        $value = $this->raw($field);
+
+        if ($value === null || $value === '') {
+            return $this;
+        }
+
+        if (preg_match('/\p{L}/u', $value) !== 1) {
+            return $this->fail($field, $label . ' must contain at least one letter.');
+        }
+
+        $this->clean[$field] = $value;
+
+        return $this;
+    }
+
     // A place name: letters, and the punctuation that turns up in real names
     // such as Batu Caves or George Town. No digits, so "12345" is not a city.
     public function placeName(string $field, string $label): self

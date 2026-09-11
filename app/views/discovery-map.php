@@ -12,6 +12,9 @@ use App\Domain\Discovery\EventFeedItem;
 $markerData = array_map(static fn (EventFeedItem $m): array => [
     'id'       => $m->eventId,
     'name'     => $m->name,
+    // The pin is the venue, so its name titles the popup and the games at it
+    // are listed underneath.
+    'venue'    => $m->venueName,
     'sport'    => $m->sport,
     'date'     => $m->eventDate,
     'time'     => hhmm($m->startTime),
@@ -27,44 +30,20 @@ $markerData = array_map(static fn (EventFeedItem $m): array => [
 <h1>Map</h1>
 <p class="lede">Nearby games and venues. Only venue locations are ever shown here - never a member's own address.</p>
 
-<div id="discovery-map" style="height:520px;border-radius:12px;"></div>
+<?php
+// The marker list travels in a data attribute rather than an inline script,
+// because the Content Security Policy allows no inline script and because it
+// keeps PHP out of public/js/discovery-map.js.
+?>
+<div id="discovery-map" class="map-canvas"
+     data-markers="<?= e(json_encode($markerData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"></div>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-(function () {
-    var markers = <?= json_encode($markerData, JSON_UNESCAPED_SLASHES) ?>;
-    var center = markers.length > 0 ? [markers[0].lat, markers[0].lng] : [3.139, 101.6869];
-
-    var map = L.map('discovery-map').setView(center, 12);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
-
-    // An event name is whatever its organiser typed, and this popup is built as
-    // HTML, so every value is escaped on the way in.
-    function esc(value) {
-        return String(value === null || value === undefined ? '' : value)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
-    markers.forEach(function (m) {
-        if (typeof m.lat !== 'number' || typeof m.lng !== 'number') {
-            return;
-        }
-
-        var distance = m.distance !== null ? m.distance.toFixed(1) + ' km away' : '';
-
-        L.marker([m.lat, m.lng]).addTo(map).bindPopup(
-            '<strong>' + esc(m.name) + '</strong><br>' +
-            esc(m.sport) + ' &middot; ' + esc(m.date) + ', ' + esc(m.time) + '<br>' +
-            (m.spaces !== null ? esc(m.spaces) + ' spots left' : '') +
-            (distance ? '<br>' + esc(distance) : '') +
-            '<br><a href="' + esc(m.url) + '">View event</a>'
-        );
-    });
-})();
-</script>
+<?php
+// Leaflet is served from this application rather than from unpkg.com. The
+// policy allows scripts and styles from 'self' only, and vendoring the library
+// keeps it that way instead of allowlisting a CDN. It also means the map still
+// works on a machine with no internet connection.
+?>
+<link rel="stylesheet" href="<?= e(asset('vendor/leaflet/leaflet.css')) ?>">
+<script src="<?= e(asset('vendor/leaflet/leaflet.js')) ?>"></script>
+<script src="<?= e(asset('js/discovery-map.js')) ?>" defer></script>

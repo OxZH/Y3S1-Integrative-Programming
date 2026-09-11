@@ -69,28 +69,32 @@ $err = static function (string $field) use ($errors): string {
             <input class="<?= e($bad('postcode')) ?>" type="text" id="postcode" name="postcode"
                    inputmode="numeric" maxlength="5" pattern="\d{5}" placeholder="53300"
                    value="<?= $value('postcode', $facility?->getPostcode()) ?>" required
-                   data-postcode-states="<?= e(json_encode(App\Domain\Postcodes::RANGES, JSON_UNESCAPED_UNICODE)) ?>">
+                   data-postcode-source="<?= e(asset('data/postcodes.json')) ?>">
             <?= $err('postcode') ?>
         </div>
+        <?php
+        // Neither of these is an input. Pos Malaysia gives a postcode one post
+        // town in one state, so the field beside them decides both, and they
+        // only report what it decided. Nothing here is submitted, and the
+        // server looks both up again from the postcode alone.
+        ?>
         <div>
-            <label for="city">City</label>
-            <input class="<?= e($bad('city')) ?>" type="text" id="city" name="city" maxlength="100"
-                   value="<?= $value('city', $facility?->getCity()) ?>" required>
-            <?= $err('city') ?>
+            <label for="cityShown">City</label>
+            <input class="readonly-field" type="text" id="cityShown" readonly
+                   value="<?= e($value('city', $facility?->getCity())) ?>"
+                   placeholder="From the postcode">
         </div>
         <div>
             <label for="stateShown">State</label>
-            <?php
-            // Not an input. Pos Malaysia allocates postcodes by state, so the
-            // postcode beside it already decides this. Nothing is submitted,
-            // because the server derives it again from the postcode.
-            ?>
             <input class="readonly-field" type="text" id="stateShown" readonly
                    value="<?= e($value('state', $facility?->getState())) ?>"
                    placeholder="From the postcode">
-            <p class="small muted">Set by the postcode.</p>
         </div>
     </div>
+    <p class="small muted">
+        The town and the state come from the postcode, so there is nothing to choose and no way to
+        pair a town with the wrong state.
+    </p>
 
     <div class="row-3">
         <div>

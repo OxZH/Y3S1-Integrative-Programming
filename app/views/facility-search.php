@@ -1,6 +1,11 @@
 <?php
 // Venue search for organisers. Author: Goh Jian Yu
 // Receives: $facilities, $ratings, $criteria, $cities, $sports, $input
+
+// Only a player can organise a game, so only a player is offered the second
+// button. A venue owner may still browse and open a venue, which is useful for
+// seeing what other venues in their area charge.
+$canHostHere = App\Security\Auth::user()?->isPlayer() ?? false;
 ?>
 <h1>Find a venue</h1>
 <p class="lede">Filter by sport, city and price, then sort by name, price or how new the listing is.</p>
@@ -95,16 +100,13 @@
                 <a class="btn ghost small" href="<?= e(url('facility', 'show', ['id' => $facility->getFacilityId()])) ?>">
                     View venue
                 </a>
-                <a class="btn small" href="<?= e(url('event', 'create', ['facilityId' => $facility->getFacilityId()])) ?>">
-                    Hold an event here
-                </a>
+                <?php if ($canHostHere): ?>
+                    <a class="btn small" href="<?= e(url('event', 'create', ['facilityId' => $facility->getFacilityId()])) ?>">
+                        Hold an event here
+                    </a>
+                <?php endif; ?>
             </div>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
 
-<p class="small muted">
-    Ratings come from the Social Networking &amp; Review module. Filtering by whether a venue is free
-    at a particular hour is not offered yet, because a venue is either open or booked by the hour and
-    that needs a date and a time to mean anything. Opening a venue shows its free slots for a day.
-</p>

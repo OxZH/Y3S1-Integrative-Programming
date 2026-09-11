@@ -62,7 +62,25 @@
                 }
                 ?>
                 <tr>
-                    <td class="mono"><?= e($invite->getShareableUrl()) ?></td>
+                    <td class="mono">
+                        <?php
+                        // The flex row sits inside the cell rather than on it.
+                        // Putting display:flex on the <td> itself stops it being
+                        // a cell and pulls the whole table out of line.
+                        ?>
+                        <div class="copy-row">
+                            <span class="copy-text"><?= e($invite->getShareableUrl()) ?></span>
+                            <button class="btn ghost small copy-btn" type="button"
+                                    data-copy="<?= e($invite->getShareableUrl()) ?>"
+                                    title="Copy this link">
+                                <svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                    <path d="M10 1H4a2 2 0 0 0-2 2v8h1.5V3A.5.5 0 0 1 4 2.5h6z"/>
+                                    <path d="M12.5 4h-6A1.5 1.5 0 0 0 5 5.5v8A1.5 1.5 0 0 0 6.5 15h6a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 12.5 4m0 1.5v8h-6v-8z"/>
+                                </svg>
+                                <span class="copy-label">Copy</span>
+                            </button>
+                        </div>
+                    </td>
                     <td class="small">
                         <?= e((string) $invite->getUseCount()) ?><?= $invite->getMaxUses() !== null ? ' / ' . e((string) $invite->getMaxUses()) : '' ?>
                     </td>

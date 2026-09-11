@@ -17,6 +17,7 @@ use App\Controller\RatingController;
 use App\Controller\FriendsController;
 use App\Core\View;
 use App\NotFoundException;
+use App\Security\Auth;
 use App\ServiceUnavailableException;
 
 /*
@@ -36,7 +37,7 @@ $routes = [
         // Find a game is the browse page; everything else here is unchanged.
         'actions' => ['mine', 'show', 'create', 'store', 'finalise',
                       'publish', 'cancel', 'complete', 'delete',
-                      'invite', 'invites', 'createInvite', 'revokeInvite'],
+                      'invite', 'redeem', 'invites', 'createInvite', 'revokeInvite'],
     ],
     'friends' => [
         'class'   => FriendsController::class,
@@ -50,7 +51,12 @@ $routes = [
     ],
     'profile' => [
         'class'   => ProfileController::class,
-        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate'],
+        // showOther, sendFriendRequest and discover are kw's. They were dropped
+        // from this list during the merge while their controller methods and
+        // views survived, so Discover users, another player's profile and the
+        // friend request button were all answering 404.
+        'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate',
+                      'showOther', 'sendFriendRequest', 'discover'],
     ],
     'review' => [
         'class'   => ReviewController::class,
@@ -62,7 +68,8 @@ $routes = [
     ],
     'admin' => [
         'class'   => AdminController::class,
-        'actions' => ['accounts', 'reactivate', 'audit'],
+        // spam is kw's review moderation queue, lost in the same merge.
+        'actions' => ['accounts', 'reactivate', 'audit', 'spam'],
     ],
     'location' => [
         'class'   => LocationController::class,
@@ -81,9 +88,24 @@ if (($_GET['c'] ?? null) === 'login') {
     $_GET['c'] = 'auth';
 }
 
-// js part - the site opened on the temporary Upcoming games listing. With that
-// page going, an address with no controller lands on Find a game instead.
-$controllerName = is_string($_GET['c'] ?? null) ? $_GET['c'] : 'discovery';
+// Where an address with no controller lands. A venue owner has no use for Find
+// a game, since they cannot organise one, so they open on their own venues
+// instead. Everybody else, signed in or not, starts at Find a game.
+//
+// Auth::user() is safe to call before routing; it returns null when nobody is
+// signed in, and the layout asks it on every page anyway.
+$landing = 'discovery';
+
+if (!is_string($_GET['c'] ?? null)) {
+    $visitor = Auth::user();
+
+    if ($visitor !== null && $visitor->isFacilityOwner()) {
+        $landing = 'facility';
+        $_GET['a'] = $_GET['a'] ?? 'mine';
+    }
+}
+
+$controllerName = is_string($_GET['c'] ?? null) ? $_GET['c'] : $landing;
 $actionName     = is_string($_GET['a'] ?? null) ? $_GET['a'] : 'index';
 
 function renderError(int $status, string $heading, string $message, ?string $detail = null): never

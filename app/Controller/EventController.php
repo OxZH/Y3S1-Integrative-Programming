@@ -7,8 +7,10 @@ use App\Competitiveness;
 use App\Core\Controller;
 use App\Domain\DiscoveryFacade; // js part
 use App\Domain\EventManagementFacade;
+use App\Domain\InviteTokens;
 use App\EventVisibility;
 use App\FitnessRequirement;
+use App\NotFoundException;
 use App\Security\Auth;
 use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
@@ -97,6 +99,38 @@ final class EventController extends Controller
         $event = $this->facade->redeemInvite($token);
 
         $this->flash('success', 'You were invited to this game.');
+        $this->redirect(url('event', 'show', ['id' => $event->getEventId()]));
+    }
+
+    // The same thing for somebody who copied a link rather than clicking one.
+    // Find a game carries a box to paste it into, and that arrives here.
+    //
+    // A POST, unlike invite() above. Clicking a link in a message can only ever
+    // be a GET, but a form on our own page has no such excuse, and redeeming
+    // spends a use of the token.
+    public function redeem(): void
+    {
+        $this->requirePostWithCsrf();
+
+        $pasted = is_string($_POST['token'] ?? null) ? $_POST['token'] : '';
+        $token  = InviteTokens::fromPastedLink($pasted);
+
+        if ($token === null) {
+            $this->flash('error', 'That does not look like an invite link. Paste the whole link you '
+                                . 'were sent, or just the code at the end of it.');
+            $this->redirect(url('discovery'));
+        }
+
+        try {
+            $event = $this->facade->redeemInvite($token);
+        } catch (NotFoundException $e) {
+            // Expired, revoked, used up or never real - all reported the same,
+            // so a wrong guess learns nothing about which tokens exist.
+            $this->flash('error', $e->getMessage());
+            $this->redirect(url('discovery'));
+        }
+
+        $this->flash('success', 'That invite works. You can join the game from this page.');
         $this->redirect(url('event', 'show', ['id' => $event->getEventId()]));
     }
 
@@ -308,6 +342,7 @@ final class EventController extends Controller
         $clean = (new Validator($input))
             ->required('facilityId', 'Venue')->identifier('facilityId', 'Venue')
             ->required('name', 'Event name')->text('name', 'Event name', 3, 150)
+                ->hasLetter('name', 'Event name')
 
             // Far-future dates are almost always a typo, and a venue cannot
             // sensibly be held for years, so bookings stop three months out.

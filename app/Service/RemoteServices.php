@@ -138,9 +138,22 @@ final class RemoteServices
     // security decision, so the caller must handle the failure and fail closed.
     public function areFriends(string $userA, string $userB): bool
     {
-        $this->friendConnections ??= new FriendConnectionMapper();
+        // Asked over the web service, not read from FriendConnection directly.
+        // That table belongs to the Social Networking module, and a SQL join
+        // into it is the breach of module boundaries these services exist to
+        // prevent. It also matters that a failure here raises
+        // ServiceUnavailableException, because VisibilityPolicy catches that and
+        // hides the event rather than showing a private game by accident.
+        $data = $this->client->call('friend', 'areFriends', [
+            'requesterId' => $userA,
+            'addresseeId' => $userB,
+        ]);
 
-        return $this->friendConnections->areFriends($userA, $userB);
+        if ($this->client->refused($data)) {
+            return false;
+        }
+
+        return ($data['areFriends'] ?? false) === true;
     }
 
     /** @return string[] */

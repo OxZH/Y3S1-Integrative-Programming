@@ -66,6 +66,8 @@ enum Sport: string
     case GOLF         = 'Golf';
     case PICKLEBALL   = 'Pickleball';
     case CRICKET      = 'Cricket';
+    case FRISBEE      = 'Frisbee';
+    case HANDBALL     = 'Handball';
 
     public function label(): string
     {
@@ -132,6 +134,18 @@ enum EventStatus: string
     public function isPublished(): bool
     {
         return $this === self::PUBLISHED;
+    }
+
+    // True once the event has been live, and it stays true afterwards. A game
+    // that filled up, is being played, has finished or was called off was still
+    // a real game that real people joined, so they have to be able to see it.
+    //
+    // Only DRAFT and PENDING_PAYMENT are false, because those never reached
+    // anybody. isPublished() above is the narrower question, "is it open for
+    // joining right now", and is not the same thing.
+    public function hasBeenLive(): bool
+    {
+        return $this !== self::DRAFT && $this !== self::PENDING_PAYMENT;
     }
 
     public function isCancelled(): bool
