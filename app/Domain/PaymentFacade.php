@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Domain;
 
 use App\Core\Database;
+use App\Domain\Payment\PaymentMethodStrategyFactory;
 use App\Service\PaymentRemoteServices;
 use DateTimeImmutable;
 use DomainException;
@@ -14,6 +15,8 @@ use RuntimeException;
 
 final class PaymentFacade
 {
+    public const MAX_SAVED_METHODS = 5;
+
     private PDO $db;
     private PaymentRemoteServices $remote;
 
@@ -99,7 +102,7 @@ final class PaymentFacade
                 [
                     ':id' => $participantPaymentId, ':registration' => $registrationId,
                     ':event' => $eventId, ':participant' => $userId, ':organizer' => $organizerId,
-                    ':amount' => $this->decimal($amount), ':status' => $amount <= 0 ? 'PAID' : 'PENDING',
+                    ':amount' => $this->decimal($amount), ':status' => 'PENDING',
                 ]
             );
             $payment = $this->one(
@@ -120,7 +123,7 @@ final class PaymentFacade
             throw new DomainException('The existing participant payment does not match this event fee.');
         }
 
-        if ((string) $payment['paymentStatus'] === 'PAID' && $amount > 0) {
+        if ((string) $payment['paymentStatus'] === 'PAID') {
             return compact('event', 'amount') + [
                 'kind' => 'participant', 'status' => 'PAID',
             ];
@@ -130,36 +133,39 @@ final class PaymentFacade
             throw new DomainException('A refunded registration cannot be reopened. Please contact the organizer.');
         }
 
-        if ($amount <= 0) {
-            $this->execute(
-                'UPDATE `EventRegistration` SET `status` = :status WHERE `eventRegistrationId` = :id',
-                [':status' => 'CONFIRMED', ':id' => $registrationId]
-            );
-
-            return compact('event', 'amount') + [
-                'kind' => 'participant', 'status' => 'PAID',
-            ];
-        }
-
         return compact('event', 'amount') + [
             'kind' => 'participant', 'status' => 'PENDING',
         ];
     }
 
+    /**
+     * @param array<string,mixed> $input
+     * @return array<string,mixed>
+     */
     public function confirmInternalPayment(
         string $eventId,
         string $payerId,
         string $kind,
-        string $method
-    ): void {
-        $methods = ['card' => 'card', 'fpx' => 'fpx', 'e_wallet' => 'e-wallet'];
+        string $method,
+        array $input = []
+    ): array {
+        $strategy = PaymentMethodStrategyFactory::fromCode($method);
+        $savedId = trim((string) ($input['savedPaymentMethodId'] ?? ''));
 
-        if (!isset($methods[$method])) {
-            throw new DomainException('Select a valid payment method.');
+        if ($savedId !== '') {
+            $saved = $this->savedMethodRow($payerId, $savedId);
+
+            if ($saved === null || (string) $saved['paymentMethod'] !== $strategy->code()) {
+                throw new DomainException('That saved payment method is not available.');
+            }
+
+            $input = $this->mergeSavedInput($input, $saved);
         }
 
+        $snapshot = $strategy->snapshot($strategy->validate($input));
+
         if ($kind === 'venue') {
-            Database::transaction(function () use ($eventId, $payerId, $methods, $method): void {
+            Database::transaction(function () use ($eventId, $payerId, $snapshot): void {
                 $payment = $this->one(
                     'SELECT p.`paymentId`, p.`paymentStatus`, b.`bookingId`, b.`madeById`
                        FROM `Payment` p
@@ -172,14 +178,19 @@ final class PaymentFacade
                     throw new DomainException('This venue payment does not belong to you.');
                 }
 
+                if ((string) $payment['paymentStatus'] === 'PAID') {
+                    throw new DomainException('This payment is already complete.');
+                }
+
                 $this->execute(
                     'UPDATE `Payment`
                         SET `paymentStatus` = :paid, `paymentMethod` = :method,
+                            `payerName` = :payerName, `accountMask` = :accountMask,
+                            `providerLabel` = :providerLabel, `methodDetailJson` = :detail,
                             `paymentDateTime` = NOW()
                       WHERE `paymentId` = :id',
-                    [
-                        ':paid' => 'PAID', ':method' => $methods[$method],
-                        ':id' => $payment['paymentId'],
+                    $this->snapshotParams($snapshot) + [
+                        ':paid' => 'PAID', ':id' => $payment['paymentId'],
                     ]
                 );
                 $this->execute(
@@ -188,14 +199,14 @@ final class PaymentFacade
                 );
             });
 
-            return;
+            return $snapshot;
         }
 
         if ($kind !== 'participant') {
             throw new DomainException('The payment type is invalid.');
         }
 
-        Database::transaction(function () use ($eventId, $payerId): void {
+        Database::transaction(function () use ($eventId, $payerId, $snapshot): void {
             $payment = $this->one(
                 'SELECT pp.`participantPaymentId`, pp.`paymentStatus`, pp.`eventRegistrationId`
                    FROM `ParticipantPayment` pp
@@ -212,11 +223,20 @@ final class PaymentFacade
                 throw new DomainException('A refunded payment cannot be paid again.');
             }
 
+            if ((string) $payment['paymentStatus'] === 'PAID') {
+                throw new DomainException('This payment is already complete.');
+            }
+
             $this->execute(
                 'UPDATE `ParticipantPayment`
-                    SET `paymentStatus` = :paid, `paidAt` = NOW()
+                    SET `paymentStatus` = :paid, `paidAt` = NOW(),
+                        `paymentMethod` = :method, `payerName` = :payerName,
+                        `accountMask` = :accountMask, `providerLabel` = :providerLabel,
+                        `methodDetailJson` = :detail
                   WHERE `participantPaymentId` = :id',
-                [':paid' => 'PAID', ':id' => $payment['participantPaymentId']]
+                $this->snapshotParams($snapshot) + [
+                    ':paid' => 'PAID', ':id' => $payment['participantPaymentId'],
+                ]
             );
             $this->execute(
                 'UPDATE `EventRegistration`
@@ -225,6 +245,8 @@ final class PaymentFacade
                 [':confirmed' => 'CONFIRMED', ':id' => $payment['eventRegistrationId']]
             );
         });
+
+        return $snapshot;
     }
 
     /** @return array<string,mixed> */
@@ -299,7 +321,8 @@ final class PaymentFacade
         return $this->all(
             'SELECT pp.`eventId`, e.`name`, pp.`amount`, pp.`paymentStatus`, pp.`createdAt`,
                     :participantOut AS `kind`, :outgoing1 AS `direction`,
-                    organizer.`username` AS `counterparty`
+                    organizer.`username` AS `counterparty`,
+                    pp.`paymentMethod`, pp.`payerName`, pp.`accountMask`, pp.`providerLabel`
                FROM `ParticipantPayment` pp
                JOIN `Event` e ON e.`eventId` = pp.`eventId`
                JOIN `BaseUser` organizer ON organizer.`baseUserId` = pp.`organizerId`
@@ -307,7 +330,8 @@ final class PaymentFacade
               UNION ALL
              SELECT b.`eventId`, e.`name`, b.`bookingAmount`,
                     COALESCE(p.`paymentStatus`, :pending), b.`createdAt`,
-                    :venueOut, :outgoing2, owner.`username`
+                    :venueOut, :outgoing2, owner.`username`,
+                    p.`paymentMethod`, p.`payerName`, p.`accountMask`, p.`providerLabel`
                FROM `Booking` b JOIN `Event` e ON e.`eventId` = b.`eventId`
                LEFT JOIN `Payment` p ON p.`bookingId` = b.`bookingId`
                JOIN `Facility` f ON f.`facilityId` = e.`facilityId`
@@ -315,7 +339,8 @@ final class PaymentFacade
               WHERE b.`madeById` = :organizerId
               UNION ALL
              SELECT b.`eventId`, e.`name`, p.`amount`, p.`paymentStatus`,
-                    p.`paymentDateTime`, :venueIn, :incoming1, payer.`username`
+                    p.`paymentDateTime`, :venueIn, :incoming1, payer.`username`,
+                    p.`paymentMethod`, p.`payerName`, p.`accountMask`, p.`providerLabel`
                FROM `Payment` p
                JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
                JOIN `Event` e ON e.`eventId` = b.`eventId`
@@ -324,7 +349,8 @@ final class PaymentFacade
               WHERE f.`ownerId` = :ownerId AND p.`paymentStatus` = :venuePaid
               UNION ALL
              SELECT pp.`eventId`, e.`name`, pp.`amount`, pp.`paymentStatus`,
-                    pp.`paidAt`, :participantIn, :incoming2, payer.`username`
+                    pp.`paidAt`, :participantIn, :incoming2, payer.`username`,
+                    pp.`paymentMethod`, pp.`payerName`, pp.`accountMask`, pp.`providerLabel`
                FROM `ParticipantPayment` pp
                JOIN `Event` e ON e.`eventId` = pp.`eventId`
                JOIN `BaseUser` payer ON payer.`baseUserId` = pp.`participantId`
@@ -363,6 +389,112 @@ final class PaymentFacade
         }
 
         $this->refundParticipantRow($row, 'Participant cancelled before the event started.');
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    public function savedMethodsForUser(string $userId): array
+    {
+        $rows = $this->all(
+            'SELECT * FROM `SavedPaymentMethod`
+              WHERE `baseUserId` = :user
+              ORDER BY `isDefault` DESC, `updatedAt` DESC',
+            [':user' => $userId]
+        );
+
+        foreach ($rows as $index => $row) {
+            $detail = $this->decodeJson($row['detailJson'] ?? null);
+            $rows[$index]['detail'] = $detail;
+            $rows[$index]['autofill'] = $this->autofillFromDetail(
+                (string) $row['paymentMethod'],
+                $detail
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot
+     */
+    public function savePaymentMethod(
+        string $userId,
+        array $snapshot,
+        string $label,
+        bool $isDefault
+    ): void {
+        $label = trim($label);
+
+        if (strlen($label) < 1 || strlen($label) > 100) {
+            throw new DomainException('Enter a name for this saved method.');
+        }
+
+        $count = $this->one(
+            'SELECT COUNT(*) AS `total` FROM `SavedPaymentMethod` WHERE `baseUserId` = :user',
+            [':user' => $userId]
+        );
+
+        if ((int) ($count['total'] ?? 0) >= self::MAX_SAVED_METHODS) {
+            throw new DomainException('You can save at most ' . self::MAX_SAVED_METHODS . ' payment methods.');
+        }
+
+        Database::transaction(function () use ($userId, $snapshot, $label, $isDefault, $count): void {
+            $makeDefault = $isDefault || (int) ($count['total'] ?? 0) === 0;
+
+            if ($makeDefault) {
+                $this->execute(
+                    'UPDATE `SavedPaymentMethod` SET `isDefault` = 0 WHERE `baseUserId` = :user',
+                    [':user' => $userId]
+                );
+            }
+
+            $this->execute(
+                'INSERT INTO `SavedPaymentMethod`
+                    (`savedPaymentMethodId`, `baseUserId`, `paymentMethod`, `label`,
+                     `payerName`, `accountMask`, `providerLabel`, `detailJson`, `isDefault`)
+                 VALUES (:id, :user, :method, :label, :payerName, :accountMask, :providerLabel, :detail, :isDefault)',
+                [
+                    ':id' => uuid(),
+                    ':user' => $userId,
+                    ':method' => (string) $snapshot['paymentMethod'],
+                    ':label' => $label,
+                    ':payerName' => (string) $snapshot['payerName'],
+                    ':accountMask' => (string) $snapshot['accountMask'],
+                    ':providerLabel' => (string) $snapshot['providerLabel'],
+                    ':detail' => $this->encodeJson($snapshot['methodDetailJson'] ?? []),
+                    ':isDefault' => $makeDefault ? 1 : 0,
+                ]
+            );
+        });
+    }
+
+    public function deleteSavedMethod(string $userId, string $savedPaymentMethodId): void
+    {
+        $this->execute(
+            'DELETE FROM `SavedPaymentMethod`
+              WHERE `savedPaymentMethodId` = :id AND `baseUserId` = :user',
+            [':id' => $savedPaymentMethodId, ':user' => $userId]
+        );
+    }
+
+    public function setDefaultSavedMethod(string $userId, string $savedPaymentMethodId): void
+    {
+        Database::transaction(function () use ($userId, $savedPaymentMethodId): void {
+            $row = $this->savedMethodRow($userId, $savedPaymentMethodId);
+
+            if ($row === null) {
+                throw new DomainException('That saved payment method is not available.');
+            }
+
+            $this->execute(
+                'UPDATE `SavedPaymentMethod` SET `isDefault` = 0 WHERE `baseUserId` = :user',
+                [':user' => $userId]
+            );
+            $this->execute(
+                'UPDATE `SavedPaymentMethod` SET `isDefault` = 1
+                  WHERE `savedPaymentMethodId` = :id AND `baseUserId` = :user',
+                [':id' => $savedPaymentMethodId, ':user' => $userId]
+            );
+        });
     }
 
     public function cancelEventPayments(string $eventId, string $reason): void
@@ -632,6 +764,125 @@ final class PaymentFacade
         );
 
         return $endsAt === false || $endsAt <= new DateTimeImmutable();
+    }
+
+    /** @return array<string,mixed>|null */
+    private function savedMethodRow(string $userId, string $savedPaymentMethodId): ?array
+    {
+        return $this->one(
+            'SELECT * FROM `SavedPaymentMethod`
+              WHERE `savedPaymentMethodId` = :id AND `baseUserId` = :user LIMIT 1',
+            [':id' => $savedPaymentMethodId, ':user' => $userId]
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @param array<string,mixed> $saved
+     * @return array<string,mixed>
+     */
+    private function mergeSavedInput(array $input, array $saved): array
+    {
+        $autofill = $this->autofillFromDetail(
+            (string) $saved['paymentMethod'],
+            $this->decodeJson($saved['detailJson'] ?? null)
+        );
+
+        foreach ($autofill as $key => $value) {
+            $current = trim((string) ($input[$key] ?? ''));
+
+            if ($current === '' && $value !== '') {
+                $input[$key] = $value;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * @param array<string,mixed> $detail
+     * @return array<string,string>
+     */
+    private function autofillFromDetail(string $method, array $detail): array
+    {
+        if ($method === 'card') {
+            $last4 = (string) ($detail['last4'] ?? '');
+
+            return [
+                'holderName' => (string) ($detail['holderName'] ?? ''),
+                'cardNumber' => $this->demoDigitsEndingIn($last4, 16),
+                'expiryMonth' => (string) ($detail['expiryMonth'] ?? ''),
+                'expiryYear' => (string) ($detail['expiryYear'] ?? ''),
+            ];
+        }
+
+        if ($method === 'fpx') {
+            $last4 = (string) ($detail['accountLast4'] ?? '');
+
+            return [
+                'bankName' => (string) ($detail['bankName'] ?? ''),
+                'accountHolder' => (string) ($detail['accountHolder'] ?? ''),
+                'accountNumber' => $this->demoDigitsEndingIn($last4, 10),
+            ];
+        }
+
+        return [
+            'walletProvider' => (string) ($detail['walletProvider'] ?? ''),
+            'walletAccount' => (string) ($detail['walletAccount'] ?? ''),
+        ];
+    }
+
+    private function demoDigitsEndingIn(string $last4, int $length): string
+    {
+        $last4 = substr(preg_replace('/\D+/', '', $last4) ?? '', -4);
+
+        if (strlen($last4) !== 4) {
+            return '';
+        }
+
+        return str_pad($last4, $length, '4', STR_PAD_LEFT);
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot
+     * @return array<string,string>
+     */
+    private function snapshotParams(array $snapshot): array
+    {
+        return [
+            ':method' => (string) $snapshot['paymentMethod'],
+            ':payerName' => (string) $snapshot['payerName'],
+            ':accountMask' => (string) $snapshot['accountMask'],
+            ':providerLabel' => (string) $snapshot['providerLabel'],
+            ':detail' => $this->encodeJson($snapshot['methodDetailJson'] ?? []),
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function decodeJson(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || $value === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function encodeJson(mixed $value): string
+    {
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        $encoded = json_encode(is_array($value) ? $value : [], JSON_UNESCAPED_UNICODE);
+
+        return $encoded === false ? '{}' : $encoded;
     }
 
     /** @return array<string,mixed>|null */

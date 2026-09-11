@@ -170,6 +170,102 @@
     }
 
     /* ----------------------------------------------------------------------
+       Payment checkout method fields.  (Module 4 - ZH)
+
+       Card, FPX and e-wallet ask for different details. Only the block for the
+       chosen radio is shown. Saved methods fill those fields from a data
+       attribute on the option. Convenience only: the server validates the
+       posted method through the matching strategy, so hiding a block here is
+       not what keeps a card number off an FPX payment.
+       ---------------------------------------------------------------------- */
+
+    function setUpPaymentCheckout() {
+        var form = document.querySelector('[data-payment-checkout]');
+
+        if (!form) {
+            return;
+        }
+
+        var radios = form.querySelectorAll('input[name="paymentMethod"]');
+        var panels = form.querySelectorAll('[data-method-fields]');
+        var saved = form.querySelector('[data-saved-methods]');
+
+        function selectedCode() {
+            var checked = form.querySelector('input[name="paymentMethod"]:checked');
+
+            return checked ? checked.value : '';
+        }
+
+        function showPanels() {
+            var code = selectedCode();
+
+            Array.prototype.forEach.call(panels, function (panel) {
+                panel.hidden = panel.getAttribute('data-method-fields') !== code;
+            });
+        }
+
+        function fillFrom(data) {
+            [
+                'holderName', 'cardNumber', 'expiryMonth', 'expiryYear',
+                'bankName', 'accountHolder', 'accountNumber',
+                'walletProvider', 'walletAccount'
+            ].forEach(function (name) {
+                var field = form.elements[name];
+
+                if (field && Object.prototype.hasOwnProperty.call(data, name)) {
+                    field.value = data[name] || '';
+                }
+            });
+
+            if (form.elements.cvv) {
+                form.elements.cvv.value = '';
+            }
+        }
+
+        Array.prototype.forEach.call(radios, function (radio) {
+            radio.addEventListener('change', function () {
+                if (saved) {
+                    var option = saved.options[saved.selectedIndex];
+                    var savedMethod = option ? option.getAttribute('data-method') : '';
+
+                    if (saved.value !== '' && savedMethod !== radio.value) {
+                        saved.value = '';
+                    }
+                }
+
+                showPanels();
+            });
+        });
+
+        if (saved) {
+            saved.addEventListener('change', function () {
+                var option = saved.options[saved.selectedIndex];
+                var method = option ? option.getAttribute('data-method') || '' : '';
+                var payload = {};
+
+                try {
+                    payload = JSON.parse(option && option.getAttribute('data-autofill') || '{}') || {};
+                } catch (error) {
+                    payload = {};
+                }
+
+                if (method) {
+                    var match = form.querySelector('input[name="paymentMethod"][value="' + method + '"]');
+
+                    if (match) {
+                        match.checked = true;
+                    }
+                }
+
+                fillFrom(payload);
+                showPanels();
+            });
+        }
+
+        showPanels();
+    }
+
+    /* ----------------------------------------------------------------------
        Grey out the times that cannot be booked.
 
        Which half hours are free depends on the venue and the date together, so
@@ -793,6 +889,7 @@
         setUpVenuePreview();
         setUpPickers();
         setUpRoleFields();
+        setUpPaymentCheckout();
         setUpSlotGuard();
         setUpStateFromPostcode();
         setUpNoCopyFields();

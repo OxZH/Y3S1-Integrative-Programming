@@ -14,6 +14,7 @@ use App\ServiceUnavailableException;
 $action = is_string($_GET['action'] ?? null) ? $_GET['action'] : 'index';
 $actions = [
     'index', 'venue', 'participant', 'confirm', 'cancelParticipant',
+    'offerSave', 'saveMethod', 'skipSave', 'deleteSavedMethod', 'setDefaultSavedMethod',
 ];
 
 function paymentPageError(int $status, string $heading, string $message, ?string $detail = null): never

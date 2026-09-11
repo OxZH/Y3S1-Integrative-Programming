@@ -313,7 +313,11 @@ CREATE TABLE `Payment` (
     `bookingId`             VARCHAR(36)   NOT NULL,   -- [D] Booking 1 --has-- 0..1 Payment; FK held on the optional side
     `amount`                DECIMAL(10,2) NOT NULL,   -- [D] diagram says double -> DECIMAL
     `paymentDateTime`       DATETIME      NOT NULL,   -- [D]
-    `paymentMethod`         VARCHAR(50)   NOT NULL,   -- [D] e.g. card, fpx
+    `paymentMethod`         VARCHAR(50)   NOT NULL,   -- [D] e.g. card, fpx, e_wallet
+    `payerName`             VARCHAR(100)  NULL,       -- [+] zh: cardholder / account holder / wallet name at pay time
+    `accountMask`           VARCHAR(50)   NULL,       -- [+] zh: masked PAN / account / wallet id for history
+    `providerLabel`         VARCHAR(100)  NULL,       -- [+] zh: bank / wallet brand / card brand
+    `methodDetailJson`      JSON          NULL,       -- [+] zh: demo snapshot of method fields (no full PAN)
     `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
                             NOT NULL DEFAULT 'PENDING',
     PRIMARY KEY (`paymentId`),
@@ -330,6 +334,11 @@ CREATE TABLE `ParticipantPayment` (
     `participantId`         VARCHAR(36)   NOT NULL,
     `organizerId`           VARCHAR(36)   NOT NULL,
     `amount`                DECIMAL(10,2) NOT NULL,
+    `paymentMethod`         VARCHAR(50)   NULL,       -- [+] zh: card | fpx | e_wallet, set on confirm
+    `payerName`             VARCHAR(100)  NULL,       -- [+] zh: snapshot of who paid
+    `accountMask`           VARCHAR(50)   NULL,       -- [+] zh: masked account for history
+    `providerLabel`         VARCHAR(100)  NULL,       -- [+] zh: bank / wallet / card brand
+    `methodDetailJson`      JSON          NULL,       -- [+] zh: demo snapshot of method fields
     `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
                             NOT NULL DEFAULT 'PENDING',
     `paidAt`                DATETIME      NULL,
@@ -347,6 +356,26 @@ CREATE TABLE `ParticipantPayment` (
         FOREIGN KEY (`organizerId`) REFERENCES `User`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_ParticipantPayment_amount` CHECK (`amount` >= 0),
     KEY `idx_ParticipantPayment_event` (`eventId`, `paymentStatus`)
+) ENGINE=InnoDB;
+
+-- Saved checkout profiles for autofill. History still lives on Payment /
+-- ParticipantPayment so deleting a saved row does not erase what was paid.
+CREATE TABLE `SavedPaymentMethod` (
+    `savedPaymentMethodId` VARCHAR(36)  NOT NULL,
+    `baseUserId`           VARCHAR(36)  NOT NULL,
+    `paymentMethod`        VARCHAR(50)  NOT NULL,  -- [+] zh: card | fpx | e_wallet
+    `label`                VARCHAR(100) NOT NULL, -- user-facing nickname, e.g. "My Maybank"
+    `payerName`            VARCHAR(100) NOT NULL,
+    `accountMask`          VARCHAR(50)  NOT NULL,
+    `providerLabel`        VARCHAR(100) NOT NULL,
+    `detailJson`           JSON         NOT NULL, -- fields needed to autofill the checkout form
+    `isDefault`            TINYINT(1)  NOT NULL DEFAULT 0,
+    `createdAt`            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updatedAt`            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`savedPaymentMethodId`),
+    CONSTRAINT `fk_SavedPaymentMethod_user`
+        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE CASCADE,
+    KEY `idx_SavedPaymentMethod_user` (`baseUserId`, `paymentMethod`)
 ) ENGINE=InnoDB;
 
 -- ============================================================================

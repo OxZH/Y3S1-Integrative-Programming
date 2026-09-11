@@ -126,11 +126,20 @@ INSERT INTO `Booking`
 ('bkg-005', 'evt-005', 'usr-002', 'CONFIRMED', 70.00, '2026-08-05 10:02:00');
 
 INSERT INTO `Payment`
-    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`) VALUES
-('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card', 'PAID'),
-('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',  'PAID'),
-('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card', 'REFUNDED'),
-('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card', 'PAID');
+    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`,
+     `payerName`, `accountMask`, `providerLabel`, `methodDetailJson`, `paymentStatus`) VALUES
+('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card',
+ 'Aisyah Rahman', '**** **** **** 4242', 'Visa',
+ '{"holderName":"Aisyah Rahman","last4":"4242","brand":"Visa","expiryMonth":"12","expiryYear":"28"}', 'PAID'),
+('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',
+ 'Daniel Tan', '****8899', 'Maybank',
+ '{"bankName":"Maybank","accountHolder":"Daniel Tan","accountLast4":"8899"}', 'PAID'),
+('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card',
+ 'Aisyah Rahman', '**** **** **** 4242', 'Visa',
+ '{"holderName":"Aisyah Rahman","last4":"4242","brand":"Visa","expiryMonth":"12","expiryYear":"28"}', 'REFUNDED'),
+('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card',
+ 'Daniel Tan', '**** **** **** 5555', 'Mastercard',
+ '{"holderName":"Daniel Tan","last4":"5555","brand":"Mastercard","expiryMonth":"08","expiryYear":"29"}', 'PAID');
 
 -- ---------------------------------------------------------------------------
 --  Event registrations   (MODULE 5 - js)

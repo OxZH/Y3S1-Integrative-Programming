@@ -44,6 +44,22 @@ No external payment account, API key, Composer package or Webhook is required.
 The payment page simulates Card, FPX and E-wallet payments and records the
 result in MySQL. No real money is charged or transferred.
 
+Checkout uses the Strategy pattern (`PaymentMethodStrategy` plus Card / FPX /
+E-wallet classes). Each method collects its own demo fields, stores a **masked
+snapshot** on the payment row for history, and can optionally be saved for
+autofill next time (`SavedPaymentMethod`, max 5 per user). Full card numbers and
+CVVs are not kept. Venue fees stay non-refundable; participant refunds before
+the event starts are unchanged.
+
+If the database already exists, apply the extra columns and table with:
+
+```
+C:\xampp\mysql\bin\mysql -u root < database\migrate_payment_details.sql
+```
+
+A fresh `setup.bat` already includes them from `schema.sql`. Free participant
+events still go through checkout so a method is selected; the amount is RM0.00.
+
 ### Other ways to run it
 
 Copying the whole project into `htdocs` also works, at
@@ -69,7 +85,7 @@ need to.
 
 ```
 config.php              database, service endpoints, timeouts
-database/               schema.sql, seed.sql, setup.bat
+database/               schema.sql, seed.sql, setup.bat, migrate_payment_details.sql
 app/
   bootstrap.php         autoloader, config, session
   helpers.php           e(), url(), money(), uuid()
@@ -82,6 +98,7 @@ app/
   Domain/               EventManagementFacade + its policies          (module 1)
                         AccountService, AccountServiceProxy,
                         ResetLinkDelivery                             (module 2)
+                        PaymentFacade + Payment/ strategies           (module 4)
   Service/              IFA envelope, log, HTTP client, RemoteServices
                         ParticipationHistory                          (module 2)
   Security/             Auth, Csrf, Validator (shared)
@@ -89,9 +106,11 @@ app/
                         PasswordPolicy, AuthEventLogger               (module 2)
   Controller/           Facility, Event                               (module 1)
                         Auth, Profile, Admin                          (module 2)
+                        Payment                                       (module 4)
   views/
 public/
   index.php             front controller
+  payment.php           demo checkout, saved methods, history         (module 4)
   css/style.css         the one stylesheet every page loads
   js/app.js             venue preview, confirm prompts, role fields
   api/facility.php      exposed service, IFA in the file header       (module 1)
