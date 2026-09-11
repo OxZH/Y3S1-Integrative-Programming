@@ -126,7 +126,7 @@ final class FacilityController extends Controller
                 'input'    => $_POST,
                 'errors'   => $e->getErrors(),
                 'sports'   => Sports::ALL,
-                ]);
+            ]);
         }
     }
 

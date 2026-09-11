@@ -57,9 +57,9 @@
                         <a class="btn ghost small" href="<?= e(url('event', 'invites', ['id' => $event->getEventId()])) ?>">Links</a>
 
                         <?php if ($needsPayment): ?>
-                            <a class="btn placeholder small"
-                               href="booking.php?eventId=<?= e(urlencode((string) $event->getEventId())) ?>">
-                                COMPLETE BOOKING/PAYMENT ZH!!!
+                            <a class="btn small"
+                               href="payment.php?action=venue&amp;eventId=<?= e(urlencode((string) $event->getEventId())) ?>">
+                                Pay venue
                             </a>
                         <?php endif; ?>
                     </td>

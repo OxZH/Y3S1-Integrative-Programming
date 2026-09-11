@@ -7,7 +7,6 @@ namespace App\Domain;
 
 use App\Core\Database;
 use App\Service\PaymentRemoteServices;
-use App\Service\StripeService;
 use DateTimeImmutable;
 use DomainException;
 use PDO;
@@ -17,7 +16,6 @@ final class PaymentFacade
 {
     private PDO $db;
     private PaymentRemoteServices $remote;
-    private ?StripeService $stripe = null;
 
     public function __construct(?PaymentRemoteServices $remote = null)
     {
@@ -41,46 +39,22 @@ final class PaymentFacade
 
         $facilityId = (string) ($event['facility']['facilityId'] ?? '');
         $facility = $this->remote->facilityDetails($facilityId);
-        $payeeId = (string) ($facility['owner']['baseUserId'] ?? '');
-        $this->requireReadyConnectAccount($payeeId, 'The facility owner must finish Stripe Connect onboarding before payment.');
-
         $amount = round((float) ($facility['bookingFee'] ?? 0) * (float) ($event['durationHours'] ?? 0), 2);
 
         if ($amount <= 0) {
             throw new DomainException('The venue payment amount is invalid.');
         }
-        if ($amount < 2.00) {
-            throw new DomainException('Stripe requires the venue charge to be at least RM2.00.');
-        }
 
         $payment = $this->reserveVenuePayment($eventId, $userId, $amount);
-        $this->reserveVenueTransfer($eventId, $payeeId, $amount);
 
         if (($payment['paymentStatus'] ?? null) === 'PAID') {
             return compact('event', 'facility', 'amount') + [
-                'kind' => 'venue', 'status' => 'PAID', 'clientSecret' => null,
+                'kind' => 'venue', 'status' => 'PAID',
             ];
         }
 
-        $paymentId = (string) $payment['paymentId'];
-
-        $intent = $this->stripe()->createPaymentIntent(
-            $paymentId,
-            $amount,
-            'Venue booking for ' . (string) ($event['name'] ?? $eventId),
-            ['paymentType' => 'VENUE', 'eventId' => $eventId, 'paymentId' => $paymentId]
-        );
-
-        $this->execute(
-            'UPDATE `Payment` SET `stripePaymentIntentId` = :stripe
-              WHERE `paymentId` = :id AND `paymentStatus` <> :paid',
-            [
-                ':stripe' => $intent['id'], ':id' => $paymentId, ':paid' => 'PAID',
-            ]
-        );
-
         return compact('event', 'facility', 'amount') + [
-            'kind' => 'venue', 'status' => 'PENDING', 'clientSecret' => $intent['clientSecret'],
+            'kind' => 'venue', 'status' => 'PENDING',
         ];
     }
 
@@ -105,17 +79,6 @@ final class PaymentFacade
 
         $this->assertEventHasNotStarted($event);
         $amount = round((float) ($event['feePerParticipant'] ?? 0), 2);
-
-        if ($amount > 0 && $amount < 2.00) {
-            throw new DomainException('Stripe requires the participant fee to be either free or at least RM2.00.');
-        }
-
-        if ($amount > 0) {
-            $this->requireReadyConnectAccount(
-                $organizerId,
-                'The organizer must finish Stripe Connect onboarding before accepting participant fees.'
-            );
-        }
 
         $registrationId = $this->reserveParticipantPlace(
             $eventId,
@@ -157,11 +120,9 @@ final class PaymentFacade
             throw new DomainException('The existing participant payment does not match this event fee.');
         }
 
-        $participantPaymentId = (string) $payment['participantPaymentId'];
-
         if ((string) $payment['paymentStatus'] === 'PAID' && $amount > 0) {
             return compact('event', 'amount') + [
-                'kind' => 'participant', 'status' => 'PAID', 'clientSecret' => null,
+                'kind' => 'participant', 'status' => 'PAID',
             ];
         }
 
@@ -176,30 +137,94 @@ final class PaymentFacade
             );
 
             return compact('event', 'amount') + [
-                'kind' => 'participant', 'status' => 'PAID', 'clientSecret' => null,
+                'kind' => 'participant', 'status' => 'PAID',
             ];
         }
 
-        $intent = $this->stripe()->createPaymentIntent(
-            $participantPaymentId,
-            $amount,
-            'Participant fee for ' . (string) ($event['name'] ?? $eventId),
-            [
-                'paymentType' => 'PARTICIPANT', 'eventId' => $eventId,
-                'participantPaymentId' => $participantPaymentId,
-            ]
-        );
-
-        $this->execute(
-            'UPDATE `ParticipantPayment`
-                SET `stripePaymentIntentId` = :stripe
-              WHERE `participantPaymentId` = :id',
-            [':stripe' => $intent['id'], ':id' => $participantPaymentId]
-        );
-
         return compact('event', 'amount') + [
-            'kind' => 'participant', 'status' => 'PENDING', 'clientSecret' => $intent['clientSecret'],
+            'kind' => 'participant', 'status' => 'PENDING',
         ];
+    }
+
+    public function confirmInternalPayment(
+        string $eventId,
+        string $payerId,
+        string $kind,
+        string $method
+    ): void {
+        $methods = ['card' => 'card', 'fpx' => 'fpx', 'e_wallet' => 'e-wallet'];
+
+        if (!isset($methods[$method])) {
+            throw new DomainException('Select a valid payment method.');
+        }
+
+        if ($kind === 'venue') {
+            Database::transaction(function () use ($eventId, $payerId, $methods, $method): void {
+                $payment = $this->one(
+                    'SELECT p.`paymentId`, p.`paymentStatus`, b.`bookingId`, b.`madeById`
+                       FROM `Payment` p
+                       JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
+                      WHERE b.`eventId` = :event FOR UPDATE',
+                    [':event' => $eventId]
+                );
+
+                if ($payment === null || (string) $payment['madeById'] !== $payerId) {
+                    throw new DomainException('This venue payment does not belong to you.');
+                }
+
+                $this->execute(
+                    'UPDATE `Payment`
+                        SET `paymentStatus` = :paid, `paymentMethod` = :method,
+                            `paymentDateTime` = NOW()
+                      WHERE `paymentId` = :id',
+                    [
+                        ':paid' => 'PAID', ':method' => $methods[$method],
+                        ':id' => $payment['paymentId'],
+                    ]
+                );
+                $this->execute(
+                    'UPDATE `Booking` SET `bookingStatus` = :status WHERE `bookingId` = :id',
+                    [':status' => 'CONFIRMED', ':id' => $payment['bookingId']]
+                );
+            });
+
+            return;
+        }
+
+        if ($kind !== 'participant') {
+            throw new DomainException('The payment type is invalid.');
+        }
+
+        Database::transaction(function () use ($eventId, $payerId): void {
+            $payment = $this->one(
+                'SELECT pp.`participantPaymentId`, pp.`paymentStatus`, pp.`eventRegistrationId`
+                   FROM `ParticipantPayment` pp
+                  WHERE pp.`eventId` = :event AND pp.`participantId` = :payer
+                  FOR UPDATE',
+                [':event' => $eventId, ':payer' => $payerId]
+            );
+
+            if ($payment === null) {
+                throw new DomainException('This participant payment does not belong to you.');
+            }
+
+            if ((string) $payment['paymentStatus'] === 'REFUNDED') {
+                throw new DomainException('A refunded payment cannot be paid again.');
+            }
+
+            $this->execute(
+                'UPDATE `ParticipantPayment`
+                    SET `paymentStatus` = :paid, `paidAt` = NOW()
+                  WHERE `participantPaymentId` = :id',
+                [':paid' => 'PAID', ':id' => $payment['participantPaymentId']]
+            );
+            $this->execute(
+                'UPDATE `EventRegistration`
+                    SET `status` = :confirmed
+                  WHERE `eventRegistrationId` = :id',
+                [':confirmed' => 'CONFIRMED', ':id' => $payment['eventRegistrationId']]
+            );
+        });
     }
 
     /** @return array<string,mixed> */
@@ -243,12 +268,11 @@ final class PaymentFacade
                FROM `ParticipantPayment` WHERE `eventId` = :event',
             [':paid' => 'PAID', ':refunded' => 'REFUNDED', ':event' => $eventId]
         );
-        $payout = $this->one(
-            'SELECT `amount`, `status`, `stripeTransferId`
-               FROM `PaymentTransfer`
-              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-            [':event' => $eventId, ':type' => 'PARTICIPANT_PAYOUT']
+        $event = $this->one(
+            'SELECT `status` FROM `Event` WHERE `eventId` = :event LIMIT 1',
+            [':event' => $eventId]
         );
+        $isSettled = (string) ($event['status'] ?? '') === 'COMPLETED';
 
         return [
             'eventId' => $eventId,
@@ -262,10 +286,9 @@ final class PaymentFacade
                 'collected' => (float) ($participants['collected'] ?? 0),
                 'refunded' => (float) ($participants['refunded'] ?? 0),
             ],
-            'payout' => $payout === null ? null : [
-                'amount' => (float) $payout['amount'],
-                'status' => (string) $payout['status'],
-                'stripeTransferId' => $payout['stripeTransferId'],
+            'payout' => [
+                'amount' => (float) ($participants['collected'] ?? 0),
+                'status' => $isSettled ? 'PAID' : 'PENDING',
             ],
         ];
     }
@@ -275,77 +298,51 @@ final class PaymentFacade
     {
         return $this->all(
             'SELECT pp.`eventId`, e.`name`, pp.`amount`, pp.`paymentStatus`, pp.`createdAt`,
-                    :participant AS `kind`
-               FROM `ParticipantPayment` pp JOIN `Event` e ON e.`eventId` = pp.`eventId`
-              WHERE pp.`participantId` = :user
+                    :participantOut AS `kind`, :outgoing1 AS `direction`,
+                    organizer.`username` AS `counterparty`
+               FROM `ParticipantPayment` pp
+               JOIN `Event` e ON e.`eventId` = pp.`eventId`
+               JOIN `BaseUser` organizer ON organizer.`baseUserId` = pp.`organizerId`
+              WHERE pp.`participantId` = :participantId
               UNION ALL
              SELECT b.`eventId`, e.`name`, b.`bookingAmount`,
-                    COALESCE(p.`paymentStatus`, :pending), b.`createdAt`, :venue
+                    COALESCE(p.`paymentStatus`, :pending), b.`createdAt`,
+                    :venueOut, :outgoing2, owner.`username`
                FROM `Booking` b JOIN `Event` e ON e.`eventId` = b.`eventId`
                LEFT JOIN `Payment` p ON p.`bookingId` = b.`bookingId`
-              WHERE b.`madeById` = :user2
+               JOIN `Facility` f ON f.`facilityId` = e.`facilityId`
+               JOIN `BaseUser` owner ON owner.`baseUserId` = f.`ownerId`
+              WHERE b.`madeById` = :organizerId
+              UNION ALL
+             SELECT b.`eventId`, e.`name`, p.`amount`, p.`paymentStatus`,
+                    p.`paymentDateTime`, :venueIn, :incoming1, payer.`username`
+               FROM `Payment` p
+               JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
+               JOIN `Event` e ON e.`eventId` = b.`eventId`
+               JOIN `Facility` f ON f.`facilityId` = e.`facilityId`
+               JOIN `BaseUser` payer ON payer.`baseUserId` = b.`madeById`
+              WHERE f.`ownerId` = :ownerId AND p.`paymentStatus` = :venuePaid
+              UNION ALL
+             SELECT pp.`eventId`, e.`name`, pp.`amount`, pp.`paymentStatus`,
+                    pp.`paidAt`, :participantIn, :incoming2, payer.`username`
+               FROM `ParticipantPayment` pp
+               JOIN `Event` e ON e.`eventId` = pp.`eventId`
+               JOIN `BaseUser` payer ON payer.`baseUserId` = pp.`participantId`
+              WHERE pp.`organizerId` = :hostId
+                AND pp.`paymentStatus` = :participantPaid
+                AND e.`status` = :completed
               ORDER BY `createdAt` DESC',
             [
-                ':participant' => 'PARTICIPANT', ':user' => $userId, ':pending' => 'PENDING',
-                ':venue' => 'VENUE', ':user2' => $userId,
+                ':participantOut' => 'PARTICIPANT_FEE', ':outgoing1' => 'OUTGOING',
+                ':participantId' => $userId, ':pending' => 'PENDING',
+                ':venueOut' => 'VENUE_FEE', ':outgoing2' => 'OUTGOING',
+                ':organizerId' => $userId, ':venueIn' => 'VENUE_FEE',
+                ':incoming1' => 'INCOMING', ':ownerId' => $userId,
+                ':venuePaid' => 'PAID', ':participantIn' => 'PARTICIPANT_FEE',
+                ':incoming2' => 'INCOMING', ':hostId' => $userId,
+                ':participantPaid' => 'PAID', ':completed' => 'COMPLETED',
             ]
         );
-    }
-
-    /** @return array<string,mixed>|null */
-    public function connectStatus(string $baseUserId): ?array
-    {
-        return $this->one(
-            'SELECT * FROM `ConnectAccount` WHERE `baseUserId` = :id LIMIT 1',
-            [':id' => $baseUserId]
-        );
-    }
-
-    public function beginConnectOnboarding(
-        string $baseUserId,
-        string $email,
-        string $returnUrl,
-        string $refreshUrl
-    ): string {
-        $row = $this->connectStatus($baseUserId);
-
-        if ($row === null) {
-            $account = $this->stripe()->createConnectAccount($baseUserId, $email);
-            $this->saveConnectAccount($baseUserId, $account);
-            $stripeAccountId = $account['id'];
-        } else {
-            $stripeAccountId = (string) $row['stripeAccountId'];
-        }
-
-        return $this->stripe()->createAccountLink($stripeAccountId, $returnUrl, $refreshUrl);
-    }
-
-    /** @return array<string,mixed> */
-    public function refreshConnectAccount(string $baseUserId): array
-    {
-        $row = $this->connectStatus($baseUserId);
-
-        if ($row === null) {
-            throw new DomainException('No Stripe Connect account exists for this user.');
-        }
-
-        $account = $this->stripe()->retrieveConnectAccount((string) $row['stripeAccountId']);
-        $this->saveConnectAccount($baseUserId, $account);
-
-        return $account;
-    }
-
-    public function syncConnectAccountByStripeId(string $stripeAccountId): void
-    {
-        $row = $this->one(
-            'SELECT `baseUserId` FROM `ConnectAccount` WHERE `stripeAccountId` = :id LIMIT 1',
-            [':id' => $stripeAccountId]
-        );
-
-        if ($row !== null) {
-            $account = $this->stripe()->retrieveConnectAccount($stripeAccountId);
-            $this->saveConnectAccount((string) $row['baseUserId'], $account);
-        }
     }
 
     public function cancelParticipantPayment(string $eventId, string $userId): void
@@ -410,18 +407,11 @@ final class PaymentFacade
         $organizerId = (string) $organizer['hostId'];
         $event = $this->remote->eventDetails($eventId, $organizerId);
 
-        if ((string) ($event['status'] ?? '') !== 'COMPLETED') {
-            throw new DomainException('Participant fees can only be paid out after the event is completed.');
-        }
-
-        $existing = $this->one(
-            'SELECT * FROM `PaymentTransfer`
-              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-            [':event' => $eventId, ':type' => 'PARTICIPANT_PAYOUT']
-        );
-
-        if (($existing['status'] ?? null) === 'PAID') {
-            return $existing;
+        if (
+            (string) ($event['status'] ?? '') !== 'COMPLETED'
+            && !$this->eventHasEnded($event)
+        ) {
+            throw new DomainException('Participant fees can only be paid out after the event has ended.');
         }
 
         $sum = $this->one(
@@ -432,268 +422,34 @@ final class PaymentFacade
         );
         $amount = round((float) ($sum['amount'] ?? 0), 2);
 
-        if ($amount <= 0) {
-            return ['eventId' => $eventId, 'amount' => 0.0, 'status' => 'PAID'];
-        }
-
-        $account = $this->requireReadyConnectAccount(
-            $organizerId,
-            'The organizer must finish Stripe Connect onboarding before payout.'
-        );
-        $transferId = $existing === null ? uuid() : (string) $existing['transferId'];
-
-        if ($existing === null) {
-            $this->execute(
-                'INSERT INTO `PaymentTransfer`
-                    (`transferId`, `eventId`, `recipientId`, `transferType`, `amount`, `status`)
-                 VALUES (:id, :event, :recipient, :type, :amount, :status)',
-                [
-                    ':id' => $transferId, ':event' => $eventId, ':recipient' => $organizerId,
-                    ':type' => 'PARTICIPANT_PAYOUT', ':amount' => $this->decimal($amount), ':status' => 'PENDING',
-                ]
-            );
-        }
-
-        $stripeTransferId = $this->stripe()->createTransfer(
-            $transferId,
-            (string) $account['stripeAccountId'],
-            $amount,
-            $eventId
-        );
-        $this->execute(
-            'UPDATE `PaymentTransfer` SET `stripeTransferId` = :stripe, `status` = :status
-              WHERE `transferId` = :id',
-            [':stripe' => $stripeTransferId, ':status' => 'PAID', ':id' => $transferId]
-        );
-
-        return ['eventId' => $eventId, 'amount' => $amount, 'status' => 'PAID', 'stripeTransferId' => $stripeTransferId];
-    }
-
-    public function handleIntentSucceeded(string $paymentType, string $localId, string $stripeIntentId): void
-    {
-        if ($paymentType === 'VENUE') {
-            Database::transaction(function () use ($localId, $stripeIntentId): void {
-                $this->execute(
-                    'UPDATE `Payment` SET `paymentStatus` = :paid, `paymentDateTime` = NOW(),
-                            `stripePaymentIntentId` = :stripe
-                      WHERE `paymentId` = :id',
-                    [':paid' => 'PAID', ':stripe' => $stripeIntentId, ':id' => $localId]
-                );
-                $this->execute(
-                    'UPDATE `Booking` b JOIN `Payment` p ON p.`bookingId` = b.`bookingId`
-                        SET b.`bookingStatus` = :confirmed
-                      WHERE p.`paymentId` = :id',
-                    [':confirmed' => 'CONFIRMED', ':id' => $localId]
-                );
-            });
-            $this->releaseVenueTransfer($localId);
-
-            return;
-        }
-
-        if ($paymentType === 'PARTICIPANT') {
-            Database::transaction(function () use ($localId, $stripeIntentId): void {
-                $this->execute(
-                    'UPDATE `ParticipantPayment`
-                        SET `paymentStatus` = :paid, `paidAt` = NOW(), `stripePaymentIntentId` = :stripe
-                      WHERE `participantPaymentId` = :id',
-                    [':paid' => 'PAID', ':stripe' => $stripeIntentId, ':id' => $localId]
-                );
-                $this->execute(
-                    'UPDATE `EventRegistration` er
-                       JOIN `ParticipantPayment` pp
-                         ON pp.`eventRegistrationId` = er.`eventRegistrationId`
-                        SET er.`status` = :confirmed
-                      WHERE pp.`participantPaymentId` = :id',
-                    [':confirmed' => 'CONFIRMED', ':id' => $localId]
-                );
-            });
-        }
-    }
-
-    public function handleIntentFailed(string $paymentType, string $localId): void
-    {
-        if ($paymentType === 'VENUE') {
-            $this->execute(
-                'UPDATE `Payment` SET `paymentStatus` = :failed WHERE `paymentId` = :id AND `paymentStatus` <> :paid',
-                [':failed' => 'FAILED', ':id' => $localId, ':paid' => 'PAID']
-            );
-        } elseif ($paymentType === 'PARTICIPANT') {
-            Database::transaction(function () use ($localId): void {
-                $this->execute(
-                    'UPDATE `ParticipantPayment` SET `paymentStatus` = :failed
-                      WHERE `participantPaymentId` = :id AND `paymentStatus` <> :paid',
-                    [':failed' => 'FAILED', ':id' => $localId, ':paid' => 'PAID']
-                );
-                $this->execute(
-                    'UPDATE `EventRegistration` er
-                       JOIN `ParticipantPayment` pp
-                         ON pp.`eventRegistrationId` = er.`eventRegistrationId`
-                        SET er.`status` = :cancelled
-                      WHERE pp.`participantPaymentId` = :id AND pp.`paymentStatus` = :failed',
-                    [':cancelled' => 'CANCELLED', ':id' => $localId, ':failed' => 'FAILED']
-                );
-            });
-        }
-    }
-
-    public function handleChargeRefunded(string $stripePaymentIntentId, bool $fullyRefunded): void
-    {
-        $venue = $this->one(
-            'SELECT `paymentId`, `bookingId` FROM `Payment`
-              WHERE `stripePaymentIntentId` = :stripe LIMIT 1',
-            [':stripe' => $stripePaymentIntentId]
-        );
-
-        if ($venue !== null) {
-            $this->execute(
-                'UPDATE `Payment` SET `paymentStatus` = :status WHERE `paymentId` = :id',
-                [':status' => $fullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED', ':id' => $venue['paymentId']]
-            );
-            if ($fullyRefunded) {
-                $this->execute(
-                    'UPDATE `Booking` SET `bookingStatus` = :status WHERE `bookingId` = :id',
-                    [':status' => 'CANCELLED', ':id' => $venue['bookingId']]
-                );
-            }
-
-            return;
-        }
-
-        $participant = $this->one(
-            'SELECT `participantPaymentId`, `eventRegistrationId` FROM `ParticipantPayment`
-              WHERE `stripePaymentIntentId` = :stripe LIMIT 1',
-            [':stripe' => $stripePaymentIntentId]
-        );
-
-        if ($participant !== null) {
-            $this->execute(
-                'UPDATE `ParticipantPayment` SET `paymentStatus` = :status
-                  WHERE `participantPaymentId` = :id',
-                [
-                    ':status' => $fullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
-                    ':id' => $participant['participantPaymentId'],
-                ]
-            );
-            if ($fullyRefunded) {
-                $this->execute(
-                    'UPDATE `EventRegistration` SET `status` = :status WHERE `eventRegistrationId` = :id',
-                    [':status' => 'CANCELLED', ':id' => $participant['eventRegistrationId']]
-                );
-            }
-        }
-    }
-
-    public function handleTransferEvent(string $stripeTransferId, string $eventType, float $reversedAmount = 0): void
-    {
-        $status = match ($eventType) {
-            'transfer.reversed' => 'REVERSED',
-            default             => 'PAID',
-        };
-
-        $this->execute(
-            'UPDATE `PaymentTransfer`
-                SET `status` = :status, `reversedAmount` = :reversed
-              WHERE `stripeTransferId` = :stripe',
-            [
-                ':status' => $status, ':reversed' => $this->decimal($reversedAmount),
-                ':stripe' => $stripeTransferId,
-            ]
-        );
-    }
-
-    private function releaseVenueTransfer(string $paymentId): void
-    {
-        $row = $this->one(
-            'SELECT p.`amount`, b.`eventId`, t.`transferId`, t.`recipientId`,
-                    t.`status`, t.`stripeTransferId`
-               FROM `Payment` p
-               JOIN `Booking` b ON b.`bookingId` = p.`bookingId`
-               JOIN `PaymentTransfer` t
-                 ON t.`eventId` = b.`eventId` AND t.`transferType` = :type
-              WHERE p.`paymentId` = :id AND p.`paymentStatus` = :paid LIMIT 1',
-            [':type' => 'VENUE', ':id' => $paymentId, ':paid' => 'PAID']
-        );
-
-        if ($row === null || (string) $row['status'] === 'PAID') {
-            return;
-        }
-
-        $eventId = (string) $row['eventId'];
-        $account = $this->requireReadyConnectAccount(
-            (string) $row['recipientId'],
-            'The facility owner Stripe Connect account is not ready.'
-        );
-        $transferId = (string) $row['transferId'];
-
-        $stripeId = $this->stripe()->createTransfer(
-            $transferId,
-            (string) $account['stripeAccountId'],
-            (float) $row['amount'],
-            $eventId
-        );
-        $this->execute(
-            'UPDATE `PaymentTransfer` SET `stripeTransferId` = :stripe, `status` = :paid
-              WHERE `transferId` = :id',
-            [':stripe' => $stripeId, ':paid' => 'PAID', ':id' => $transferId]
-        );
+        return [
+            'eventId' => $eventId,
+            'organizerId' => $organizerId,
+            'amount' => $amount,
+            'status' => 'PAID',
+        ];
     }
 
     /** @param array<string,mixed> $row */
     private function refundParticipantRow(array $row, string $reason): void
     {
-        if ((string) $row['paymentStatus'] === 'PAID' && (float) $row['amount'] > 0) {
-            $refund = $this->one(
-                'SELECT * FROM `ParticipantRefund` WHERE `participantPaymentId` = :id LIMIT 1',
-                [':id' => $row['participantPaymentId']]
-            );
-            $refundId = $refund === null ? uuid() : (string) $refund['participantRefundId'];
-
-            if ($refund === null) {
-                $this->execute(
-                    'INSERT INTO `ParticipantRefund`
-                        (`participantRefundId`, `participantPaymentId`, `datetime`, `amount`, `reason`)
-                     VALUES (:id, :participant, NOW(), :amount, :reason)',
-                    [
-                        ':id' => $refundId, ':participant' => $row['participantPaymentId'],
-                        ':amount' => $row['amount'], ':reason' => mb_substr($reason, 0, 255),
-                    ]
-                );
-            }
-
-            $stripeRefundId = $this->stripe()->refundPaymentIntent(
-                $refundId,
-                (string) $row['stripePaymentIntentId']
+        Database::transaction(function () use ($row): void {
+            $this->execute(
+                'UPDATE `ParticipantPayment`
+                    SET `paymentStatus` = :status
+                  WHERE `participantPaymentId` = :id
+                    AND `paymentStatus` <> :refunded',
+                [
+                    ':status' => 'REFUNDED', ':id' => $row['participantPaymentId'],
+                    ':refunded' => 'REFUNDED',
+                ]
             );
             $this->execute(
-                'UPDATE `ParticipantRefund` SET `stripeRefundId` = :stripe
-                  WHERE `participantRefundId` = :id',
-                [':stripe' => $stripeRefundId, ':id' => $refundId]
+                'UPDATE `EventRegistration` SET `status` = :status
+                  WHERE `eventRegistrationId` = :id',
+                [':status' => 'CANCELLED', ':id' => $row['eventRegistrationId']]
             );
-        }
-
-        $this->execute(
-            'UPDATE `ParticipantPayment` SET `paymentStatus` = :status
-              WHERE `participantPaymentId` = :id',
-            [':status' => 'REFUNDED', ':id' => $row['participantPaymentId']]
-        );
-        $this->execute(
-            'UPDATE `EventRegistration` SET `status` = :status
-              WHERE `eventRegistrationId` = :id',
-            [':status' => 'CANCELLED', ':id' => $row['eventRegistrationId']]
-        );
-    }
-
-    /** @return array<string,mixed> */
-    private function requireReadyConnectAccount(string $baseUserId, string $message): array
-    {
-        $row = $this->connectStatus($baseUserId);
-
-        if ($row === null || !(bool) $row['payoutsEnabled']) {
-            throw new DomainException($message);
-        }
-
-        return $row;
+        });
     }
 
     /** @return array<string,mixed> */
@@ -747,7 +503,7 @@ final class PaymentFacade
                      VALUES (:id, :booking, :amount, NOW(), :method, :status)',
                     [
                         ':id' => $paymentId, ':booking' => $bookingId, ':amount' => $this->decimal($amount),
-                        ':method' => 'stripe', ':status' => 'PENDING',
+                        ':method' => 'not_selected', ':status' => 'PENDING',
                     ]
                 );
                 $payment = $this->one(
@@ -762,40 +518,6 @@ final class PaymentFacade
 
             return $payment;
         });
-    }
-
-    private function reserveVenueTransfer(string $eventId, string $payeeId, float $amount): void
-    {
-        $transfer = $this->one(
-            'SELECT * FROM `PaymentTransfer`
-              WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-            [':event' => $eventId, ':type' => 'VENUE']
-        );
-
-        if ($transfer === null) {
-            $this->execute(
-                'INSERT IGNORE INTO `PaymentTransfer`
-                    (`transferId`, `eventId`, `recipientId`, `transferType`, `amount`, `status`)
-                 VALUES (:id, :event, :recipient, :type, :amount, :status)',
-                [
-                    ':id' => uuid(), ':event' => $eventId, ':recipient' => $payeeId,
-                    ':type' => 'VENUE', ':amount' => $this->decimal($amount), ':status' => 'PENDING',
-                ]
-            );
-            $transfer = $this->one(
-                'SELECT * FROM `PaymentTransfer`
-                  WHERE `eventId` = :event AND `transferType` = :type LIMIT 1',
-                [':event' => $eventId, ':type' => 'VENUE']
-            );
-        }
-
-        if (
-            $transfer === null
-            || (string) $transfer['recipientId'] !== $payeeId
-            || abs((float) $transfer['amount'] - $amount) > 0.001
-        ) {
-            throw new DomainException('The venue transfer does not match the facility owner or booking amount.');
-        }
     }
 
     private function reserveParticipantPlace(string $eventId, string $userId, int $maximum): string
@@ -901,30 +623,15 @@ final class PaymentFacade
         return $startsAt === false || $startsAt <= new DateTimeImmutable();
     }
 
-    /** @param array{id:string,detailsSubmitted:bool,chargesEnabled:bool,payoutsEnabled:bool} $account */
-    private function saveConnectAccount(string $baseUserId, array $account): void
+    /** @param array<string,mixed> $event */
+    private function eventHasEnded(array $event): bool
     {
-        $this->execute(
-            'INSERT INTO `ConnectAccount`
-                (`baseUserId`, `stripeAccountId`, `detailsSubmitted`, `chargesEnabled`, `payoutsEnabled`)
-             VALUES (:user, :stripe, :details, :charges, :payouts)
-             ON DUPLICATE KEY UPDATE
-                `stripeAccountId` = VALUES(`stripeAccountId`),
-                `detailsSubmitted` = VALUES(`detailsSubmitted`),
-                `chargesEnabled` = VALUES(`chargesEnabled`),
-                `payoutsEnabled` = VALUES(`payoutsEnabled`)',
-            [
-                ':user' => $baseUserId, ':stripe' => $account['id'],
-                ':details' => $account['detailsSubmitted'] ? 1 : 0,
-                ':charges' => $account['chargesEnabled'] ? 1 : 0,
-                ':payouts' => $account['payoutsEnabled'] ? 1 : 0,
-            ]
+        $endsAt = DateTimeImmutable::createFromFormat(
+            '!Y-m-d H:i:s',
+            (string) ($event['eventDate'] ?? '') . ' ' . (string) ($event['endTime'] ?? '')
         );
-    }
 
-    private function stripe(): StripeService
-    {
-        return $this->stripe ??= new StripeService();
+        return $endsAt === false || $endsAt <= new DateTimeImmutable();
     }
 
     /** @return array<string,mixed>|null */

@@ -54,10 +54,12 @@ final class ProfileController extends Controller
             $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
         }
 
+        $isSelf = $account->getBaseUserId() === $current->getBaseUserId();
+
         $this->view('profile-show', [
             'title'        => $account->getUsername(),
             'account'      => $account,
-            'isSelf'       => $account->getBaseUserId() === $current->getBaseUserId(),
+            'isSelf'       => $isSelf,
             'history'      => $history,
             'lastLoginAt'  => $_SESSION['_last_login_at'] ?? null,
             'recentEvents' => $this->accounts->securityHistory($account->getBaseUserId(), 8),

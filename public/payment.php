@@ -12,7 +12,9 @@ use App\NotFoundException;
 use App\ServiceUnavailableException;
 
 $action = is_string($_GET['action'] ?? null) ? $_GET['action'] : 'index';
-$actions = ['index', 'venue', 'participant', 'cancelParticipant', 'connect', 'connectReturn', 'result'];
+$actions = [
+    'index', 'venue', 'participant', 'confirm', 'cancelParticipant',
+];
 
 function paymentPageError(int $status, string $heading, string $message, ?string $detail = null): never
 {

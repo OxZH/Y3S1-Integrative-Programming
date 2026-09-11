@@ -22,10 +22,10 @@
 --    username uniqueness enforceable in ONE place across all three roles.
 --
 --  ASSOCIATIONS THAT LOOK "MISSING"
---    Event.booking, Booking.payment, Payment.refund, User.reviews,
+--    Event.booking, Booking.payment, User.reviews,
 --    User.ratings, User.participationHistory and FacilityOwner.facilities are
 --    navigations, not columns. For each 1..0..1 pair the FK is placed on the
---    OPTIONAL side (Booking.eventId, Payment.bookingId, Refund.paymentId) so
+--    OPTIONAL side (Booking.eventId, Payment.bookingId) so
 --    there are no nullable FKs and no circular table dependency. The PHP
 --    entity classes still expose the properties exactly as drawn.
 -- ============================================================================
@@ -314,13 +314,10 @@ CREATE TABLE `Payment` (
     `amount`                DECIMAL(10,2) NOT NULL,   -- [D] diagram says double -> DECIMAL
     `paymentDateTime`       DATETIME      NOT NULL,   -- [D]
     `paymentMethod`         VARCHAR(50)   NOT NULL,   -- [D] e.g. card, fpx
-    `paymentStatus`         ENUM('PENDING','PAID','FAILED',
-                                 'REFUNDED','PARTIALLY_REFUNDED')
-                            NOT NULL DEFAULT 'PENDING',  -- [+] zh: the refund routine branches on this
-    `stripePaymentIntentId` VARCHAR(255)  NULL,          -- [+] zh: Stripe reconciliation handle
+    `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
+                            NOT NULL DEFAULT 'PENDING',
     PRIMARY KEY (`paymentId`),
     UNIQUE KEY `uq_Payment_booking` (`bookingId`),
-    UNIQUE KEY `uq_Payment_stripe`  (`stripePaymentIntentId`),  -- idempotency: a replayed webhook cannot double-insert
     CONSTRAINT `fk_Payment_booking`
         FOREIGN KEY (`bookingId`) REFERENCES `Booking`(`bookingId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_Payment_amount` CHECK (`amount` >= 0)
@@ -333,15 +330,13 @@ CREATE TABLE `ParticipantPayment` (
     `participantId`         VARCHAR(36)   NOT NULL,
     `organizerId`           VARCHAR(36)   NOT NULL,
     `amount`                DECIMAL(10,2) NOT NULL,
-    `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')
+    `paymentStatus`         ENUM('PENDING','PAID','FAILED','REFUNDED')
                             NOT NULL DEFAULT 'PENDING',
-    `stripePaymentIntentId` VARCHAR(255)  NULL,
     `paidAt`                DATETIME      NULL,
     `createdAt`             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updatedAt`             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`participantPaymentId`),
     UNIQUE KEY `uq_ParticipantPayment_registration` (`eventRegistrationId`),
-    UNIQUE KEY `uq_ParticipantPayment_stripe` (`stripePaymentIntentId`),
     CONSTRAINT `fk_ParticipantPayment_registration`
         FOREIGN KEY (`eventRegistrationId`) REFERENCES `EventRegistration`(`eventRegistrationId`) ON DELETE RESTRICT,
     CONSTRAINT `fk_ParticipantPayment_event`
@@ -352,71 +347,6 @@ CREATE TABLE `ParticipantPayment` (
         FOREIGN KEY (`organizerId`) REFERENCES `User`(`baseUserId`) ON DELETE RESTRICT,
     CONSTRAINT `chk_ParticipantPayment_amount` CHECK (`amount` >= 0),
     KEY `idx_ParticipantPayment_event` (`eventId`, `paymentStatus`)
-) ENGINE=InnoDB;
-
-CREATE TABLE `Refund` (
-    `refundId`       VARCHAR(36)   NOT NULL,   -- [D]
-    `paymentId`      VARCHAR(36)   NOT NULL,   -- [D] Payment 1 --has been-- 0..1 Refund
-    `datetime`       DATETIME      NOT NULL,   -- [D]
-    `amount`         DECIMAL(10,2) NOT NULL,   -- [+] the PENDING and PAID refund paths produce different amounts
-    `reason`         VARCHAR(255)  NULL,       -- [+]
-    `stripeRefundId` VARCHAR(255)  NULL,       -- [+]
-    PRIMARY KEY (`refundId`),
-    UNIQUE KEY `uq_Refund_payment` (`paymentId`),
-    UNIQUE KEY `uq_Refund_stripe`  (`stripeRefundId`),
-    CONSTRAINT `fk_Refund_payment`
-        FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`paymentId`) ON DELETE RESTRICT,
-    CONSTRAINT `chk_Refund_amount` CHECK (`amount` >= 0)
-) ENGINE=InnoDB;
-
-CREATE TABLE `ParticipantRefund` (
-    `participantRefundId`  VARCHAR(36)   NOT NULL,
-    `participantPaymentId` VARCHAR(36)   NOT NULL,
-    `datetime`             DATETIME      NOT NULL,
-    `amount`               DECIMAL(10,2) NOT NULL,
-    `reason`               VARCHAR(255)  NULL,
-    `stripeRefundId`       VARCHAR(255)  NULL,
-    PRIMARY KEY (`participantRefundId`),
-    UNIQUE KEY `uq_ParticipantRefund_payment` (`participantPaymentId`),
-    UNIQUE KEY `uq_ParticipantRefund_stripe` (`stripeRefundId`),
-    CONSTRAINT `fk_ParticipantRefund_payment`
-        FOREIGN KEY (`participantPaymentId`) REFERENCES `ParticipantPayment`(`participantPaymentId`) ON DELETE RESTRICT,
-    CONSTRAINT `chk_ParticipantRefund_amount` CHECK (`amount` >= 0)
-) ENGINE=InnoDB;
-
-CREATE TABLE `ConnectAccount` (
-    `baseUserId`       VARCHAR(36)  NOT NULL,
-    `stripeAccountId`  VARCHAR(255) NOT NULL,
-    `detailsSubmitted` TINYINT(1)   NOT NULL DEFAULT 0,
-    `chargesEnabled`   TINYINT(1)   NOT NULL DEFAULT 0,
-    `payoutsEnabled`   TINYINT(1)   NOT NULL DEFAULT 0,
-    `updatedAt`        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`baseUserId`),
-    UNIQUE KEY `uq_ConnectAccount_stripe` (`stripeAccountId`),
-    CONSTRAINT `fk_ConnectAccount_user`
-        FOREIGN KEY (`baseUserId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE RESTRICT
-) ENGINE=InnoDB;
-
-CREATE TABLE `PaymentTransfer` (
-    `transferId`       VARCHAR(36)   NOT NULL,
-    `eventId`          VARCHAR(36)   NOT NULL,
-    `recipientId`      VARCHAR(36)   NOT NULL,
-    `transferType`     ENUM('VENUE','PARTICIPANT_PAYOUT') NOT NULL,
-    `amount`           DECIMAL(10,2) NOT NULL,
-    `status`           ENUM('PENDING','PAID','FAILED','REVERSED') NOT NULL DEFAULT 'PENDING',
-    `stripeTransferId` VARCHAR(255)  NULL,
-    `reversedAmount`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    `createdAt`        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updatedAt`        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`transferId`),
-    UNIQUE KEY `uq_PaymentTransfer_event_type` (`eventId`, `transferType`),
-    UNIQUE KEY `uq_PaymentTransfer_stripe` (`stripeTransferId`),
-    CONSTRAINT `fk_PaymentTransfer_event`
-        FOREIGN KEY (`eventId`) REFERENCES `Event`(`eventId`) ON DELETE RESTRICT,
-    CONSTRAINT `fk_PaymentTransfer_recipient`
-        FOREIGN KEY (`recipientId`) REFERENCES `BaseUser`(`baseUserId`) ON DELETE RESTRICT,
-    CONSTRAINT `chk_PaymentTransfer_amount` CHECK (`amount` >= 0),
-    CONSTRAINT `chk_PaymentTransfer_reversed` CHECK (`reversedAmount` >= 0 AND `reversedAmount` <= `amount`)
 ) ENGINE=InnoDB;
 
 -- ============================================================================

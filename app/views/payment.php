@@ -1,5 +1,5 @@
 <?php
-// Shared payment, payout and Connect page. Author: Khor Zhi Hong
+// Shared internal demo payment page. Author: Khor Zhi Hong
 
 $mode = $mode ?? 'dashboard';
 ?>
@@ -14,7 +14,7 @@ $mode = $mode ?? 'dashboard';
             <h1><?= $kind === 'venue' ? 'Pay venue booking' : 'Pay participant fee' ?></h1>
             <p class="lede lede-flush"><?= e((string) ($event['name'] ?? 'Event')) ?></p>
         </div>
-        <span class="pill wait">Stripe Test Mode</span>
+        <span class="pill wait">Demo Payment</span>
     </div>
 
     <div class="row row-spaced">
@@ -27,78 +27,46 @@ $mode = $mode ?? 'dashboard';
             </div>
             <?php if ($kind === 'venue'): ?>
                 <p class="small muted">
-                    The platform collects this venue fee and transfers it to
+                    This demo records the venue fee as paid to
                     <?= e((string) ($checkout['facility']['owner']['username'] ?? 'the facility owner')) ?>.
                     Venue payments are non-refundable.
                 </p>
             <?php else: ?>
                 <p class="small muted">
                     A cancellation before the event starts receives a full refund.
-                    After completion, the platform transfers the fee to the organizer.
+                    After completion, the fee is recorded as settled to the organizer.
                 </p>
             <?php endif; ?>
         </div>
 
         <div class="card">
-            <h2>Pay securely</h2>
-            <?php if ($publishableKey === ''): ?>
-                <div class="flash error">Set STRIPE_PUBLISHABLE_KEY before opening checkout.</div>
-            <?php else: ?>
-                <form id="stripePaymentForm"
-                      data-publishable-key="<?= e($publishableKey) ?>"
-                      data-client-secret="<?= e((string) $checkout['clientSecret']) ?>"
-                      data-return-url="<?= e($returnUrl) ?>">
-                    <div id="stripePaymentElement"></div>
-                    <p id="stripePaymentMessage" class="small muted" role="status"></p>
-                    <button class="btn" id="stripePaymentButton" type="submit">
-                        Pay <?= e(money((float) $checkout['amount'])) ?>
-                    </button>
-                </form>
-                <script src="https://js.stripe.com/v3/"></script>
-                <script src="<?= e(rtrim((string) config('app.base_url'), '/') . '/js/payment.js?v='
-                    . (string) filemtime(dirname(__DIR__, 2) . '/public/js/payment.js')) ?>" defer></script>
-            <?php endif; ?>
-        </div>
-    </div>
+            <h2>Select payment method</h2>
+            <form method="post" action="payment.php?action=confirm">
+                <?= $csrfField ?>
+                <input type="hidden" name="eventId" value="<?= e($eventId) ?>">
+                <input type="hidden" name="kind" value="<?= e($kind) ?>">
 
-<?php elseif ($mode === 'result'): ?>
-    <h1>Payment submitted</h1>
-    <div class="card">
-        <p>Stripe is confirming the payment. The verified Webhook updates the final status.</p>
-        <?php if ($kind === 'venue'): ?>
-            <a class="btn" href="<?= e(url('event', 'finalise', ['id' => $eventId])) ?>">Continue to event confirmation</a>
-        <?php else: ?>
-            <a class="btn" href="<?= e(url('event', 'show', ['id' => $eventId])) ?>">Return to event</a>
-        <?php endif; ?>
-        <a class="btn ghost" href="payment.php">View payments</a>
+                <label><input type="radio" name="paymentMethod" value="card" required> Card</label>
+                <label><input type="radio" name="paymentMethod" value="fpx" required> FPX Online Banking</label>
+                <label><input type="radio" name="paymentMethod" value="e_wallet" required> E-wallet</label>
+
+                <p class="small muted">Demo only: no real bank account or card will be charged.</p>
+                <button class="btn" type="submit">
+                    Confirm <?= e(money((float) $checkout['amount'])) ?>
+                </button>
+            </form>
+        </div>
     </div>
 
 <?php else: ?>
     <div class="page-head">
         <div>
             <h1>Payments</h1>
-            <p class="lede lede-flush">Venue charges, participant fees and Stripe Connect payouts.</p>
+            <p class="lede lede-flush">Internal demo venue charges, participant fees and refunds.</p>
         </div>
     </div>
 
-    <div class="card">
-        <h2>Stripe Connect</h2>
-        <?php if ($connect === null): ?>
-            <p>Connect your Stripe Test account to receive venue transfers or organizer payouts.</p>
-        <?php elseif ((bool) $connect['payoutsEnabled']): ?>
-            <p><span class="pill live">Ready</span> This account can receive Stripe transfers.</p>
-        <?php else: ?>
-            <p><span class="pill wait">Incomplete</span> Stripe needs more information before transfers can be received.</p>
-        <?php endif; ?>
-        <form method="post" action="payment.php?action=connect">
-            <?= $csrfField ?>
-            <button class="btn" type="submit">
-                <?= $connect === null ? 'Set up Stripe Connect' : 'Continue Stripe onboarding' ?>
-            </button>
-        </form>
-    </div>
-
-    <h2>My payments</h2>
+    <h2>Transfer history</h2>
     <?php if ($payments === []): ?>
         <div class="empty"><p>No payments yet.</p></div>
     <?php else: ?>
@@ -106,15 +74,27 @@ $mode = $mode ?? 'dashboard';
             <?php foreach ($payments as $payment): ?>
                 <div class="toolbar">
                     <div>
-                        <strong><?= e((string) $payment['name']) ?></strong>
+                        <strong>
+                            <?= $payment['direction'] === 'INCOMING' ? '+' : '-' ?>
+                            <?= e(money((float) $payment['amount'])) ?>
+                            · <?= e((string) $payment['name']) ?>
+                        </strong>
                         <p class="small muted sub">
-                            <?= e((string) $payment['kind']) ?> ·
-                            <?= e(money((float) $payment['amount'])) ?> ·
+                            <?= e(str_replace('_', ' ', (string) $payment['kind'])) ?> ·
+                            <?= $payment['direction'] === 'INCOMING' ? 'RECEIVED FROM' : 'PAID TO' ?>
+                            <?= e((string) $payment['counterparty']) ?> ·
                             <?= e((string) $payment['paymentStatus']) ?>
+                            <?php if (!empty($payment['createdAt'])): ?>
+                                · <?= e(date('d M Y H:i', strtotime((string) $payment['createdAt']))) ?>
+                            <?php endif; ?>
                         </p>
                     </div>
                     <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $payment['eventId']])) ?>">View event</a>
-                    <?php if ($payment['kind'] === 'PARTICIPANT' && $payment['paymentStatus'] === 'PAID'): ?>
+                    <?php if (
+                        $payment['kind'] === 'PARTICIPANT_FEE'
+                        && $payment['direction'] === 'OUTGOING'
+                        && $payment['paymentStatus'] === 'PAID'
+                    ): ?>
                         <form method="post" action="payment.php?action=cancelParticipant"
                               data-confirm="Cancel registration and request a full refund?">
                             <?= $csrfField ?>

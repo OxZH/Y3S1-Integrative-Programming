@@ -133,8 +133,9 @@ final class EventController extends Controller
             return;
         }
 
-        // Over to the Venue Booking & Payment module. It returns to finalise().
-        $this->redirect('booking.php?eventId=' . urlencode((string) $event->getEventId()));
+        $this->redirect(
+            'payment.php?action=venue&eventId=' . urlencode((string) $event->getEventId())
+        );
     }
 
     public function finalise(): void
@@ -147,9 +148,12 @@ final class EventController extends Controller
 
         EventFacilitySecurity::assertCanHostEvents();
 
+        $event = $this->facade->viewEvent($eventId);
+        EventFacilitySecurity::assertHostsEvent($event);
+
         $this->view('event-finalise', [
             'title'   => 'Confirm your event',
-            'event'     => $this->facade->viewEvent($eventId),
+            'event'     => $event,
             'blocker'   => $this->facade->explainPublicationBlockers($eventId),
             'canDelete' => $this->facade->canHardDelete($eventId),
         ]);
@@ -182,7 +186,22 @@ final class EventController extends Controller
         try {
             $this->facade->cancelEvent($eventId);
             $this->flash('success', 'The event has been cancelled.');
-        } catch (DomainException $e) {
+        } catch (DomainException | ServiceUnavailableException $e) {
+            $this->flash('error', $e->getMessage());
+        }
+
+        $this->redirect(url('event', 'show', ['id' => $eventId]));
+    }
+
+    public function complete(): void
+    {
+        $this->requirePostWithCsrf();
+        $eventId = (string) ($_POST['eventId'] ?? '');
+
+        try {
+            $this->facade->completeEvent($eventId);
+            $this->flash('success', 'The event is completed and participant fees were internally settled.');
+        } catch (DomainException | ServiceUnavailableException $e) {
             $this->flash('error', $e->getMessage());
         }
 
@@ -197,7 +216,7 @@ final class EventController extends Controller
 
         try {
             $outcome = $this->facade->removeEvent($eventId);
-        } catch (DomainException $e) {
+        } catch (DomainException | ServiceUnavailableException $e) {
             $this->flash('error', $e->getMessage());
             $this->redirect(url('event', 'show', ['id' => $eventId]));
         }

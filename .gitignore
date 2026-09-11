@@ -8,5 +8,5 @@
 !/public/static/profile/.htaccess
 /public/static/uploads/facilities/*
 !/public/static/uploads/facilities/.htaccess
-/vendor/
 /.env
+/vendor/

@@ -1,5 +1,5 @@
 <?php
-// Payment pages for organizers, participants and Connect recipients. Author: Khor Zhi Hong
+// Internal demo payment pages for organizers and participants. Author: Khor Zhi Hong
 
 declare(strict_types=1);
 
@@ -28,7 +28,6 @@ final class PaymentController extends Controller
             'title' => 'Payments',
             'mode' => 'dashboard',
             'payments' => $this->payments->paymentsForUser($account->getBaseUserId()),
-            'connect' => $this->payments->connectStatus($account->getBaseUserId()),
         ]);
     }
 
@@ -57,7 +56,7 @@ final class PaymentController extends Controller
         $eventId = $this->queryId('eventId');
 
         if ($eventId === null) {
-            $this->redirect(url('event'));
+            $this->redirect(url('discovery'));
         }
 
         try {
@@ -86,60 +85,37 @@ final class PaymentController extends Controller
         $this->redirect($this->paymentUrl());
     }
 
-    public function connect(): void
+    public function confirm(): void
     {
         $this->requirePostWithCsrf();
         $account = Auth::requireLogin();
-        $base = rtrim((string) config('app.base_url'), '/');
-        $returnUrl = $base . '/payment.php?action=connectReturn';
-        $refreshUrl = $base . '/payment.php';
+        $eventId = (string) ($_POST['eventId'] ?? '');
+        $kind = (string) ($_POST['kind'] ?? '');
+        $method = (string) ($_POST['paymentMethod'] ?? '');
 
         try {
-            $url = $this->payments->beginConnectOnboarding(
+            if ($kind === 'venue') {
+                $this->payments->prepareVenueCheckout($eventId, $account->getBaseUserId());
+            } elseif ($kind === 'participant') {
+                $this->payments->prepareParticipantCheckout($eventId, $account->getBaseUserId());
+            } else {
+                throw new DomainException('The payment type is invalid.');
+            }
+
+            $this->payments->confirmInternalPayment(
+                $eventId,
                 $account->getBaseUserId(),
-                $account->getEmail(),
-                $returnUrl,
-                $refreshUrl
+                $kind,
+                $method
             );
-        } catch (RuntimeException $e) {
-            $this->flash('error', $e->getMessage());
-            $this->redirect($this->paymentUrl());
-        }
-
-        $this->redirect($url);
-    }
-
-    public function connectReturn(): void
-    {
-        $account = Auth::requireLogin();
-
-        try {
-            $status = $this->payments->refreshConnectAccount($account->getBaseUserId());
-            $this->flash(
-                $status['payoutsEnabled'] ? 'success' : 'error',
-                $status['payoutsEnabled']
-                    ? 'Stripe Connect is ready to receive transfers.'
-                    : 'Stripe still needs more account information.'
-            );
+            $this->flash('success', 'Demo payment confirmed.');
         } catch (DomainException | RuntimeException $e) {
             $this->flash('error', $e->getMessage());
         }
 
-        $this->redirect($this->paymentUrl());
-    }
-
-    public function result(): void
-    {
-        Auth::requireLogin();
-        $eventId = $this->queryId('eventId') ?? '';
-        $kind = ($_GET['kind'] ?? '') === 'participant' ? 'participant' : 'venue';
-
-        $this->view('payment', [
-            'title' => 'Payment submitted',
-            'mode' => 'result',
-            'kind' => $kind,
-            'eventId' => $eventId,
-        ]);
+        $this->redirect($kind === 'venue'
+            ? url('event', 'finalise', ['id' => $eventId])
+            : url('event', 'show', ['id' => $eventId]));
     }
 
     /** @param array<string,mixed> $checkout */
@@ -153,16 +129,13 @@ final class PaymentController extends Controller
             $this->redirect($destination);
         }
 
-        $base = rtrim((string) config('app.base_url'), '/');
         $kind = (string) $checkout['kind'];
 
         $this->view('payment', [
             'title' => $kind === 'venue' ? 'Pay venue booking' : 'Pay participant fee',
             'mode' => 'checkout',
             'checkout' => $checkout,
-            'publishableKey' => (string) config('payment.stripe_public', ''),
-            'returnUrl' => $base . '/payment.php?action=result&kind='
-                . rawurlencode($kind) . '&eventId=' . rawurlencode($eventId),
+            'eventId' => $eventId,
         ]);
     }
 

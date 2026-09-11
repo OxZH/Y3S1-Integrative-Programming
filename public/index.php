@@ -30,7 +30,7 @@ $routes = [
         // js part - 'index' was the temporary Upcoming games listing, now removed.
         // Find a game is the browse page; everything else here is unchanged.
         'actions' => ['mine', 'show', 'create', 'store', 'finalise',
-                      'publish', 'cancel', 'delete',
+                      'publish', 'cancel', 'complete', 'delete',
                       'invite', 'invites', 'createInvite', 'revokeInvite'],
     ],
     // MODULE 2 - User Authentication & Profile Management (Ivan)

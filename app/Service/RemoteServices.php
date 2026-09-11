@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Model\Account;
 use App\ServiceUnavailableException;
+use DomainException;
 
 // Every outbound call this module makes, in one place.
 //
@@ -63,6 +64,37 @@ final class RemoteServices
         return $this->client->refused($data) ? BookingStatus::missing() : BookingStatus::fromArray($data);
     }
 
+    public function cancelEventPayments(string $eventId, string $reason): void
+    {
+        $data = $this->client->call(
+            'booking',
+            'cancelEventPayments',
+            ['eventId' => $eventId, 'reason' => $reason],
+            $this->paymentHeaders()
+        );
+
+        if ($this->client->refused($data)) {
+            throw new DomainException('Participant payments could not be cancelled.');
+        }
+    }
+
+    /** @return array<string,mixed> */
+    public function settleEventPayout(string $eventId): array
+    {
+        $data = $this->client->call(
+            'booking',
+            'settleEventPayout',
+            ['eventId' => $eventId],
+            $this->paymentHeaders()
+        );
+
+        if ($this->client->refused($data)) {
+            throw new DomainException('The participant payout is not ready.');
+        }
+
+        return $data;
+    }
+
     // One call carrying every id on the page, not one call per row.
     // Ratings are decoration, so a failure here degrades to an empty column
     // rather than breaking the search page.
@@ -111,5 +143,13 @@ final class RemoteServices
         }
 
         return ($data['areFriends'] ?? false) === true;
+    }
+
+    /** @return string[] */
+    private function paymentHeaders(): array
+    {
+        $key = (string) config('services.booking.key', '');
+
+        return $key === '' ? [] : ['X-Service-Key: ' . $key];
     }
 }

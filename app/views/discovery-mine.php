@@ -47,11 +47,12 @@ use App\Model\EventRegistration;
                         <?php if ($event !== null): ?>
                             <a class="btn ghost small" href="<?= e(url('event', 'show', ['id' => $event->getEventId()])) ?>">View</a>
                         <?php endif; ?>
-                        <?php if ($status->isActive()): ?>
+                        <?php if ($status->isActive() && $event !== null): ?>
                             <form method="post" action="<?= e(url('discovery', 'leave')) ?>" class="inline-form"
                                   data-confirm="Leave this game?">
                                 <?= $csrfField ?>
                                 <input type="hidden" name="eventRegistrationId" value="<?= e((string) $registration->getEventRegistrationId()) ?>">
+                                <input type="hidden" name="eventId" value="<?= e((string) $event->getEventId()) ?>">
                                 <button class="btn ghost small" type="submit">Leave</button>
                             </form>
                         <?php endif; ?>

@@ -1,6 +1,6 @@
 <?php
 // Venue registration and edit form. Author: Goh Jian Yu
-// Receives: $facility, $input, $errors, $sports
+// Receives: $facility, $input, $errors, and $sports
 
 $isEdit = $facility !== null;
 

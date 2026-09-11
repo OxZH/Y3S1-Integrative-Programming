@@ -19,11 +19,11 @@
  * cancelEventPayments
  *   Request:  requestId, timeStamp, function, eventId, reason; X-Service-Key
  *   Effect:   fully refunds participant fees only when called before event start;
- *             venue payments and venue transfers are always non-refundable
+ *             venue payments are always non-refundable
  *
  * settleEventPayout
  *   Request:  requestId, timeStamp, function, eventId; X-Service-Key
- *   Effect:   after COMPLETED, transfers collected participant fees to organizer
+ *   Effect:   after COMPLETED, reports collected participant fees as settled
  */
 
 declare(strict_types=1);

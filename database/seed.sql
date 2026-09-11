@@ -114,7 +114,7 @@ INSERT INTO `EventInvite`
 ('inv-003', 'evt-004', 'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f809', 'usr-001', '2026-08-18 18:05:00', NULL,                    NULL, 0, 1);
 
 -- ---------------------------------------------------------------------------
---  Bookings, payments, refunds   (MODULE 4 - zh)
+--  Bookings and payments   (MODULE 4 - zh)
 --  evt-003 intentionally has a booking with NO payment row: that is the 0..1.
 -- ---------------------------------------------------------------------------
 INSERT INTO `Booking`
@@ -126,15 +126,11 @@ INSERT INTO `Booking`
 ('bkg-005', 'evt-005', 'usr-002', 'CONFIRMED', 70.00, '2026-08-05 10:02:00');
 
 INSERT INTO `Payment`
-    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`, `stripePaymentIntentId`) VALUES
-('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card', 'PAID',     'pi_3QaSeed0000000001'),
-('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',  'PAID',     'pi_3QaSeed0000000002'),
-('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card', 'REFUNDED', 'pi_3QaSeed0000000004'),
-('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card', 'PAID',     'pi_3QaSeed0000000005');
-
-INSERT INTO `Refund`
-    (`refundId`, `paymentId`, `datetime`, `amount`, `reason`, `stripeRefundId`) VALUES
-('ref-001', 'pay-004', '2026-08-19 10:15:00', 105.00, 'Organiser cancelled more than 7 days before the event: full refund.', 're_3QaSeed0000000004');
+    (`paymentId`, `bookingId`, `amount`, `paymentDateTime`, `paymentMethod`, `paymentStatus`) VALUES
+('pay-001', 'bkg-001',  70.00, '2026-08-20 21:13:40', 'card', 'PAID'),
+('pay-002', 'bkg-002', 160.00, '2026-08-21 09:33:55', 'fpx',  'PAID'),
+('pay-004', 'bkg-004', 105.00, '2026-08-18 18:03:20', 'card', 'REFUNDED'),
+('pay-005', 'bkg-005',  70.00, '2026-08-05 10:03:10', 'card', 'PAID');
 
 -- ---------------------------------------------------------------------------
 --  Event registrations   (MODULE 5 - js)

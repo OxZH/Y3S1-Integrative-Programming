@@ -269,7 +269,23 @@ final class EventManagementFacade
 
         EventFacilitySecurity::assertHostsEvent($event);
 
+        $this->services->cancelEventPayments(
+            $eventId,
+            'Event cancelled by organizer before it started.'
+        );
         $event->cancel();
+        $this->events->update($event);
+
+        return $event;
+    }
+
+    public function completeEvent(string $eventId): Event
+    {
+        $event = $this->requireEvent($eventId);
+
+        EventFacilitySecurity::assertHostsEvent($event);
+        $event->complete();
+        $this->services->settleEventPayout($eventId);
         $this->events->update($event);
 
         return $event;
@@ -297,6 +313,10 @@ final class EventManagementFacade
         $counts = $this->events->countDependents($eventId);
 
         if ($counts['registrations'] > 0) {
+            $this->services->cancelEventPayments(
+                $eventId,
+                'Event cancelled by organizer before it started.'
+            );
             $event->cancel();
             $this->events->update($event);
 
@@ -304,6 +324,10 @@ final class EventManagementFacade
         }
 
         if ($counts['bookings'] > 0) {
+            $this->services->cancelEventPayments(
+                $eventId,
+                'Event cancelled by organizer before it started.'
+            );
             $event->cancel();
             $this->events->update($event);
 
