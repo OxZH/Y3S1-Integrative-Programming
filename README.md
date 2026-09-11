@@ -5,15 +5,20 @@ Data Mapper ORM.
 
 ## Setup
 
-Start XAMPP (Apache + MySQL), then run `database\setup.bat`.
+Start XAMPP (Apache + MySQL), then run `database\setup.bat`. That drops and
+rebuilds the database from `schema.sql` and `seed.sql`, which are the source of
+truth for every module.
 
-If you already created the database from an earlier copy of `schema.sql`, run
-`database\module2_upgrade.sql` instead of recreating it — it adds only what the
-authentication module introduced:
+If you already have a database with test data you want to keep, run the
+migration instead. It brings any earlier copy of the schema up to the current
+one, keeps your rows, and is safe to run more than once:
 
 ```
-C:\xampp\mysql\bin\mysql -u root < database\module2_upgrade.sql
+C:\xampp\mysql\bin\mysql -u root < database\upgrade.sql
 ```
+
+Those four files - `schema.sql`, `seed.sql`, `setup.bat`, `upgrade.sql` - are
+the whole of `database/`. There are no per-module scripts to run in sequence.
 
 Only `public/` should be reachable over HTTP. Link it into `htdocs` once, from
 an **Administrator** Command Prompt:
@@ -51,14 +56,9 @@ autofill next time (`SavedPaymentMethod`, max 5 per user). Full card numbers and
 CVVs are not kept. Venue fees stay non-refundable; participant refunds before
 the event starts are unchanged.
 
-If the database already exists, apply the extra columns and table with:
-
-```
-C:\xampp\mysql\bin\mysql -u root < database\migrate_payment_details.sql
-```
-
-A fresh `setup.bat` already includes them from `schema.sql`. Free participant
-events still go through checkout so a method is selected; the amount is RM0.00.
+A fresh `setup.bat` includes all of this from `schema.sql`; an existing database
+gets it from `database\upgrade.sql` (see Setup). Free participant events still
+go through checkout so a method is selected; the amount is RM0.00.
 
 ### Other ways to run it
 
@@ -85,7 +85,7 @@ need to.
 
 ```
 config.php              database, service endpoints, timeouts
-database/               schema.sql, seed.sql, setup.bat, migrate_payment_details.sql
+database/               schema.sql, seed.sql, setup.bat, upgrade.sql
 app/
   bootstrap.php         autoloader, config, session
   helpers.php           e(), url(), money(), uuid()

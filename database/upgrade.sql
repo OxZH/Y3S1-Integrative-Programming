@@ -17,13 +17,14 @@
 --        rows alone.
 --
 --  SAFE TO RUN MORE THAN ONCE. Every statement checks first, so running it on a
---  database that is already current does nothing and reports no errors. This
---  replaces module1_upgrade.sql, module2_upgrade.sql, module2b_upgrade.sql and
---  module4_upgrade.sql, which each failed on the second run.
+--  database that is already current does nothing and reports no errors. It is
+--  the only migration in this folder: the per-module scripts it grew out of
+--  have been removed, since each of them failed on a second run and none did
+--  anything this file does not.
 --
---  It does not drop anything. A table that was removed from schema.sql is left
---  where it is, because a migration should never quietly delete your data. See
---  the note on Refund at the bottom.
+--  The one thing it removes is what Stripe left behind (a column, an enum
+--  value and the Refund table), because schema.sql no longer has them and no
+--  code reads them. Your own rows in every live table are kept.
 -- ============================================================================
 
 USE sports_platform;
@@ -240,6 +241,23 @@ ALTER TABLE `ParticipantPayment`
     ADD COLUMN IF NOT EXISTS `providerLabel`    VARCHAR(100) NULL AFTER `accountMask`,
     ADD COLUMN IF NOT EXISTS `methodDetailJson` JSON         NULL AFTER `providerLabel`;
 
+-- What Stripe left behind on `Payment`. schema.sql has neither the intent id
+-- nor the PARTIALLY_REFUNDED state any more, and no code reads either, so an
+-- upgraded database sheds them here rather than carrying two extra things a
+-- fresh one does not have. The unique key goes first because the column it
+-- covers is about to.
+ALTER TABLE `Payment`
+    DROP INDEX IF EXISTS `uq_Payment_stripe`,
+    DROP COLUMN IF EXISTS `stripePaymentIntentId`;
+
+ALTER TABLE `Payment`
+    MODIFY COLUMN `paymentStatus` ENUM('PENDING','PAID','FAILED','REFUNDED')
+                                  NOT NULL DEFAULT 'PENDING';
+
+-- `Refund` went with Stripe too. Nothing creates it, nothing reads it, and the
+-- rows it holds describe refunds of a payment flow that no longer exists.
+DROP TABLE IF EXISTS `Refund`;
+
 CREATE TABLE IF NOT EXISTS `SavedPaymentMethod` (
     `savedPaymentMethodId` VARCHAR(36)  NOT NULL,
     `baseUserId`           VARCHAR(36)  NOT NULL,
@@ -258,16 +276,5 @@ CREATE TABLE IF NOT EXISTS `SavedPaymentMethod` (
     KEY `idx_SavedPaymentMethod_user` (`baseUserId`, `paymentMethod`)
 ) ENGINE=InnoDB;
 
-
--- ============================================================================
---  WHAT THIS FILE DELIBERATELY DOES NOT DO
---
---  `Refund` is left alone. schema.sql stopped creating it when Stripe went, and
---  nothing reads it any more, but dropping a table takes its rows with it and
---  that is not a decision a migration should make on your behalf. Drop it by
---  hand once the team agrees it is dead:
---
---      DROP TABLE IF EXISTS `Refund`;
--- ============================================================================
 
 SELECT 'Upgrade complete. Your database now matches schema.sql.' AS result;
