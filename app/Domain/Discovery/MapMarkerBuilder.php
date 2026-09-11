@@ -1,5 +1,5 @@
 <?php
-// Concrete builder: the minimal payload used to plot a marker on the map. Author: Ng Jing Siang
+// Builder pattern - concrete builder for map markers. Author: Ng Jing Siang
 
 declare(strict_types=1);
 
@@ -8,11 +8,8 @@ namespace App\Domain\Discovery;
 use RuntimeException;
 
 /**
- * Runs through the same four steps as EventCardBuilder but keeps only what a
- * marker needs. Rating, fee and the recommendation reason are deliberately
- * dropped here rather than just left unused by the view - the point of a
- * separate builder is that the map payload never carries fields it has no
- * reason to send to the browser.
+ * Same steps as EventCardBuilder but only keeps what a map pin needs.
+ * Rating and recommendation are dropped so they never get sent to the browser.
  */
 final class MapMarkerBuilder implements EventFeedItemBuilder
 {
@@ -42,9 +39,7 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
             $this->latitude  = isset($facility['latitude']) ? (float) $facility['latitude'] : null;
             $this->longitude = isset($facility['longitude']) ? (float) $facility['longitude'] : null;
 
-            // Several games at one venue sit on the same coordinates, so a pin
-            // is a venue and opens with everything happening there. That makes
-            // the venue's name the one thing the popup has to be titled with.
+            // one pin per venue, so the popup is titled with the venue name
             $this->venueName = isset($facility['name']) ? (string) $facility['name'] : null;
         }
 
@@ -58,7 +53,7 @@ final class MapMarkerBuilder implements EventFeedItemBuilder
         return $this;
     }
 
-    // A marker has no room for a star rating - step accepted, value discarded.
+    // not needed on the map, ignore
     public function addRating(?float $rating): static
     {
         return $this;

@@ -1,12 +1,12 @@
 <?php
-// Advanced event filtering + the participation pipeline's entry point. Author: Ng Jing Siang
+// Find a game page. Author: Ng Jing Siang
 
 use App\Domain\Discovery\EventFeedItem;
 
 /** @var EventFeedItem[] $events */
 /** @var \App\Domain\Discovery\FeedFilterCriteria $criteria */
 /** @var array<string,mixed> $input */
-/** @var string[] $sports the sports that currently have games */
+/** @var string[] $sports */
 ?>
 <h1>Find a game</h1>
 <p class="lede">Filter by sport, open spots and how far away, then sort by date, distance or rating.</p>
@@ -22,14 +22,7 @@ use App\Domain\Discovery\EventFeedItem;
     </p>
 <?php endif; ?>
 
-<?php
-// Friends-only games are not on this page at all, so somebody sent a link to
-// one has nowhere to redeem it except the link itself. That is fine when they
-// click it there and then, and no use at all once it has been copied into a
-// note for later. This box takes it either way, the whole address or just the
-// code on the end. Event & Facility Management owns the token and decides
-// whether it is still good.
-?>
+<?php // friends-only games are not listed here, so give a box to paste an invite link ?>
 <?php if (App\Security\Auth::check()): ?>
     <form method="post" action="<?= e(url('event', 'redeem')) ?>" class="card toolbar">
         <?= $csrfField ?? '' ?>
@@ -109,29 +102,15 @@ use App\Domain\Discovery\EventFeedItem;
                     </p>
                 <?php endif; ?>
 
-                <?php
-                // Joining happens on the event's own page, where the full
-                // details are in front of the player - a card is for choosing
-                // which game to look at, not for committing to one.
-                ?>
                 <div class="actions">
                     <a class="btn small" href="<?= e(url('event', 'show', ['id' => $event->eventId])) ?>">View</a>
-                    <?php
-                    // Said here rather than only on the event's own page, so a
-                    // player scanning the list can see at a glance which games
-                    // they are already in.
-                    ?>
                     <?php if (isset($joined[$event->eventId])): ?>
                         <span class="pill">Joined</span>
                     <?php endif; ?>
                 </div>
 
                 <?php
-                // Tags sit under the button rather than in the corner, so a card
-                // can carry as many as apply without crowding its title. The
-                // visibility tag repeats Event & Facility Management's own
-                // wording and colour, so the same game reads the same on both
-                // listings.
+                // tags: public / friends only (same colours as the Event module) and distance
                 $visibility = $event->visibility === null
                     ? null
                     : App\EventVisibility::tryFrom($event->visibility);

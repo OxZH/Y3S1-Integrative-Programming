@@ -77,24 +77,11 @@ final class EventRegistrationMapper extends DataMapper
     }
 
     /**
-     * The join path. A plain "count then insert" is still two separate steps -
-     * two concurrent requests can both read 7 of 8 before either writes, and both
-     * insert, leaving 9 of 8. `SELECT ... FOR UPDATE` locks the event row first,
-     * so a second request for the same event has to wait for the first to finish;
-     * only then does it see the up to date count. This is the same shape as
-     * EventInviteMapper::recordUse() (recheck the cap inside the write itself),
-     * applied here as a row lock rather than a conditional UPDATE because the
-     * count lives in a second table, not in a column that can be decremented
-     * directly.
+     * Join an event. Locks the Event row (FOR UPDATE) before counting, so two
+     * users can't both grab the last spot at the same time. A cancelled row is
+     * reused instead of inserting a new one, since (userId, eventId) is unique.
      *
-     * uq_EventRegistration_user_event covers the (userId, eventId) pair
-     * regardless of status, so a user who left and wants back in cannot get a
-     * second row - the existing one (CANCELLED, NO_SHOW, ...) is reactivated
-     * instead of inserting, or the unique constraint would refuse the insert
-     * and this would wrongly read as "already joined" when they are not
-     * currently an active participant.
-     *
-     * @throws DomainException the event is full, or this user already joined
+     * @throws DomainException event is full, or user already joined
      */
     public function registerIfSpaceAvailable(
         string $eventId,
@@ -139,7 +126,7 @@ final class EventRegistrationMapper extends DataMapper
             try {
                 $this->insert($registration);
             } catch (PDOException $e) {
-                // A concurrent request won the race and inserted first.
+                // another request inserted first
                 if ((string) $e->getCode() === '23000') {
                     throw new DomainException('You have already joined this event.');
                 }
@@ -181,7 +168,7 @@ final class EventRegistrationMapper extends DataMapper
         return $registration;
     }
 
-    /** @return EventRegistration[] most recent first - this module's answer for a "participation history" */
+    /** @return EventRegistration[] newest first */
     public function findByUser(string $userId): array
     {
         /** @var EventRegistration[] $registrations */
@@ -191,19 +178,12 @@ final class EventRegistrationMapper extends DataMapper
     }
 
     /**
-     * One page of the players in an event, in the order they signed up, so the
-     * team sheet reads the way the queue formed.
-     *
-     * Only CONFIRMED and ATTENDED appear: somebody who left is not a player, and
-     * the list is a team sheet rather than an audit trail of who changed their
-     * mind.
-     *
+     * One page of players for an event (CONFIRMED and ATTENDED only), in join order.
      * @return EventRegistration[]
      */
     public function findActiveForEvent(string $eventId, int $limit, int $offset): array
     {
-        // LIMIT and OFFSET cannot be bound parameters, so both are forced into
-        // range as integers rather than interpolated as given.
+        // LIMIT/OFFSET can't be bound params, so cast and clamp them first
         $safeLimit  = max(1, min(50, $limit));
         $safeOffset = max(0, $offset);
 

@@ -28,9 +28,7 @@ final class DiscoveryController extends Controller
         $criteria = FeedFilterCriteria::fromArray($_GET);
         $viewerId = Auth::id();
 
-        // Which of these the viewer is already in, so a card can say so instead
-        // of inviting them to join something twice. A cancelled registration
-        // does not count, which is what isActive() is for.
+        // events the user already joined, so the card can show a "Joined" tag
         $joined = [];
 
         if ($viewerId !== null) {
@@ -47,11 +45,8 @@ final class DiscoveryController extends Controller
             'joined'      => $joined,
             'criteria'    => $criteria,
             'input'       => $_GET,
-            // The filter offers the sports that actually have games, so it can
-            // never be set to something that returns an empty page.
             'sports'      => $this->discovery->availableSports($viewerId),
-            // Distance filtering measures from the player's own saved position,
-            // so the form says as much when there is not one to measure from.
+            // used to disable the radius filter if the user has no saved location
             'hasPosition' => $this->discovery->hasKnownPosition($viewerId),
         ]);
     }
@@ -87,10 +82,8 @@ final class DiscoveryController extends Controller
             $this->redirect(url('discovery'));
         }
 
-        // Every join goes through checkout. The place is taken there, at the
-        // moment the fee is paid (or at once, for a free game), by this module's
-        // own registration guard - see PaymentService::takePlace(). Nothing is
-        // written before that, so a checkout page left open holds no seat.
+        // joining goes through the payment checkout, the registration is only
+        // written once the fee is paid (see PaymentService::takePlace)
         $this->redirect(
             'payment.php?action=participant&eventId=' . rawurlencode($eventId)
         );
@@ -115,9 +108,7 @@ final class DiscoveryController extends Controller
             $this->flash('error', $e->getMessage());
         }
 
-        // Leaving from an event's own page returns to it, so the button that was
-        // pressed is still on screen; from the participation list it returns
-        // there. Only an id travels, and it is only ever put back into a URL.
+        // go back to the event page if we came from there, otherwise My participation
         $this->redirect($eventId !== ''
             ? url('event', 'show', ['id' => $eventId])
             : url('discovery', 'mine'));

@@ -1,5 +1,5 @@
 <?php
-// Algorithmic recommendations. Author: Ng Jing Siang
+// Recommended for you page. Author: Ng Jing Siang
 
 use App\Domain\Discovery\EventFeedItem;
 
@@ -45,7 +45,6 @@ use App\Domain\Discovery\EventFeedItem;
                     </p>
                 <?php endif; ?>
 
-                <?php // Joining happens on the event's own page - same as the browse list. ?>
                 <div class="actions">
                     <a class="btn small" href="<?= e(url('event', 'show', ['id' => $event->eventId])) ?>">View</a>
                 </div>

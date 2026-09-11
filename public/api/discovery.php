@@ -37,19 +37,13 @@
  *                                 getParticipationHistory -> count, registrations[]
  *                                 getRecommendedEvents    -> count, events[]
  *
- * registration: eventId, eventName, sport, eventDate, status, registerTime,
- * available. The registration rows are this module's own; the event behind each
- * one is described by Event & Facility Management, asked with viewerId attached.
- * available is false when that module will not show the event to this viewer, or
- * is unreachable - the row is still returned, because the person did join it,
- * but eventName, sport and eventDate come back null.
- *
+ * registration: eventId, eventName, sport, eventDate, status, registerTime, available
+ *   (available = false if the Event module won't show that event to viewerId,
+ *    then eventName / sport / eventDate are null)
  * event: eventId, name, sport, eventDate, startTime, spacesLeft,
- * recommendationScore, recommendationReason.
+ *   recommendationScore, recommendationReason
  *
- * This module never exposes a member's own coordinates, on this endpoint or any
- * other - see the module's Software Security section (Access to Sensitive Data /
- * location privacy).
+ * User coordinates are never returned by this endpoint.
  */
 
 declare(strict_types=1);
@@ -107,8 +101,7 @@ try {
             Ifa::respond(Ifa::fail($requestId, 'userId is mandatory for getParticipationHistory.'), 400);
         }
 
-        // Optional: without it the rows still come back, but nothing can be said
-        // about events whose visibility depends on who is asking.
+        // optional, but without it friends-only events come back as unavailable
         $viewerId = is_string($request['viewerId'] ?? null) && $request['viewerId'] !== ''
             ? $request['viewerId']
             : null;

@@ -1,5 +1,5 @@
 <?php
-// Concrete builder: the full detail card used on the browse and recommended lists. Author: Ng Jing Siang
+// Builder pattern - concrete builder for the full event card. Author: Ng Jing Siang
 
 declare(strict_types=1);
 
@@ -39,8 +39,6 @@ final class EventCardBuilder implements EventFeedItemBuilder
         $this->spacesLeft        = isset($event['spacesLeft']) ? (int) $event['spacesLeft'] : null;
         $this->maxParticipants   = isset($event['maxParticipants']) ? (int) $event['maxParticipants'] : null;
         $this->feePerParticipant = isset($event['feePerParticipant']) ? (float) $event['feePerParticipant'] : null;
-        // Whose rule this is stays Event & Facility Management's; the card only
-        // repeats what that module already decided and says on its own listing.
         $this->visibility        = isset($event['visibility']) ? (string) $event['visibility'] : null;
 
         $facility = $event['facility'] ?? null;

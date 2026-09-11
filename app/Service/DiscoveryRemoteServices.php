@@ -8,18 +8,12 @@ namespace App\Service;
 use App\ServiceUnavailableException;
 
 /**
- * Every outbound call this module makes, in one place - mirrors
- * App\Service\RemoteServices in the neighbouring module.
+ * All web service calls this module makes to other modules.
  *
- *   listUpcomingEvents  Event & Facility Management  the browse/map/recommend feed
- *   getEventDetails     Event & Facility Management  what an event is, as this viewer may see it
- *   getUserProfile      User Authentication          favourite sport + home location for recommendations
- *   facilityRatings     Social Networking            star rating shown on the browse list, sortable
- *
- * getEventDetails is the important one: this module never re-implements Event &
- * Facility Management's Public/Friends-Only rule. It asks, with the viewer
- * attached, and takes S or F at face value - a refusal means "not visible to
- * this person right now", and a history row is marked unavailable accordingly.
+ *   listUpcomingEvents  Event module    events for browse / map / recommend
+ *   getEventDetails     Event module    one event, checked against the viewer
+ *   getUserProfile      User module     favourite sports + home location
+ *   getFacilityRatings  Social module   star ratings for the cards
  */
 final class DiscoveryRemoteServices
 {
@@ -53,12 +47,8 @@ final class DiscoveryRemoteServices
     }
 
     /**
-     * Refused (F) reads as "not visible to this viewer right now" - the same
-     * event.php the browse page uses, called again at the moment of the write
-     * instead of trusting whatever the page showed a moment ago.
-     *
-     * @return array<string,mixed>|null null when the event does not exist, is not
-     *         published, or is friends-only and this viewer is not a friend
+     * The Event module decides if this viewer can see the event. A refusal (F) comes back as null.
+     * @return array<string,mixed>|null
      */
     public function getEventDetails(string $eventId, ?string $viewerId): ?array
     {
@@ -74,13 +64,8 @@ final class DiscoveryRemoteServices
     }
 
     /**
-     * User Authentication & Profile Management rounds a player's coordinates to
-     * about a kilometre before this ever leaves their module (approxLatitude /
-     * approxLongitude) - the same "never hand out exact coordinates" rule this
-     * module's own Software Security section relies on for the map. Renamed to
-     * plain latitude/longitude here only so the rest of this module does not
-     * need to know or care whose API supplied the number.
-     *
+     * The User module only gives rounded coordinates (approxLatitude/approxLongitude).
+     * Renamed to latitude/longitude here for the rest of the module.
      * @return array{favoriteSports:string[],latitude:?float,longitude:?float}|null
      */
     public function userProfile(string $baseUserId): ?array
@@ -98,8 +83,7 @@ final class DiscoveryRemoteServices
         }
 
         return [
-            // A player may now list several favourite sports. Older responses
-            // carry only the single favoriteSport, so that is accepted too.
+            // favoriteSports is the new list, favoriteSport is the old single value
             'favoriteSports' => is_array($data['favoriteSports'] ?? null)
                 ? array_values(array_filter($data['favoriteSports'], 'is_string'))
                 : (isset($data['favoriteSport']) ? [(string) $data['favoriteSport']] : []),
@@ -109,11 +93,8 @@ final class DiscoveryRemoteServices
     }
 
     /**
-     * One call carrying every facility id on the page, not one call per row -
-     * same batching reason as RemoteServices::facilityRatings() in the
-     * neighbouring module. Ratings are decoration, so a failure here degrades
-     * to an empty column rather than breaking the feed.
-     *
+     * Ratings for all facilities on the page in one call. If the service is down
+     * we just show no ratings.
      * @param string[] $facilityIds
      * @return array<string,float> facilityId => average rating
      */

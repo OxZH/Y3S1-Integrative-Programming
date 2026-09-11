@@ -72,16 +72,8 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
 </div>
 
 <?php
-// js part - Discovery & Event Matchmaking owns joining, and this is the page a
-// player is on when they decide, so its one button lives here.
-//
-// The button follows the viewer's registration, not their role. An organiser is
-// usually playing too, and hiding this from them would strand anyone who is
-// both: they would sit in the player list and the headcount with no way out.
-// Hosting a game and being in it are separate facts.
-//
-// What the button does is still Discovery's to authorise - it re-checks
-// visibility and capacity on submit, so nothing here is trusted as permission.
+// js part - Join / Leave button (Discovery module). The button only shows the
+// current state, the real checks happen on submit in the payment flow.
 ?>
 <?php if ($status->isPublished() || $status->value === 'ONGOING'): ?>
     <div class="card toolbar toolbar-flush">
@@ -111,12 +103,10 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
             <span class="small muted">This game is full.</span>
         <?php else: ?>
             <?php
-            // Joining is a commitment to turn up, and to a fee when there is
-            // one, so the amount is named in the prompt rather than left for
-            // the player to remember from the panel above.
+            // show the fee in the confirm box so the user knows before clicking
             $joinPrompt = $event->getFeePerParticipant() > 0
                 ? sprintf(
-                    'Join this game? The fee is %s per player, and you are counted in from now on.',
+                    'Join this game? The fee is %s per player. You will be taken to checkout next.',
                     money($event->getFeePerParticipant())
                 )
                 : 'Join this game? You are counted in from now on, and the organiser will see you have joined.';
@@ -133,11 +123,7 @@ if ($status->isPublished() || $status->value === 'ONGOING') {
         <?php endif; ?>
     </div>
 <?php endif; ?>
-<?php
-// Who is in the game. The rows belong to Discovery & Event Matchmaking, so the
-// controller asks that module for one page of them rather than counting here.
-// Ten to a page: enough for a full side, short enough to read at a glance.
-?>
+<?php // js part - players list, 10 per page ?>
 <?php if ($playerPage['total'] > 0): ?>
     <h2>Players</h2>
 

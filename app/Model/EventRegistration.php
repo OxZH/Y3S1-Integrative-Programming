@@ -10,14 +10,9 @@ use App\RegistrationStatus;
 use DateTimeImmutable;
 
 /**
- * The row created when someone joins a game. Belongs entirely to the Discovery &
- * Event Matchmaking module - Event & Facility Management never reads or writes
- * this table, it only answers "is this event visible to you" over its own
- * web service.
- *
- * Relationships are exposed as object references (getUser/getEvent/getInvite),
- * not as raw ids, the same way Event and Facility do it in the neighbouring
- * module - see Core\Entity::resolve() for the lazy-loading mechanism.
+ * One row in EventRegistration, created when a user joins a game.
+ * Related records are exposed as objects (getUser/getEvent/getInvite),
+ * lazy loaded through Core\Entity::resolve().
  */
 class EventRegistration extends Entity
 {
@@ -81,9 +76,6 @@ class EventRegistration extends Entity
         $this->user = $user;
     }
 
-    // Note: this module's own copy of the event's shape (name, date, venue) - not
-    // the authority on whether it may be viewed. Visibility stays with the
-    // Event & Facility Management module's web service.
     public function getEvent(): ?Event
     {
         return $this->resolve('event');
@@ -115,10 +107,8 @@ class EventRegistration extends Entity
     }
 
     /**
-     * Re-activates a cancelled (or no-show) row for a second join, rather than
-     * a second row existing for the same (userId, eventId) pair - the database
-     * would refuse that anyway (uq_EventRegistration_user_event does not care
-     * about status, only the pair).
+     * Reuse a cancelled row when the user joins again. The (userId, eventId)
+     * unique key would block a second row anyway.
      */
     public function rejoin(?string $eventInviteId = null): void
     {

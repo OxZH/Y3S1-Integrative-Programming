@@ -54,12 +54,9 @@ final class Database
     {
         $pdo = self::getConnection();
 
-        // js part - already inside a transaction: run as part of it rather than
-        // open a second one, which PDO refuses. A mapper that guards its own
-        // write this way can then be called from a facade that is guarding a
-        // larger one - a paid registration is one such case, where the
-        // registration row and the payment row must land together or not at
-        // all. The outermost caller still owns the commit and the rollback.
+        // js part - if already in a transaction, just run inside it (PDO can't
+        // nest). Needed so PaymentService can call the registration mapper in
+        // one transaction. The outer caller does the commit/rollback.
         if ($pdo->inTransaction()) {
             return $work();
         }

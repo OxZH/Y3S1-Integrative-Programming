@@ -6,10 +6,8 @@ declare(strict_types=1);
 namespace App\Domain\Discovery;
 
 /**
- * Deliberately simple: two rules, both explainable in one sentence each, per the
- * module brief ("simple rules... favourite sport... how close"). Not a machine
- * learning model - the goal is a score a user could sanity-check for themselves,
- * and a reason string the UI can show next to it.
+ * Simple scoring: +50 if the sport is one of the user's favourites,
+ * +up to 30 depending on how close the venue is. Also returns a reason to show on the card.
  */
 final class RecommendationEngine
 {
@@ -17,11 +15,7 @@ final class RecommendationEngine
     private const MAX_DISTANCE_POINTS = 30.0;
 
     /**
-     * A player may list several favourite sports, so the event scores if it
-     * matches any one of them. Matching two is not worth more than matching
-     * one - an event only has one sport.
-     *
-     * @param string[]|string|null $favoriteSports one sport, a list, or nothing
+     * @param string[]|string|null $favoriteSports
      * @return array{0:float,1:?string} [score, reason]
      */
     public function score(string $eventSport, array|string|null $favoriteSports, ?float $distanceKm): array

@@ -18,11 +18,8 @@ use App\Service\DiscoveryRemoteServices;
 use App\ServiceUnavailableException;
 
 /**
- * Orchestration only, the same role EventManagementFacade plays in the
- * neighbouring module: one remote-services client, one mapper for the table
- * this module owns, the Builder machinery, and the transaction/ownership
- * boundary. This class is architecture, not the graded design pattern - that is
- * the Builder in App\Domain\Discovery.
+ * Main service class for the Discovery module.
+ * The design pattern for this module is the Builder in App\Domain\Discovery, not this class.
  */
 final class DiscoveryService
 {
@@ -31,13 +28,9 @@ final class DiscoveryService
     private EventFeedDirector $director;
     private RecommendationEngine $recommender;
 
-    /** viewerId => [latitude, longitude], so one page load asks the profile service once. */
+    // caches so each API is only called once per request
     private array $originCache = [];
-
-    /** "eventId|viewerId" => details or null, so a repeated event is asked about once. */
     private array $eventDetailsCache = [];
-
-    /** "sport|viewerId" => the feed, so the browse page and its sport list share one call. */
     private array $feedCache = [];
 
     public function __construct(
@@ -55,14 +48,12 @@ final class DiscoveryService
     /** @return EventFeedItem[] */
     public function browseEvents(FeedFilterCriteria $criteria, ?string $viewerId): array
     {
-        // "Within 10 km" needs somewhere to measure from, and that is the
-        // player's own saved position - never something they have to type.
+        // distance is measured from the user's saved location
         $criteria = $this->resolveOrigin($criteria, $viewerId);
 
         $events = $this->feed($criteria->sport, $viewerId);
 
-        // Batched - one call for every facility id on the page, rather than one
-        // call per event card.
+        // get all ratings in one call instead of one per card
         $ratings = $this->services->facilityRatings($this->facilityIdsOf($events));
 
         $items = [];
@@ -76,8 +67,7 @@ final class DiscoveryService
 
             $distance = $this->distanceTo($event, $criteria->latitude, $criteria->longitude);
 
-            // An event with no distance is out of range by definition once a
-            // radius was asked for - there is no evidence it is near.
+            // no distance means we can't tell if it's nearby, so skip it when a radius is set
             if ($criteria->radiusKm !== null && ($distance === null || $distance > $criteria->radiusKm)) {
                 continue;
             }
@@ -99,13 +89,8 @@ final class DiscoveryService
     }
 
     /**
-     * The sports actually on offer right now, for the browse page's filter.
-     *
-     * Taken from the events themselves rather than from the Sport enum, so the
-     * list never offers a sport that would return nothing. It shrinks and grows
-     * with what organisers have published, which is the point.
-     *
-     * @return string[] distinct, alphabetical
+     * Sports that currently have events, for the filter dropdown.
+     * @return string[]
      */
     public function availableSports(?string $viewerId): array
     {
@@ -123,7 +108,6 @@ final class DiscoveryService
         return $sports;
     }
 
-    /** Whether this viewer has a position on file at all, so the page can say so. */
     public function hasKnownPosition(?string $viewerId): bool
     {
         return $this->resolveOrigin(new FeedFilterCriteria(), $viewerId)->hasOrigin();
@@ -191,23 +175,11 @@ final class DiscoveryService
     }
 
     // -- participation --------------------------------------------------------
-    //
-    // Joining and leaving are not methods here. Every join goes through Venue
-    // Booking & Payment's checkout, and the place is taken at the moment the
-    // fee is paid - PaymentService::takePlace() calls this module's
-    // EventRegistrationMapper::registerIfSpaceAvailable() inside the payment
-    // transaction, so the row lock that keeps a full game full is held until
-    // the payment row is written too. Leaving is the same in reverse: the
-    // refund and EventRegistrationMapper::cancel() land together. This module
-    // still owns the table and the guard; it is simply not the entry point.
+    // Join/leave is not here. Joining goes through the payment checkout, and
+    // PaymentService calls EventRegistrationMapper::registerIfSpaceAvailable()
+    // once the fee is paid. Leaving does the refund and cancel() together.
 
-    /**
-     * The signed-in player's live registration for one event, or null.
-     *
-     * Event & Facility Management's own detail page asks this so its button can
-     * read "Join" or "Leave" rather than finding out on submit. Joining belongs
-     * to this module, so the answer comes from here.
-     */
+    /** The logged-in user's active registration for this event, or null. */
     public function myRegistrationFor(string $eventId): ?EventRegistration
     {
         $viewerId = Auth::id();
@@ -223,17 +195,10 @@ final class DiscoveryService
             : null;
     }
 
-    /** How many players an event's team sheet shows before it needs a second page. */
     public const PLAYERS_PER_PAGE = 10;
 
     /**
-     * One page of an event's team sheet.
-     *
-     * Who is in a game is this module's to answer - the registrations are its
-     * table - so Event & Facility Management's detail page asks rather than
-     * counting rows itself. The page number is clamped to something that exists,
-     * so ?players=999 lands on the last page instead of an empty card.
-     *
+     * One page of the players list. Page number is clamped, so ?players=999 just shows the last page.
      * @return array{players:EventRegistration[],total:int,page:int,pages:int}
      */
     public function playersFor(string $eventId, int $page = 1): array
@@ -254,26 +219,16 @@ final class DiscoveryService
         ];
     }
 
-    /** @return EventRegistration[] most recent first */
+    /** @return EventRegistration[] newest first */
     public function myParticipation(): array
     {
         return $this->registrations->findByUser(Auth::requireLogin()->getBaseUserId());
     }
 
     /**
-     * For the getParticipationHistory service, consumed by User Authentication &
-     * Profile Management.
-     *
-     * The registration rows are this module's own. What each event actually *is*
-     * belongs to Event & Facility Management, so it is asked - once per event,
-     * with the viewer attached - rather than read out of its tables. A refusal
-     * means "this person may no longer see that event": the row still appears,
-     * because they really did join it, but it is marked unavailable and carries
-     * no details.
-     *
-     * That visibility check lives here, not in the consuming module, because
-     * these rows are this module's to explain. A consumer gets one call and a
-     * straight answer instead of a lookup per row.
+     * Used by the getParticipationHistory web service (called by the User module).
+     * Event details come from the Event module with the viewerId, so if the viewer
+     * can no longer see that event the row comes back with available = false.
      *
      * @return array<int,array{eventId:string,eventName:?string,sport:?string,
      *         eventDate:?string,status:string,registerTime:string,available:bool}>
@@ -294,7 +249,10 @@ final class DiscoveryService
 
     // -----------------------------------------------------------------------
 
-    /** @param array<string,mixed> $event */
+    /**
+     * Haversine distance in km from the user to the event's venue.
+     * @param array<string,mixed> $event
+     */
     private function distanceTo(array $event, ?float $latitude, ?float $longitude): ?float
     {
         $facility = $event['facility'] ?? null;
@@ -329,12 +287,7 @@ final class DiscoveryService
         });
     }
 
-    /**
-     * Fills in where "within N km" is measured from: the viewer's own saved
-     * position, fetched once per request. An anonymous visitor, or an account
-     * whose address could not be placed, simply has no origin - the radius and
-     * the distance ordering then do not apply, rather than the page failing.
-     */
+    /** Get the user's saved location from their profile (once per request). */
     private function resolveOrigin(FeedFilterCriteria $criteria, ?string $viewerId): FeedFilterCriteria
     {
         if ($viewerId === null || $criteria->hasOrigin()) {
@@ -356,9 +309,6 @@ final class DiscoveryService
     }
 
     /**
-     * One history row: what this module knows for certain, plus whatever Event &
-     * Facility Management is willing to tell this viewer about the event.
-     *
      * @return array{eventId:string,eventName:?string,sport:?string,eventDate:?string,
      *         status:string,registerTime:string,available:bool}
      */
@@ -389,11 +339,8 @@ final class DiscoveryService
     }
 
     /**
-     * getEventDetails with the history's own failure rule. Joining fails closed
-     * when Event & Facility Management is unreachable, because that is a
-     * security decision; a history is a display, so an outage costs the row its
-     * details rather than emptying somebody's profile page.
-     *
+     * getEventDetails with caching. Returns null instead of throwing if the Event
+     * module is down, so the history page still loads.
      * @return array<string,mixed>|null
      */
     private function eventDetails(string $eventId, ?string $viewerId): ?array
@@ -414,11 +361,7 @@ final class DiscoveryService
     }
 
     /**
-     * listUpcomingEvents, remembered for the length of the request. Browsing and
-     * building the sport filter both want the feed, and with no sport chosen
-     * they want the same one - so the page asks Event & Facility Management
-     * once, not twice.
-     *
+     * listUpcomingEvents with caching (browse page and sport dropdown share one call).
      * @return array<int,array<string,mixed>>
      */
     private function feed(?string $sport, ?string $viewerId): array

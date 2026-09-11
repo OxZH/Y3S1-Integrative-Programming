@@ -40,11 +40,8 @@ final class EventController extends Controller
 
     // -- browsing -----------------------------------------------------------
 
-    // js part - index() rendered the temporary Upcoming games listing and has
-    // been removed with it. Browsing lives on Find a game, which reaches the
-    // same events through listVisibleEvents on this module's web service rather
-    // than through a second page. The facade method itself is untouched, since
-    // api/event.php still serves it.
+    // js part - index() (the old Upcoming games page) was removed, browsing is
+    // done on Find a game now. listVisibleEvents() is still used by api/event.php.
 
     public function mine(): void
     {
@@ -77,10 +74,7 @@ final class EventController extends Controller
             'blocker'      => $isHost ? $this->facade->explainPublicationBlockers($eventId) : null,
             'canDelete'    => $isHost && $this->facade->canHardDelete($eventId),
 
-            // js part - joining an event belongs to Discovery & Event
-            // Matchmaking, so that module is asked whether this viewer is
-            // already in, and who else is. Null covers "not joined" and "not
-            // signed in" alike, which is all the view needs to pick its button.
+            // js part - ask the Discovery module if this user has joined, and who else has
             'myRegistration' => $discovery->myRegistrationFor($eventId),
             'playerPage'     => $discovery->playersFor(
                 $eventId,

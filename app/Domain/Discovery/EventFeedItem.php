@@ -1,19 +1,14 @@
 <?php
-// The Builder's product. Author: Ng Jing Siang
+// Builder pattern - Product. Author: Ng Jing Siang
 
 declare(strict_types=1);
 
 namespace App\Domain\Discovery;
 
 /**
- * One event as shown on a Discovery screen. Deliberately not an Entity: nothing
- * here is written back to a table, it is assembled fresh on every request from
- * whatever combination of the event's own data, a distance, a rating and a
- * recommendation reason happens to be available.
- *
- * Every field is optional because the two builders in this namespace fill in
- * different subsets of them from the same construction steps - see
- * EventFeedItemBuilder.
+ * One event as shown on a Discovery page (card or map marker).
+ * Not an entity, nothing here is saved to the database.
+ * Most fields are optional because the two builders fill in different ones.
  */
 final class EventFeedItem
 {
@@ -26,7 +21,6 @@ final class EventFeedItem
         public readonly string $endTime,
         public readonly ?string $venueName = null,
         public readonly ?string $city = null,
-        /** Raw EventVisibility value. The card turns it into a tag; a map marker never carries it. */
         public readonly ?string $visibility = null,
         public readonly ?float $latitude = null,
         public readonly ?float $longitude = null,

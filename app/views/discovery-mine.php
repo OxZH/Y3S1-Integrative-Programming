@@ -1,7 +1,5 @@
 <?php
-// The participation pipeline's "my games" screen - also the data behind the
-// getParticipationHistory service consumed by User Authentication & Profile
-// Management's "Recently Participated History" tab. Author: Ng Jing Siang
+// My participation page. Author: Ng Jing Siang
 
 use App\Model\EventRegistration;
 

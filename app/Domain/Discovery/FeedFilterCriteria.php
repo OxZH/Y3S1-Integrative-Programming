@@ -1,22 +1,15 @@
 <?php
-// Browse filters, applied client-of-the-API-side. Author: Ng Jing Siang
+// Filters for the Find a game page. Author: Ng Jing Siang
 
 declare(strict_types=1);
 
 namespace App\Domain\Discovery;
 
 /**
- * Event & Facility Management's own listUpcomingEvents already filters by
- * sport. Everything else here (minimum spaces left, a radius, sort by
- * distance/rating) has no equivalent on that endpoint, so it is applied
- * to the array this module gets back, not as SQL - there is no local table to
- * put an ORDER BY against.
- *
- * The origin the radius measures from is NOT taken from the query string. A
- * player types "within 10 km", not a pair of coordinates; the coordinates come
- * from their own profile, and the facade fills them in with withOrigin() once
- * it knows who is asking. Anonymous visitors have no origin, so distance
- * filtering and sorting simply do not apply to them.
+ * Sport is filtered by the Event module's API. The rest (min spots, radius, sort)
+ * is applied here on the returned array, since there is no local events table.
+ * The user's coordinates are not taken from the URL, DiscoveryService fills them
+ * in from the profile with withOrigin().
  */
 final class FeedFilterCriteria
 {
@@ -34,7 +27,7 @@ final class FeedFilterCriteria
     ) {
     }
 
-    /** @param array<string,mixed> $input usually $_GET */
+    /** @param array<string,mixed> $input normally $_GET */
     public static function fromArray(array $input): self
     {
         $sortBy = is_string($input['sort'] ?? null) ? $input['sort'] : 'date';
@@ -55,7 +48,7 @@ final class FeedFilterCriteria
         );
     }
 
-    /** The same filters, measured from this point. Readonly, so it returns a copy. */
+    /** Returns a copy with the user's location set (properties are readonly). */
     public function withOrigin(?float $latitude, ?float $longitude): self
     {
         return new self(
@@ -75,7 +68,7 @@ final class FeedFilterCriteria
         return $this->latitude !== null && $this->longitude !== null;
     }
 
-    /** Distance is only a real ordering once there is somewhere to measure from. */
+    /** Sorting by distance only makes sense if we know where the user is. */
     public function effectiveSort(): string
     {
         return ($this->sortBy === 'distance' && !$this->hasOrigin()) ? 'date' : $this->sortBy;
