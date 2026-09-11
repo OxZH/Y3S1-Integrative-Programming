@@ -10,12 +10,16 @@ use App\Domain\AccountServiceInterface;
 use App\Domain\AccountServiceProxy;
 use App\Domain\ProfileImage;
 use App\Model\FacilityOwner;
+use App\Model\FriendConnectionMapper;
 use App\Model\User;
 use App\Security\Auth;
 use App\Security\PasswordPolicy;
 use App\Security\Validator;
 use App\Service\ParticipationHistory;
 use App\Sport;
+use App\Service\RemoteServices;
+use App\Service\ReviewService;
+use App\Service\RatingService;
 use App\ValidationException;
 
 /**
@@ -32,10 +36,21 @@ final class ProfileController extends Controller
     private const MINIMUM_AGE_YEARS = 3;
 
     private AccountServiceInterface $accounts;
+    private AccountServiceInterface $accounts;
+    private RemoteServices $services;
+    private ReviewService $reviews;
+    private RatingService $ratings;
 
-    public function __construct(?AccountServiceInterface $accounts = null)
-    {
+    public function __construct(
+        ?AccountServiceInterface $accounts = null,
+        ?RemoteServices $services = null,
+        ?ReviewService $reviews = null,
+        ?RatingService $ratings = null
+    ) {
         $this->accounts = $accounts ?? new AccountServiceProxy();
+        $this->services = $services ?? new RemoteServices();
+        $this->reviews = $reviews ?? new ReviewService();
+        $this->ratings = $ratings ?? new RatingService();
     }
 
     public function index(): void
@@ -211,6 +226,87 @@ final class ProfileController extends Controller
 
         $this->flash('success', 'Your account has been deactivated. Contact support if you want it back.');
         $this->redirect(url('auth'));
+    }
+
+    public function showOther(): void
+    {
+        $current = Auth::requireLogin();
+        $userId = $this->queryId() ?? $current->getBaseUserId();
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $isSelf = $userId === $current->getBaseUserId();
+        $account = $this->accounts->viewPublicProfile($userId, $current->getBaseUserId());
+        $connectionState = $isSelf
+            ? null
+            : (new FriendConnectionMapper())->connectionState($current->getBaseUserId(), $userId);
+        $history = [];
+
+        // Only players join events, so only they have a history to show.
+        if ($account instanceof User) {
+            $history = (new ParticipationHistory())->forUser($account->getBaseUserId());
+        }
+
+        $reviewData = $this->reviews->page('user', $userId, $page, $current->isAdmin());
+
+        $this->view('profile-public', [
+            'title'        => $account->getUsername(),
+            'account'      => $account,
+            'isSelf'       => $isSelf,
+            'connectionState' => $connectionState,
+            'history'      => $history,
+            'lastLoginAt'  => $_SESSION['_last_login_at'] ?? null,
+            'recentEvents' => $isSelf ? $this->accounts->securityHistory($account->getBaseUserId(), 8) : [],
+            'reviews'       => $reviewData['reviews'],
+            'reviewAuthors' => $reviewData['reviewAuthors'],
+            'reviewPage'    => $page,
+            'reviewPages'   => $reviewData['reviewPages'],
+            'isAdmin'       => $current->isAdmin(),
+            'isPlayer'       => $current->isPlayer(),
+            'userRatings'    => $this->ratings->userRating($current->getBaseUserId(), $userId),
+        ]);
+    }
+
+    public function sendFriendRequest(): void
+    {
+        $this->requirePostWithCsrf();
+
+        $current = Auth::requireLogin();
+        $targetId = is_string($_POST['userId'] ?? null) ? $_POST['userId'] : '';
+
+        if ($targetId === '' || $targetId === $current->getBaseUserId()) {
+            $this->flash('error', 'That friend request is not valid.');
+            $this->redirect(url('profile', 'showOther', ['id' => $targetId]));
+        }
+
+        $target = $this->accounts->viewPublicProfile($targetId, $current->getBaseUserId());
+        $created = (new FriendConnectionMapper())->sendRequest($current, $target);
+
+        $this->flash(
+            $created ? 'success' : 'error',
+            $created ? 'Friend request sent.' : 'A friend connection already exists.'
+        );
+        $this->redirect(url('profile', 'showOther', ['id' => $targetId]));
+    }
+
+    public function discover(): void
+    {
+        $current = Auth::requireLogin();
+        $query = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+        $users = $this->accounts->searchUsers($query, $current->getBaseUserId());
+
+        $friendIds = [];
+        foreach ((new FriendConnectionMapper())->findFriends($current) as $connection) {
+            $friend = $connection->getRequester()->getBaseUserId() === $current->getBaseUserId()
+                ? $connection->getAddressee()
+                : $connection->getRequester();
+            $friendIds[$friend->getBaseUserId()] = true;
+        }
+
+        $this->view('profile-discover', [
+            'title'     => 'Discover users',
+            'query'     => $query,
+            'users'     => $users,
+            'friendIds' => $friendIds,
+        ]);
     }
 
     /**

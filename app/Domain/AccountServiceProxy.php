@@ -84,6 +84,17 @@ final class AccountServiceProxy implements AccountServiceInterface
         return $this->real()->viewProfile($baseUserId);
     }
 
+    public function viewPublicProfile(string $requestedUserId, string $currentUserId): Account
+    {
+        return $this->real()->viewPublicProfile($requestedUserId, $currentUserId);
+    }
+
+    /** @return \App\Model\User[] */
+    public function searchUsers(string $query, ?string $excludeId = null): array
+    {
+        return $this->real()->searchUsers($query, $excludeId);
+    }
+
     /** @param array<string,mixed> $validated */
     public function updateProfile(string $baseUserId, array $validated): Account
     {

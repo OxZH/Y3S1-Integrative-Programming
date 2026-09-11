@@ -11,6 +11,10 @@ use App\Controller\EventController;
 use App\Controller\FacilityController;
 use App\Controller\LocationController;
 use App\Controller\ProfileController;
+
+use App\Controller\ReviewController;
+use App\Controller\RatingController;
+use App\Controller\FriendsController;
 use App\Core\View;
 use App\NotFoundException;
 use App\ServiceUnavailableException;
@@ -20,6 +24,7 @@ use App\ServiceUnavailableException;
  * $_GET instead would make any public method on any autoloadable class
  * reachable from the address bar.
  */
+
 $routes = [
     'facility' => [
         'class'   => FacilityController::class,
@@ -33,6 +38,10 @@ $routes = [
                       'publish', 'cancel', 'complete', 'delete',
                       'invite', 'invites', 'createInvite', 'revokeInvite'],
     ],
+    'friends' => [
+        'class'   => FriendsController::class,
+        'actions' => ['mine', 'incoming', 'pending', 'respond'],
+    ],
     // MODULE 2 - User Authentication & Profile Management (Ivan)
     'auth' => [
         'class'   => AuthController::class,
@@ -42,6 +51,14 @@ $routes = [
     'profile' => [
         'class'   => ProfileController::class,
         'actions' => ['index', 'edit', 'update', 'security', 'changePassword', 'deactivate'],
+    ],
+    'review' => [
+        'class'   => ReviewController::class,
+        'actions' => ['store', 'vote', 'moderate'],
+    ],
+    'rating' => [
+        'class'   => RatingController::class,
+        'actions' => ['store'],
     ],
     'admin' => [
         'class'   => AdminController::class,

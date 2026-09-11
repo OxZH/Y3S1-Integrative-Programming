@@ -15,14 +15,20 @@ use App\Security\EventFacilitySecurity;
 use App\Security\Validator;
 use App\ValidationException;
 use DateTimeImmutable;
+use App\Service\ReviewService;
+use App\Service\RatingService;
 
 final class FacilityController extends Controller
 {
     private EventManagementFacade $facade;
+    private ReviewService $reviews;
+    private RatingService $ratings;
 
-    public function __construct()
+    public function __construct(?ReviewService $reviews = null, ?RatingService $ratings = null)
     {
         $this->facade = new EventManagementFacade();
+        $this->reviews = $reviews ?? new ReviewService();
+        $this->ratings = $ratings ?? new RatingService();
     }
 
     public function show(): void
@@ -35,6 +41,9 @@ final class FacilityController extends Controller
 
         $facility = $this->facade->getFacility($facilityId);
         $date     = $this->requestedDate();
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $isAdmin = Auth::user()?->isAdmin() === true;
+        $reviewData = $this->reviews->page('facility', $facilityId, $page, $isAdmin);
 
         // The rating belongs to the Social Networking & Review module, so it is
         // asked for over their web service. Null means they have no score yet.
@@ -47,6 +56,12 @@ final class FacilityController extends Controller
             'events'   => $this->facade->listEventsAtFacility($facilityId),
             'slots'    => $this->facade->findOpenSlots($facilityId, $date, 2),
             'slotDate' => $date,
+            'reviews'       => $reviewData['reviews'],
+            'reviewAuthors' => $reviewData['reviewAuthors'],
+            'reviewPage'    => $page,
+            'reviewPages'   => $reviewData['reviewPages'],
+            'isAdmin'       => $isAdmin,
+            'currentRating' => Auth::id() === null ? null : $this->ratings->facilityRating(Auth::id(), $facilityId),
         ]);
     }
 

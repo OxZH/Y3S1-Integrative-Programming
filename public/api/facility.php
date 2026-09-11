@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
 use App\Domain\EventManagementFacade;
 use App\Domain\SearchCriteria;
+use App\Core\Database;
 use App\Model\Facility;
 use App\NotFoundException;
 use App\Service\Ifa;
@@ -120,6 +121,50 @@ try {
             ['count' => count($facilities), 'facilities' => $facilities],
             sprintf('%d facilities matched.', count($facilities))
         ));
+    }
+
+    if ($function === 'getFacilityRatings') {
+        $facilityIds = $request['facilityIds'] ?? null;
+
+        if (!is_array($facilityIds)) {
+            ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'facilityIds missing or invalid.');
+            Ifa::respond(Ifa::fail($requestId, 'facilityIds must be an array.'), 400);
+        }
+
+        $facilityIds = array_values(array_filter(
+            array_slice($facilityIds, 0, 100),
+            static fn(mixed $id): bool => is_string($id)
+                && preg_match('/^[A-Za-z0-9-]{1,36}$/', $id) === 1
+        ));
+
+        if ($facilityIds === []) {
+            ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
+            Ifa::respond(Ifa::success($requestId, ['ratings' => []], 'Nothing requested.'));
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($facilityIds as $index => $facilityId) {
+            $placeholder = ':facility' . $index;
+            $placeholders[] = $placeholder;
+            $params[$placeholder] = $facilityId;
+        }
+
+        $statement = Database::getConnection()->prepare(
+            'SELECT `facilityId`, AVG(`facilityRating`) AS average
+               FROM `FacilityRating`
+              WHERE `facilityId` IN (' . implode(', ', $placeholders) . ')
+              GROUP BY `facilityId`'
+        );
+        $statement->execute($params);
+
+        $ratings = [];
+        foreach ($statement->fetchAll() as $row) {
+            $ratings[(string) $row['facilityId']] = round((float) $row['average'], 1);
+        }
+
+        ServiceLog::finish($requestId, Ifa::STATUS_SUCCESS, 200);
+        Ifa::respond(Ifa::success($requestId, ['ratings' => $ratings], count($ratings) . ' rated.'));
     }
 
     ServiceLog::finish($requestId, Ifa::STATUS_FAIL, 400, 'Unknown function: ' . $function);

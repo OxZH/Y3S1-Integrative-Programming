@@ -4,6 +4,7 @@
 namespace App\Service;
 
 use App\Model\Account;
+use App\Model\FriendConnectionMapper;
 use App\ServiceUnavailableException;
 use DomainException;
 
@@ -18,10 +19,14 @@ use DomainException;
 final class RemoteServices
 {
     private ServiceClient $client;
+    private ?FriendConnectionMapper $friendConnections;
 
-    public function __construct(?ServiceClient $client = null)
-    {
-        $this->client = $client ?? new ServiceClient();
+    public function __construct(
+        ?ServiceClient $client = null,
+        ?FriendConnectionMapper $friendConnections = null
+    ) {
+        $this->client            = $client ?? new ServiceClient();
+        $this->friendConnections = $friendConnections;
     }
 
     // Contact details for a venue owner, falling back to the copy we already
@@ -133,16 +138,9 @@ final class RemoteServices
     // security decision, so the caller must handle the failure and fail closed.
     public function areFriends(string $userA, string $userB): bool
     {
-        $data = $this->client->call('friend', 'areFriends', [
-            'requesterId' => $userA,
-            'addresseeId' => $userB,
-        ]);
+        $this->friendConnections ??= new FriendConnectionMapper();
 
-        if ($this->client->refused($data)) {
-            return false;
-        }
-
-        return ($data['areFriends'] ?? false) === true;
+        return $this->friendConnections->areFriends($userA, $userB);
     }
 
     /** @return string[] */

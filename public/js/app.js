@@ -42,7 +42,7 @@
 
     function setUpVenuePreview() {
         var select = document.getElementById('facilityId');
-        var panel  = document.getElementById('venuePreview');
+        var panel = document.getElementById('venuePreview');
 
         if (!select || !panel) {
             return;
@@ -694,6 +694,164 @@
         setUpPasswordReveal();
         setUpDropzones();
         setUpLocationConfirm();
+    function setUpRatingWidgets() {
+        document.querySelectorAll('[data-rating-widget]').forEach(function (widget) {
+            var stars = widget.querySelectorAll('.rating-star:not([data-rating-star])');
+            var selectableStars = widget.querySelectorAll('[data-rating-star]');
+            var current = parseInt(widget.getAttribute('data-current-rating') || '0', 10);
+
+            function paint(value, preview) {
+                stars.forEach(function (star) {
+                    var selected = parseInt(star.value, 10) <= value;
+                    star.classList.toggle('is-preview', preview && selected);
+                    star.classList.toggle('is-selected', selected);
+                });
+            }
+
+            stars.forEach(function (star) {
+                star.addEventListener('mouseenter', function () {
+                    paint(parseInt(star.value, 10), true);
+                });
+            });
+
+            if (selectableStars.length > 0) {
+                widget.querySelectorAll('[data-rating-group]').forEach(function (group) {
+                    var groupStars = group.querySelectorAll('[data-rating-star]');
+                    var valueInput = group.querySelector('[data-rating-value]');
+                    var groupCurrent = parseInt(group.getAttribute('data-current-rating') || '0', 10);
+
+                    function paintGroup(value, preview) {
+                        groupStars.forEach(function (star) {
+                            var selected = parseInt(star.getAttribute('data-rating-star'), 10) <= value;
+                            star.classList.toggle('is-preview', preview && selected);
+                            star.classList.toggle('is-selected', selected);
+                        });
+                    }
+
+                    groupStars.forEach(function (star) {
+                        star.addEventListener('mouseenter', function () {
+                            paintGroup(parseInt(star.getAttribute('data-rating-star'), 10), true);
+                        });
+                        star.addEventListener('click', function () {
+                            groupCurrent = parseInt(star.getAttribute('data-rating-star'), 10);
+                            valueInput.value = groupCurrent;
+                            paintGroup(groupCurrent, false);
+                        });
+                    });
+
+                    group.addEventListener('mouseleave', function () {
+                        paintGroup(groupCurrent, false);
+                    });
+                });
+            } else {
+                widget.addEventListener('mouseleave', function () {
+                    paint(current, false);
+                });
+            }
+        });
+    }
+
+    function setUpRemovalReasons() {
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-remove-review]');
+
+            if (!button) {
+                return;
+            }
+
+            var form = button.closest('[data-remove-review-form]');
+            if (!form) {
+                return;
+            }
+
+            event.preventDefault();
+
+            var overlay = document.createElement('div');
+            overlay.className = 'moderation-modal';
+            var box = document.createElement('div');
+            box.className = 'moderation-modal-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-modal', 'true');
+            box.setAttribute('aria-labelledby', 'moderationReasonTitle');
+
+            var heading = document.createElement('h2');
+            heading.id = 'moderationReasonTitle';
+            heading.textContent = 'Reason for removal';
+
+            var label = document.createElement('label');
+            label.htmlFor = 'moderationReason';
+            label.textContent = 'Select a reason';
+
+            var select = document.createElement('select');
+            select.id = 'moderationReason';
+            select.required = true;
+            [
+                ['', 'Choose a reason'],
+                ['abusive_language', 'Abusive language'],
+                ['spam_or_repetitive', 'Spam or repetitive content'],
+                ['personal_information', 'Personal information'],
+                ['other', 'Other policy violation']
+            ].forEach(function (optionData) {
+                var option = document.createElement('option');
+                option.value = optionData[0];
+                option.textContent = optionData[1];
+                select.appendChild(option);
+            });
+
+            var actions = document.createElement('div');
+            actions.className = 'button-row moderation-modal-actions';
+
+            var cancel = document.createElement('button');
+            cancel.className = 'btn ghost small';
+            cancel.type = 'button';
+            cancel.textContent = 'Cancel';
+
+            var confirm = document.createElement('button');
+            confirm.className = 'btn danger small';
+            confirm.type = 'button';
+            confirm.disabled = true;
+            confirm.textContent = 'Remove review';
+
+            actions.appendChild(cancel);
+            actions.appendChild(confirm);
+            box.appendChild(heading);
+            box.appendChild(label);
+            box.appendChild(select);
+            box.appendChild(actions);
+            overlay.appendChild(box);
+
+            document.body.appendChild(overlay);
+            select.addEventListener('change', function () {
+                confirm.disabled = select.value === '';
+            });
+
+            function close() {
+                overlay.remove();
+            }
+
+            cancel.addEventListener('click', close);
+            confirm.addEventListener('click', function () {
+                if (select.value === '') {
+                    return;
+                }
+
+                var reason = form.querySelector('[name="removalReason"]') || document.createElement('input');
+                reason.type = 'hidden';
+                reason.name = 'removalReason';
+                reason.value = select.value;
+                form.appendChild(reason);
+                form.submit();
+            });
+
+            select.focus();
+        });
+    }
+
+    function start() {
+        setUpVenuePreview();
+        setUpRoleFields();
+        setUpRemovalReasons();
+        setUpRatingWidgets();
     }
 
     if (document.readyState === 'loading') {
@@ -701,4 +859,7 @@
     } else {
         start();
     }
-}());
+
+}
+})();
+

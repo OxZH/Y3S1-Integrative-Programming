@@ -10,6 +10,7 @@
     </div>
     <div class="toolbar">
         <a class="btn ghost" href="<?= e(url('admin', 'audit')) ?>">Security log</a>
+        <a class="btn ghost" href="<?= e(url('admin', 'spam')) ?>">Possible spam</a>
     </div>
 </div>
 

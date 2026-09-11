@@ -20,6 +20,21 @@ require_once __DIR__ . '/Exceptions.php';
 
 $GLOBALS['config'] = require dirname(__DIR__) . '/config.php';
 
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header(
+        "Content-Security-Policy: "
+            . "default-src 'self'; "
+            . "script-src 'self'; "
+            . "style-src 'self'; "
+            . "img-src 'self' https:; "
+            . "object-src 'none'; "
+            . "base-uri 'self'; "
+            . "frame-ancestors 'none'; "
+            . "form-action 'self'; "
+            . "require-trusted-types-for 'script'"
+    );
+}
+
 if (config('app.debug')) {
     error_reporting(E_ALL);
     ini_set('display_errors', '1');
